@@ -20,6 +20,10 @@
   align-items: center;
 }
 
+.logo-link {
+  text-decoration: none;
+}
+
 .logo {
   font-size: 1.25rem;
   font-weight: 700;

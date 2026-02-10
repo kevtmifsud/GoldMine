@@ -1,0 +1,122 @@
+.search {
+  max-width: 600px;
+  margin: 0 auto;
+  padding-top: 4rem;
+}
+
+.search__input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.search__input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.search__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(26, 54, 93, 0.1);
+}
+
+.search__button {
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+}
+
+.search__button:hover:not(:disabled) {
+  background: var(--color-primary-light);
+}
+
+.search__button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.search__candidates {
+  margin-top: 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.search__candidates-label {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.search__candidates-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.search__candidate {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.search__candidate:last-child {
+  border-bottom: none;
+}
+
+.search__candidate:hover {
+  background: var(--color-bg);
+}
+
+.search__candidate-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.search__candidate-badge--stock {
+  background: #ebf8ff;
+  color: #2b6cb0;
+}
+
+.search__candidate-badge--person {
+  background: #faf5ff;
+  color: #6b46c1;
+}
+
+.search__candidate-badge--dataset {
+  background: #f0fff4;
+  color: #276749;
+}
+
+.search__candidate-name {
+  font-size: 0.95rem;
+}
+
+.search__message {
+  margin-top: 1rem;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+}

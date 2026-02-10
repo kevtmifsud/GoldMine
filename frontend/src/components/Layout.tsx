@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import "../styles/layout.css";
 
@@ -9,7 +10,9 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="layout">
       <header className="header">
         <div className="header-left">
-          <h1 className="logo">GoldMine</h1>
+          <Link to="/" className="logo-link">
+            <h1 className="logo">GoldMine</h1>
+          </Link>
         </div>
         <div className="header-right">
           {user && (

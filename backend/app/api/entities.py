@@ -3,14 +3,17 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from app.api.entity_models import (
+    ChartConfig,
     ColumnConfig,
     EntityCandidate,
     EntityDetail,
     EntityField,
     EntityResolution,
+    FilterDefinition,
+    FilterOption,
     WidgetConfig,
 )
 from app.data_access.factory import get_data_provider
@@ -158,6 +161,20 @@ def _build_stock_detail(ticker: str) -> EntityDetail:
 
     widgets = [
         WidgetConfig(
+            widget_id="price_vs_peers",
+            title="Price vs Sector Peers",
+            endpoint=f"/api/entities/stock/{ticker}/peers",
+            widget_type="chart",
+            chart_config=ChartConfig(
+                chart_type="bar",
+                x_key="ticker",
+                y_key="market_cap_b",
+                x_label="Ticker",
+                y_label="Market Cap ($B)",
+            ),
+            columns=[],
+        ),
+        WidgetConfig(
             widget_id="related_people",
             title="Related People",
             endpoint=f"/api/entities/stock/{ticker}/people",
@@ -167,6 +184,17 @@ def _build_stock_detail(ticker: str) -> EntityDetail:
                 ColumnConfig(key="organization", label="Organization"),
                 ColumnConfig(key="type", label="Type"),
             ],
+            filter_definitions=[
+                FilterDefinition(
+                    field="type",
+                    label="Type",
+                    options=[
+                        FilterOption(value="executive", label="Executive"),
+                        FilterOption(value="analyst", label="Analyst"),
+                    ],
+                ),
+            ],
+            client_filterable_columns=["name", "organization"],
         ),
         WidgetConfig(
             widget_id="related_files",
@@ -177,6 +205,18 @@ def _build_stock_detail(ticker: str) -> EntityDetail:
                 ColumnConfig(key="type", label="Type"),
                 ColumnConfig(key="date", label="Date"),
                 ColumnConfig(key="description", label="Description"),
+            ],
+            filter_definitions=[
+                FilterDefinition(
+                    field="type",
+                    label="Type",
+                    options=[
+                        FilterOption(value="transcript", label="Transcript"),
+                        FilterOption(value="report", label="Report"),
+                        FilterOption(value="data_export", label="Data Export"),
+                        FilterOption(value="audio", label="Audio"),
+                    ],
+                ),
             ],
         ),
     ]
@@ -206,6 +246,20 @@ def _build_person_detail(person_id: str) -> EntityDetail:
 
     widgets = [
         WidgetConfig(
+            widget_id="coverage_by_sector",
+            title="Coverage by Sector",
+            endpoint=f"/api/entities/person/{person_id}/coverage-sectors",
+            widget_type="chart",
+            chart_config=ChartConfig(
+                chart_type="bar",
+                x_key="sector",
+                y_key="count",
+                x_label="Sector",
+                y_label="Stocks Covered",
+            ),
+            columns=[],
+        ),
+        WidgetConfig(
             widget_id="covered_stocks",
             title="Covered Stocks",
             endpoint=f"/api/entities/person/{person_id}/stocks",
@@ -217,6 +271,14 @@ def _build_person_detail(person_id: str) -> EntityDetail:
                 ColumnConfig(key="market_cap_b", label="Market Cap ($B)", format="number"),
                 ColumnConfig(key="pe_ratio", label="P/E Ratio", format="number"),
             ],
+            filter_definitions=[
+                FilterDefinition(
+                    field="sector",
+                    label="Sector",
+                    options=_get_sector_options(),
+                ),
+            ],
+            client_filterable_columns=["ticker", "company_name"],
         ),
     ]
 
@@ -261,15 +323,37 @@ def _build_dataset_detail(dataset_name: str) -> EntityDetail:
         except Exception:
             pass
 
-    widgets = [
-        WidgetConfig(
-            widget_id="dataset_contents",
-            title=f"{ds_meta.display_name} Contents",
-            endpoint=f"/api/data/{ds_meta.name}",
-            columns=columns,
-            default_page_size=20,
-        ),
-    ] if columns else []
+    widgets: list[WidgetConfig] = []
+    if columns:
+        filter_defs = _get_dataset_filter_definitions(ds_meta.name)
+        widgets.append(
+            WidgetConfig(
+                widget_id="dataset_contents",
+                title=f"{ds_meta.display_name} Contents",
+                endpoint=f"/api/data/{ds_meta.name}",
+                columns=columns,
+                default_page_size=20,
+                filter_definitions=filter_defs,
+            ),
+        )
+        # Add distribution chart for stocks dataset
+        if ds_meta.name.lower() == "stocks":
+            widgets.append(
+                WidgetConfig(
+                    widget_id="sector_distribution",
+                    title="Sector Distribution",
+                    endpoint=f"/api/entities/dataset/{ds_meta.name}/distribution?group_by=sector",
+                    widget_type="chart",
+                    chart_config=ChartConfig(
+                        chart_type="bar",
+                        x_key="sector",
+                        y_key="count",
+                        x_label="Sector",
+                        y_label="Number of Stocks",
+                    ),
+                    columns=[],
+                ),
+            )
 
     return EntityDetail(
         entity_type="dataset",
@@ -286,6 +370,7 @@ def _build_dataset_detail(dataset_name: str) -> EntityDetail:
 
 @router.get("/stock/{ticker}/people")
 async def get_stock_people(
+    request: Request,
     ticker: str,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=200),
@@ -306,11 +391,12 @@ async def get_stock_people(
         if ticker_upper in [t.strip() for t in p.get("tickers", "").split(";")]
     ]
 
-    return _paginate(filtered, page, page_size, sort_by, sort_order)
+    return _paginate(filtered, page, page_size, sort_by, sort_order, _extract_filters(request))
 
 
 @router.get("/stock/{ticker}/files")
 async def get_stock_files(
+    request: Request,
     ticker: str,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=200),
@@ -339,11 +425,12 @@ async def get_stock_files(
         if ticker_upper in f.tickers
     ]
 
-    return _paginate(filtered, page, page_size, sort_by, sort_order)
+    return _paginate(filtered, page, page_size, sort_by, sort_order, _extract_filters(request))
 
 
 @router.get("/person/{person_id}/stocks")
 async def get_person_stocks(
+    request: Request,
     person_id: str,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=200),
@@ -367,7 +454,74 @@ async def get_person_stocks(
         if stock:
             stock_records.append(stock)
 
-    return _paginate(stock_records, page, page_size, sort_by, sort_order)
+    return _paginate(stock_records, page, page_size, sort_by, sort_order, _extract_filters(request))
+
+
+# ---------------------------------------------------------------------------
+# Chart data endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/stock/{ticker}/peers")
+async def get_stock_peers(ticker: str) -> PaginatedResponse:
+    provider = get_data_provider()
+    stock = provider.get_record("stocks", ticker)
+    if stock is None:
+        raise NotFoundError(f"Stock '{ticker}' not found")
+
+    sector = stock.get("sector", "")
+    all_stocks = provider.query("stocks", FilterParams(page=1, page_size=200)).data
+    peers = [s for s in all_stocks if s.get("sector") == sector]
+    peers.sort(key=lambda s: float(s.get("market_cap_b", 0) or 0), reverse=True)
+
+    return _paginate(peers, 1, 200, None, "asc")
+
+
+@router.get("/person/{person_id}/coverage-sectors")
+async def get_person_coverage_sectors(person_id: str) -> PaginatedResponse:
+    provider = get_data_provider()
+    person = provider.get_record("people", person_id)
+    if person is None:
+        raise NotFoundError(f"Person '{person_id}' not found")
+
+    tickers_str = person.get("tickers", "")
+    ticker_list = [t.strip() for t in tickers_str.split(";") if t.strip()]
+
+    sector_counts: dict[str, int] = {}
+    for ticker in ticker_list:
+        stock = provider.get_record("stocks", ticker)
+        if stock:
+            sector = stock.get("sector", "Unknown")
+            sector_counts[sector] = sector_counts.get(sector, 0) + 1
+
+    data = [{"sector": s, "count": str(c)} for s, c in sorted(sector_counts.items())]
+    return _paginate(data, 1, 200, None, "asc")
+
+
+@router.get("/dataset/{dataset_name}/distribution")
+async def get_dataset_distribution(
+    dataset_name: str,
+    group_by: str = Query(..., min_length=1),
+) -> PaginatedResponse:
+    provider = get_data_provider()
+
+    # Verify dataset exists
+    datasets = provider.list_datasets()
+    ds_meta = None
+    for ds in datasets:
+        if ds.name.lower() == dataset_name.lower():
+            ds_meta = ds
+            break
+    if ds_meta is None:
+        raise NotFoundError(f"Dataset '{dataset_name}' not found")
+
+    all_data = provider.query(ds_meta.name, FilterParams(page=1, page_size=200)).data
+    counts: dict[str, int] = {}
+    for row in all_data:
+        val = str(row.get(group_by, "Unknown") or "Unknown")
+        counts[val] = counts.get(val, 0) + 1
+
+    data = [{group_by: k, "count": str(v)} for k, v in sorted(counts.items())]
+    return _paginate(data, 1, 200, None, "asc")
 
 
 # ---------------------------------------------------------------------------
@@ -382,13 +536,65 @@ def _sort_key(value: Any) -> Any:
         return str(value).lower()
 
 
+_KNOWN_PARAMS = {"page", "page_size", "sort_by", "sort_order", "search"}
+
+
+def _extract_filters(request: Request) -> dict[str, str]:
+    return {k: v for k, v in request.query_params.items() if k not in _KNOWN_PARAMS}
+
+
+def _get_sector_options() -> list[FilterOption]:
+    provider = get_data_provider()
+    stocks = provider.query("stocks", FilterParams(page=1, page_size=200)).data
+    sectors = sorted({s.get("sector", "") for s in stocks if s.get("sector")})
+    return [FilterOption(value=s, label=s) for s in sectors]
+
+
+def _get_exchange_options() -> list[FilterOption]:
+    provider = get_data_provider()
+    stocks = provider.query("stocks", FilterParams(page=1, page_size=200)).data
+    exchanges = sorted({s.get("exchange", "") for s in stocks if s.get("exchange")})
+    return [FilterOption(value=e, label=e) for e in exchanges]
+
+
+def _get_dataset_filter_definitions(dataset_name: str) -> list[FilterDefinition]:
+    name_lower = dataset_name.lower()
+    if name_lower == "stocks":
+        return [
+            FilterDefinition(
+                field="sector", label="Sector", options=_get_sector_options(),
+            ),
+            FilterDefinition(
+                field="exchange", label="Exchange", options=_get_exchange_options(),
+            ),
+        ]
+    elif name_lower == "people":
+        return [
+            FilterDefinition(
+                field="type",
+                label="Type",
+                options=[
+                    FilterOption(value="analyst", label="Analyst"),
+                    FilterOption(value="executive", label="Executive"),
+                ],
+            ),
+        ]
+    return []
+
+
 def _paginate(
     data: list[dict[str, Any]],
     page: int,
     page_size: int,
     sort_by: str | None,
     sort_order: str,
+    filters: dict[str, str] | None = None,
 ) -> PaginatedResponse:
+    # Apply filters (exact match)
+    if filters:
+        for field, value in filters.items():
+            data = [r for r in data if str(r.get(field, "")).lower() == value.lower()]
+
     # Sort
     if sort_by and data:
         reverse = sort_order == "desc"

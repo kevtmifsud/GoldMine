@@ -19,11 +19,33 @@ export interface EntityField {
   format: string; // "currency" | "percent" | "number" | "text"
 }
 
+export interface FilterOption {
+  value: string;
+  label: string;
+}
+
+export interface FilterDefinition {
+  field: string;
+  label: string;
+  filter_type: string;
+  options: FilterOption[];
+}
+
+export interface ChartConfig {
+  chart_type: string; // "bar" | "line"
+  x_key: string;
+  y_key: string;
+  x_label: string;
+  y_label: string;
+  color: string;
+}
+
 export interface ColumnConfig {
   key: string;
   label: string;
   format: string;
   sortable: boolean;
+  visible: boolean;
 }
 
 export interface WidgetConfig {
@@ -32,6 +54,10 @@ export interface WidgetConfig {
   endpoint: string;
   columns: ColumnConfig[];
   default_page_size: number;
+  widget_type: string;
+  chart_config: ChartConfig | null;
+  filter_definitions: FilterDefinition[];
+  client_filterable_columns: string[];
 }
 
 export interface EntityDetail {

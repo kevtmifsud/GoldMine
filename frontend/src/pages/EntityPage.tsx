@@ -4,7 +4,7 @@ import api from "../config/api";
 import type { EntityDetail } from "../types/entities";
 import { Layout } from "../components/Layout";
 import { EntityHeader } from "../components/EntityHeader";
-import { SmartlistWidget } from "../components/SmartlistWidget";
+import { WidgetContainer } from "../components/WidgetContainer";
 import "../styles/entity.css";
 
 export function EntityPage() {
@@ -57,7 +57,7 @@ export function EntityPage() {
             />
             <div className="entity-page__widgets">
               {detail.widgets.map((widget) => (
-                <SmartlistWidget key={widget.widget_id} config={widget} />
+                <WidgetContainer key={widget.widget_id} config={widget} />
               ))}
             </div>
           </>

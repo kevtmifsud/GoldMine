@@ -24,11 +24,33 @@ class EntityField(BaseModel):
     format: str = "text"  # "currency", "percent", "number", "text"
 
 
+class FilterOption(BaseModel):
+    value: str
+    label: str
+
+
+class FilterDefinition(BaseModel):
+    field: str
+    label: str
+    filter_type: str = "select"
+    options: list[FilterOption] = Field(default_factory=list)
+
+
+class ChartConfig(BaseModel):
+    chart_type: str  # "bar" or "line"
+    x_key: str
+    y_key: str
+    x_label: str
+    y_label: str
+    color: str = "#2a4a7f"
+
+
 class ColumnConfig(BaseModel):
     key: str
     label: str
     format: str = "text"
     sortable: bool = True
+    visible: bool = True
 
 
 class WidgetConfig(BaseModel):
@@ -37,6 +59,10 @@ class WidgetConfig(BaseModel):
     endpoint: str
     columns: list[ColumnConfig]
     default_page_size: int = 10
+    widget_type: str = "table"
+    chart_config: ChartConfig | None = None
+    filter_definitions: list[FilterDefinition] = Field(default_factory=list)
+    client_filterable_columns: list[str] = Field(default_factory=list)
 
 
 class EntityDetail(BaseModel):

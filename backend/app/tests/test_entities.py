@@ -97,9 +97,10 @@ async def test_stock_detail(authed_client):
     assert data["entity_id"] == "AAPL"
     assert "Apple" in data["display_name"]
     assert len(data["header_fields"]) > 0
-    assert len(data["widgets"]) == 2
+    assert len(data["widgets"]) == 3
     # Check widget configs
     widget_ids = [w["widget_id"] for w in data["widgets"]]
+    assert "price_vs_peers" in widget_ids
     assert "related_people" in widget_ids
     assert "related_files" in widget_ids
 
@@ -112,8 +113,10 @@ async def test_person_detail(authed_client):
     assert data["entity_type"] == "person"
     assert data["entity_id"] == "PER-001"
     assert len(data["header_fields"]) > 0
-    assert len(data["widgets"]) == 1
-    assert data["widgets"][0]["widget_id"] == "covered_stocks"
+    assert len(data["widgets"]) == 2
+    widget_ids = [w["widget_id"] for w in data["widgets"]]
+    assert "coverage_by_sector" in widget_ids
+    assert "covered_stocks" in widget_ids
 
 
 @pytest.mark.asyncio
@@ -124,8 +127,10 @@ async def test_dataset_detail(authed_client):
     assert data["entity_type"] == "dataset"
     assert data["entity_id"] == "stocks"
     assert data["display_name"] == "Stock Universe"
-    assert len(data["widgets"]) == 1
-    assert data["widgets"][0]["widget_id"] == "dataset_contents"
+    assert len(data["widgets"]) == 2
+    widget_ids = [w["widget_id"] for w in data["widgets"]]
+    assert "dataset_contents" in widget_ids
+    assert "sector_distribution" in widget_ids
     # Columns should be derived from CSV headers
     assert len(data["widgets"][0]["columns"]) > 0
 

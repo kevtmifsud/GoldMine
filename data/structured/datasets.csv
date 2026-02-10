@@ -1,0 +1,11 @@
+dataset_id,name,display_name,description,record_count,id_field,category
+DS-001,stocks,Stock Universe,Core stock universe with fundamentals,75,ticker,market_data
+DS-002,people,People Directory,Executives and analysts,40,person_id,contacts
+DS-003,sectors,Sector Reference,Sector and industry taxonomy,10,sector,reference
+DS-004,watchlists,Watchlists,Portfolio manager watchlists,0,watchlist_id,portfolio
+DS-005,meetings,Meeting Notes,Research meeting records,0,meeting_id,research
+DS-006,ratings,Analyst Ratings,Internal analyst ratings and targets,0,rating_id,research
+DS-007,portfolios,Portfolios,Portfolio holdings and allocations,0,portfolio_id,portfolio
+DS-008,events,Corporate Events,"Earnings calls, conferences, filings",0,event_id,market_data
+DS-009,macro,Macro Indicators,Macroeconomic data points,0,indicator_id,market_data
+DS-010,filings,SEC Filings,SEC filing metadata,0,filing_id,compliance

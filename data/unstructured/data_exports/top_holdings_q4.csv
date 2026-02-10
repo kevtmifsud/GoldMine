@@ -1,0 +1,4 @@
+ticker,weight,shares,cost_basis,market_value
+AAPL,8.5,10000,145.20,182.50
+MSFT,7.2,5000,310.40,378.90
+NVDA,6.8,3000,420.10,520.30

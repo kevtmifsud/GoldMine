@@ -1,25 +1,37 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import api from "../config/api";
-import type { WidgetConfig, PaginatedResponse } from "../types/entities";
+import type { WidgetConfig, PaginatedResponse, WidgetStateOverride } from "../types/entities";
 import { Pagination } from "./Pagination";
 import "../styles/smartlist.css";
 
 interface SmartlistWidgetProps {
   config: WidgetConfig;
+  onStateChange?: () => void;
 }
 
-export function SmartlistWidget({ config }: SmartlistWidgetProps) {
+export interface SmartlistWidgetHandle {
+  getState: () => WidgetStateOverride;
+}
+
+export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidgetProps>(
+  function SmartlistWidget({ config, onStateChange }, ref) {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [sortBy, setSortBy] = useState<string | null>(config.initial_sort_by ?? null);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(
+    (config.initial_sort_order as "asc" | "desc") ?? "asc"
+  );
 
-  // Server-side filters
-  const [serverFilters, setServerFilters] = useState<Record<string, string>>({});
+  // Server-side filters — initialize from overrides if present
+  const [serverFilters, setServerFilters] = useState<Record<string, string>>(
+    () => (config.initial_filters && Object.keys(config.initial_filters).length > 0
+      ? { ...config.initial_filters }
+      : {})
+  );
 
   // Client-side quick filter
   const [clientFilterText, setClientFilterText] = useState("");
@@ -30,6 +42,30 @@ export function SmartlistWidget({ config }: SmartlistWidgetProps) {
   );
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const columnPickerRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(false);
+
+  // Notify parent when user changes widget state
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    onStateChange?.();
+  }, [serverFilters, sortBy, sortOrder, visibleColumns]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Expose state to parent via ref
+  useImperativeHandle(ref, () => ({
+    getState(): WidgetStateOverride {
+      return {
+        widget_id: config.widget_id,
+        server_filters: { ...serverFilters },
+        sort_by: sortBy,
+        sort_order: sortOrder,
+        visible_columns: Array.from(visibleColumns),
+        page_size: config.default_page_size,
+      };
+    },
+  }));
 
   const fetchData = useCallback(
     async (p: number, sb: string | null, so: string, filters: Record<string, string>) => {
@@ -150,7 +186,12 @@ export function SmartlistWidget({ config }: SmartlistWidgetProps) {
   return (
     <div className="smartlist">
       <div className="smartlist__header">
-        <h3 className="smartlist__title">{config.title}</h3>
+        <h3 className="smartlist__title">
+          {config.title}
+          {config.has_overrides && (
+            <span className="smartlist__override-badge">modified</span>
+          )}
+        </h3>
         {hasColumnToggle && (
           <div className="smartlist__column-toggle" ref={columnPickerRef}>
             <button
@@ -266,4 +307,5 @@ export function SmartlistWidget({ config }: SmartlistWidgetProps) {
       )}
     </div>
   );
-}
+  }
+);

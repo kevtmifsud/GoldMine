@@ -127,15 +127,25 @@ async def resolve_entity(q: str = Query(..., min_length=1)) -> EntityResolution:
 # ---------------------------------------------------------------------------
 
 @router.get("/{entity_type}/{entity_id}")
-async def get_entity_detail(entity_type: str, entity_id: str) -> EntityDetail:
+async def get_entity_detail(
+    request: Request,
+    entity_type: str,
+    entity_id: str,
+    view_id: str | None = Query(default=None),
+) -> EntityDetail:
     if entity_type == "stock":
-        return _build_stock_detail(entity_id)
+        detail = _build_stock_detail(entity_id)
     elif entity_type == "person":
-        return _build_person_detail(entity_id)
+        detail = _build_person_detail(entity_id)
     elif entity_type == "dataset":
-        return _build_dataset_detail(entity_id)
+        detail = _build_dataset_detail(entity_id)
     else:
         raise NotFoundError(f"Unknown entity type: {entity_type}")
+
+    if view_id:
+        detail = _apply_view_overrides(detail, view_id, request.state.user.username)
+
+    return detail
 
 
 def _build_stock_detail(ticker: str) -> EntityDetail:
@@ -534,6 +544,42 @@ def _sort_key(value: Any) -> Any:
         return float(value)
     except (ValueError, TypeError):
         return str(value).lower()
+
+
+def _apply_view_overrides(detail: EntityDetail, view_id: str, username: str) -> EntityDetail:
+    from app.views.factory import get_views_provider
+
+    provider = get_views_provider()
+    view = provider.get_view(view_id)
+    if view is None:
+        raise NotFoundError(f"View '{view_id}' not found")
+    if view.owner != username and not view.is_shared:
+        raise NotFoundError(f"View '{view_id}' not found")
+    if view.entity_type != detail.entity_type or view.entity_id != detail.entity_id:
+        raise NotFoundError(f"View '{view_id}' does not belong to this entity")
+
+    for override in view.widget_overrides:
+        for widget in detail.widgets:
+            if widget.widget_id == override.widget_id:
+                if override.visible_columns is not None:
+                    for col in widget.columns:
+                        col.visible = col.key in override.visible_columns
+                if override.page_size is not None:
+                    widget.default_page_size = override.page_size
+                if override.server_filters:
+                    widget.initial_filters = override.server_filters
+                    widget.has_overrides = True
+                if override.sort_by is not None:
+                    widget.initial_sort_by = override.sort_by
+                    widget.has_overrides = True
+                if override.sort_order is not None:
+                    widget.initial_sort_order = override.sort_order
+                    widget.has_overrides = True
+                break
+
+    detail.active_view_id = view.view_id
+    detail.active_view_name = view.name
+    return detail
 
 
 _KNOWN_PARAMS = {"page", "page_size", "sort_by", "sort_order", "search"}

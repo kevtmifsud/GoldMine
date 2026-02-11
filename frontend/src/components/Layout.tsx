@@ -13,6 +13,11 @@ export function Layout({ children }: { children: ReactNode }) {
           <Link to="/" className="logo-link">
             <h1 className="logo">GoldMine</h1>
           </Link>
+          {user && (
+            <nav className="header-nav">
+              <Link to="/packs" className="header-nav__link">My Packs</Link>
+            </nav>
+          )}
         </div>
         <div className="header-right">
           {user && (

@@ -10,6 +10,7 @@ from app.api.health import router as health_router
 from app.api.data import router as data_router
 from app.api.files import router as files_router
 from app.api.entities import router as entities_router
+from app.api.views import router as views_router
 from app.auth.router import router as auth_router
 from app.auth.middleware import AuthMiddleware
 
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
     application.include_router(data_router)
     application.include_router(files_router)
     application.include_router(entities_router)
+    application.include_router(views_router)
 
     logger.info("app_started", env=settings.ENV)
     return application

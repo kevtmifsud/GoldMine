@@ -58,6 +58,10 @@ export interface WidgetConfig {
   chart_config: ChartConfig | null;
   filter_definitions: FilterDefinition[];
   client_filterable_columns: string[];
+  has_overrides: boolean;
+  initial_filters: Record<string, string>;
+  initial_sort_by: string | null;
+  initial_sort_order: string | null;
 }
 
 export interface EntityDetail {
@@ -66,6 +70,8 @@ export interface EntityDetail {
   display_name: string;
   header_fields: EntityField[];
   widgets: WidgetConfig[];
+  active_view_id: string | null;
+  active_view_name: string | null;
 }
 
 export interface PaginatedResponse<T = Record<string, unknown>> {
@@ -76,4 +82,74 @@ export interface PaginatedResponse<T = Record<string, unknown>> {
   total_pages: number;
   has_next: boolean;
   has_previous: boolean;
+}
+
+// --- Views & Packs ---
+
+export interface WidgetStateOverride {
+  widget_id: string;
+  server_filters: Record<string, string>;
+  sort_by: string | null;
+  sort_order: string | null;
+  visible_columns: string[] | null;
+  page_size: number | null;
+}
+
+export interface SavedView {
+  view_id: string;
+  name: string;
+  owner: string;
+  entity_type: string;
+  entity_id: string;
+  widget_overrides: WidgetStateOverride[];
+  is_shared: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SavedViewCreate {
+  name: string;
+  entity_type: string;
+  entity_id: string;
+  widget_overrides: WidgetStateOverride[];
+  is_shared: boolean;
+}
+
+export interface SavedViewUpdate {
+  name?: string;
+  widget_overrides?: WidgetStateOverride[];
+  is_shared?: boolean;
+}
+
+export interface PackWidgetRef {
+  source_entity_type: string;
+  source_entity_id: string;
+  widget_id: string;
+  title_override: string | null;
+  overrides: WidgetStateOverride | null;
+}
+
+export interface AnalystPack {
+  pack_id: string;
+  name: string;
+  owner: string;
+  description: string;
+  widgets: PackWidgetRef[];
+  is_shared: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AnalystPackCreate {
+  name: string;
+  description: string;
+  widgets: PackWidgetRef[];
+  is_shared: boolean;
+}
+
+export interface AnalystPackUpdate {
+  name?: string;
+  description?: string;
+  widgets?: PackWidgetRef[];
+  is_shared?: boolean;
 }

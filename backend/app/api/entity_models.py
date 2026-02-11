@@ -63,6 +63,10 @@ class WidgetConfig(BaseModel):
     chart_config: ChartConfig | None = None
     filter_definitions: list[FilterDefinition] = Field(default_factory=list)
     client_filterable_columns: list[str] = Field(default_factory=list)
+    has_overrides: bool = False
+    initial_filters: dict[str, str] = Field(default_factory=dict)
+    initial_sort_by: str | None = None
+    initial_sort_order: str | None = None
 
 
 class EntityDetail(BaseModel):
@@ -71,3 +75,5 @@ class EntityDetail(BaseModel):
     display_name: str
     header_fields: list[EntityField]
     widgets: list[WidgetConfig]
+    active_view_id: str | None = None
+    active_view_name: str | None = None

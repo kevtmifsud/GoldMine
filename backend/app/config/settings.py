@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     STORAGE_PROVIDER: str = "local"
     DATA_DIR: str = "../data/structured"
     STORAGE_DIR: str = "../data/unstructured"
+    VIEWS_DIR: str = "../data/views"
     LOG_LEVEL: str = "DEBUG"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 8

@@ -1,0 +1,174 @@
+/* View Toolbar */
+.view-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.view-toolbar__select {
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  min-width: 180px;
+}
+
+.view-toolbar__select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.view-toolbar__btn {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.view-toolbar__btn:hover {
+  background: var(--color-bg);
+  border-color: var(--color-primary);
+}
+
+.view-toolbar__btn--primary {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.view-toolbar__btn--primary:hover {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary-light);
+}
+
+.view-toolbar__btn--danger {
+  color: var(--color-error);
+}
+
+.view-toolbar__btn--danger:hover {
+  border-color: var(--color-error);
+}
+
+/* Save View Dialog */
+.save-dialog__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.save-dialog {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 400px;
+}
+
+.save-dialog__title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.save-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 1rem;
+}
+
+.save-dialog__field label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.save-dialog__input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.save-dialog__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.save-dialog__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-bottom: 1.25rem;
+}
+
+.save-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.save-dialog__btn {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+}
+
+.save-dialog__btn--cancel {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.save-dialog__btn--cancel:hover {
+  background: var(--color-bg);
+}
+
+.save-dialog__btn--save {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.save-dialog__btn--save:hover:not(:disabled) {
+  background: var(--color-primary-light);
+}
+
+.save-dialog__btn--save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Override badge in smartlist header */
+.smartlist__override-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-accent);
+  background: rgba(212, 168, 67, 0.12);
+  border: 1px solid rgba(212, 168, 67, 0.3);
+  border-radius: 4px;
+  vertical-align: middle;
+}

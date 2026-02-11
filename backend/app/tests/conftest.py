@@ -7,9 +7,12 @@ os.environ["GOLDMINE_SECRET_KEY"] = "test-secret-key"
 os.environ["GOLDMINE_DATA_DIR"] = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "structured")
 os.environ["GOLDMINE_STORAGE_DIR"] = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "unstructured")
 
-# Create a temp directory for views data during tests
+# Create temp directories for views and documents data during tests
 _views_tmpdir = tempfile.mkdtemp(prefix="goldmine_views_test_")
 os.environ["GOLDMINE_VIEWS_DIR"] = _views_tmpdir
+
+_docs_tmpdir = tempfile.mkdtemp(prefix="goldmine_docs_test_")
+os.environ["GOLDMINE_DOCUMENTS_DIR"] = _docs_tmpdir
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -20,6 +23,9 @@ from app.main import create_app
 import app.data_access.factory as daf
 import app.object_storage.factory as osf
 import app.views.factory as vf
+import app.documents.factory as docf
+import app.llm.factory as llmf
+import app.api.documents as docs_api
 
 
 @pytest.fixture(autouse=True)
@@ -27,9 +33,15 @@ def _reset_providers():
     daf._provider = None
     osf._provider = None
     vf._provider = None
+    docf._provider = None
+    llmf._provider = None
+    docs_api._indexed_existing = False
     # Clean views files between tests
     import glob
     for f in glob.glob(os.path.join(_views_tmpdir, "*.json")):
+        os.remove(f)
+    # Clean documents index between tests
+    for f in glob.glob(os.path.join(_docs_tmpdir, "*.json")):
         os.remove(f)
     yield
 

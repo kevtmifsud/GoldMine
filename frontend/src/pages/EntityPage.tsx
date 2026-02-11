@@ -8,6 +8,8 @@ import { EntityHeader } from "../components/EntityHeader";
 import { WidgetContainer } from "../components/WidgetContainer";
 import { ViewToolbar } from "../components/ViewToolbar";
 import { SaveViewDialog } from "../components/SaveViewDialog";
+import { DocumentsPanel } from "../components/DocumentsPanel";
+import { LLMQueryPanel } from "../components/LLMQueryPanel";
 import { useAuth } from "../auth/useAuth";
 import * as viewsApi from "../config/viewsApi";
 import "../styles/entity.css";
@@ -187,6 +189,12 @@ export function EntityPage() {
                   onStateChange={handleWidgetStateChange}
                 />
               ))}
+            </div>
+            <div className="entity-page__documents">
+              <DocumentsPanel entityType={detail.entity_type} entityId={detail.entity_id} />
+            </div>
+            <div className="entity-page__llm">
+              <LLMQueryPanel entityType={detail.entity_type} entityId={detail.entity_id} />
             </div>
           </>
         )}

@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     DATA_DIR: str = "../data/structured"
     STORAGE_DIR: str = "../data/unstructured"
     VIEWS_DIR: str = "../data/views"
+    DOCUMENTS_DIR: str = "../data/documents"
+    ANTHROPIC_API_KEY: str = ""
+    LLM_MODEL: str = "claude-sonnet-4-20250514"
+    LLM_MAX_CONTEXT_CHUNKS: int = 15
+    LLM_MAX_RESPONSE_TOKENS: int = 1024
     LOG_LEVEL: str = "DEBUG"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 8

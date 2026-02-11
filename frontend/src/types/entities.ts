@@ -153,3 +153,57 @@ export interface AnalystPackUpdate {
   widgets?: PackWidgetRef[];
   is_shared?: boolean;
 }
+
+// --- Documents & LLM ---
+
+export interface EntityAssociation {
+  entity_type: string;
+  entity_id: string;
+}
+
+export interface DocumentChunk {
+  chunk_id: string;
+  file_id: string;
+  chunk_index: number;
+  text: string;
+  char_start: number;
+  char_end: number;
+}
+
+export interface DocumentListItem {
+  file_id: string;
+  filename: string;
+  title: string;
+  doc_type: string;
+  date: string;
+  description: string;
+  entities: EntityAssociation[];
+  chunk_count: number;
+  indexed_at: string;
+}
+
+export interface DocumentSearchResult {
+  file_id: string;
+  filename: string;
+  title: string;
+  doc_type: string;
+  date: string;
+  description: string;
+  entities: EntityAssociation[];
+  matching_chunks: DocumentChunk[];
+  score: number;
+}
+
+export interface LLMSource {
+  file_id: string;
+  filename: string;
+  chunk_index: number;
+  excerpt: string;
+}
+
+export interface LLMQueryResponse {
+  answer: string;
+  sources: LLMSource[];
+  model: string;
+  token_usage: Record<string, number>;
+}

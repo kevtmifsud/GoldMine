@@ -103,3 +103,11 @@
   font-weight: 500;
   color: var(--color-text);
 }
+
+.entity-page__documents {
+  margin-top: 1.5rem;
+}
+
+.entity-page__llm {
+  margin-top: 1.5rem;
+}

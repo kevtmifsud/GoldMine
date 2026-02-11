@@ -17,3 +17,7 @@ class ObjectStorageProvider(ABC):
     @abstractmethod
     def get_file_bytes(self, file_id: str) -> tuple[bytes, str, str] | None:
         """Return (bytes, filename, mime_type) or None if not found."""
+
+    @abstractmethod
+    def store_file(self, filename: str, file_bytes: bytes, metadata: FileMetadata) -> FileMetadata:
+        """Store a file and update the manifest."""

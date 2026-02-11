@@ -52,3 +52,57 @@ class LocalStorageProvider(ObjectStorageProvider):
             logger.error("file_not_found", file_id=file_id, path=str(file_path))
             return None
         return file_path.read_bytes(), meta.filename, meta.mime_type
+
+    def _next_file_id(self) -> str:
+        max_num = 0
+        for meta in self._manifest:
+            parts = meta.file_id.split("-")
+            if len(parts) == 2 and parts[0] == "FILE":
+                try:
+                    num = int(parts[1])
+                    if num > max_num:
+                        max_num = num
+                except ValueError:
+                    pass
+        return f"FILE-{max_num + 1:03d}"
+
+    def _save_manifest(self) -> None:
+        manifest_path = self._storage_dir / "files_manifest.json"
+        with open(manifest_path, "w") as f:
+            json.dump(
+                {"files": [m.model_dump() for m in self._manifest]},
+                f,
+                indent=2,
+            )
+
+    def store_file(self, filename: str, file_bytes: bytes, metadata: FileMetadata) -> FileMetadata:
+        type_dirs = {
+            "transcript": "transcripts",
+            "report": "reports",
+            "data_export": "data_exports",
+            "audio": "audio",
+        }
+        subdir = type_dirs.get(metadata.type, "uploads")
+        target_dir = self._storage_dir / subdir
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = target_dir / filename
+        file_path.write_bytes(file_bytes)
+
+        stored = FileMetadata(
+            file_id=metadata.file_id,
+            filename=filename,
+            path=f"{subdir}/{filename}",
+            type=metadata.type,
+            mime_type=metadata.mime_type,
+            size_bytes=len(file_bytes),
+            tickers=metadata.tickers,
+            date=metadata.date,
+            description=metadata.description,
+        )
+
+        self._manifest.append(stored)
+        self._index[stored.file_id] = stored
+        self._save_manifest()
+        logger.info("file_stored", file_id=stored.file_id, path=stored.path)
+        return stored

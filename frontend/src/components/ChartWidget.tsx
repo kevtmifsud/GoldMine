@@ -256,7 +256,7 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
           onDoubleClick={isZoomed ? handleResetZoom : undefined}
         >
           <ResponsiveContainer width="100%" height={300}>
-            {isLineChart ? (
+            {isLineChart && hasSecondaryAxis ? (
               <LineChart
                 data={zoomedData}
                 onMouseDown={handleMouseDown as (e: unknown) => void}
@@ -275,33 +275,29 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
                   label={{ value: chartConfig.y_label, angle: -90, position: "insideLeft" }}
                   domain={["auto", "auto"]}
                 />
-                {hasSecondaryAxis && (
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    label={{ value: chartConfig.secondary_y_label ?? "", angle: 90, position: "insideRight" }}
-                    domain={["auto", "auto"]}
-                  />
-                )}
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  label={{ value: chartConfig.secondary_y_label ?? "", angle: 90, position: "insideRight" }}
+                  domain={["auto", "auto"]}
+                />
                 <Tooltip />
-                {hasSecondaryAxis && (
-                  <Legend
-                    content={() => (
-                      <div className="chart-widget__legend">
-                        <span className="chart-widget__legend-item">
-                          <span className="chart-widget__legend-swatch" style={{ background: chartConfig.color || "#3182ce" }} />
-                          {chartConfig.y_label}
+                <Legend
+                  content={() => (
+                    <div className="chart-widget__legend">
+                      <span className="chart-widget__legend-item">
+                        <span className="chart-widget__legend-swatch" style={{ background: chartConfig.color || "#3182ce" }} />
+                        {chartConfig.y_label}
+                      </span>
+                      {secondaryLines.map((sl) => (
+                        <span key={sl.y_key} className="chart-widget__legend-item">
+                          <span className="chart-widget__legend-swatch" style={{ background: sl.color }} />
+                          {sl.label}
                         </span>
-                        {secondaryLines.map((sl) => (
-                          <span key={sl.y_key} className="chart-widget__legend-item">
-                            <span className="chart-widget__legend-swatch" style={{ background: sl.color }} />
-                            {sl.label}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  />
-                )}
+                      ))}
+                    </div>
+                  )}
+                />
                 <Line
                   yAxisId="left"
                   type="linear"
@@ -314,7 +310,7 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
                 {secondaryLines.map((sl) => (
                   <Line
                     key={sl.y_key}
-                    yAxisId={hasSecondaryAxis ? "right" : "left"}
+                    yAxisId="right"
                     type="linear"
                     dataKey={sl.y_key}
                     stroke={sl.color}
@@ -325,6 +321,46 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
                     isAnimationActive={false}
                   />
                 ))}
+                {selectingLeft && selectingRight && (
+                  <ReferenceArea
+                    yAxisId="left"
+                    x1={selectingLeft}
+                    x2={selectingRight}
+                    strokeOpacity={0.3}
+                    fill="#3182ce"
+                    fillOpacity={0.15}
+                  />
+                )}
+              </LineChart>
+            ) : isLineChart ? (
+              <LineChart
+                data={zoomedData}
+                onMouseDown={handleMouseDown as (e: unknown) => void}
+                onMouseMove={handleMouseMove as (e: unknown) => void}
+                onMouseUp={handleMouseUp}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey={chartConfig.x_key}
+                  ticks={lineXTicks}
+                  tick={{ fontSize: 11 }}
+                  label={{ value: chartConfig.x_label, position: "insideBottom", offset: -5 }}
+                />
+                <YAxis
+                  yAxisId="left"
+                  label={{ value: chartConfig.y_label, angle: -90, position: "insideLeft" }}
+                  domain={["auto", "auto"]}
+                />
+                <Tooltip />
+                <Line
+                  yAxisId="left"
+                  type="linear"
+                  dataKey={chartConfig.y_key}
+                  stroke={chartConfig.color || "#3182ce"}
+                  dot={false}
+                  strokeWidth={1.5}
+                  isAnimationActive={false}
+                />
                 {selectingLeft && selectingRight && (
                   <ReferenceArea
                     yAxisId="left"

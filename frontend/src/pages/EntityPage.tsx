@@ -290,6 +290,7 @@ export function EntityPage() {
             entityId={detail.entity_id}
             widgets={detail.widgets}
             currentOverrides={collectOverrides()}
+            userEmail={user?.email}
             onSave={() => {
               setShowScheduleDialog(false);
               setSchedulesRefreshKey((k) => k + 1);

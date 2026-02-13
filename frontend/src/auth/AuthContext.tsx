@@ -11,6 +11,7 @@ export interface User {
   username: string;
   display_name: string;
   role: string;
+  email: string;
 }
 
 export interface AuthContextType {

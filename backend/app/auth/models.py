@@ -12,3 +12,4 @@ class UserInfo(BaseModel):
     username: str
     display_name: str
     role: str
+    email: str = ""

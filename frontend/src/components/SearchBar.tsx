@@ -4,7 +4,7 @@ import api from "../config/api";
 import type { EntityResolution, EntityCandidate } from "../types/entities";
 import "../styles/search.css";
 
-export function SearchBar() {
+export function SearchBar({ compact = false }: { compact?: boolean }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [candidates, setCandidates] = useState<EntityCandidate[]>([]);
@@ -52,12 +52,12 @@ export function SearchBar() {
   };
 
   return (
-    <div className="search">
+    <div className={compact ? "search search--compact" : "search"}>
       <div className="search__input-row">
         <input
           type="text"
           className="search__input"
-          placeholder="Search by ticker, name, or dataset..."
+          placeholder={compact ? "Search..." : "Search by ticker, name, or dataset..."}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -68,7 +68,7 @@ export function SearchBar() {
           onClick={handleSearch}
           disabled={loading || !query.trim()}
         >
-          {loading ? "Searching..." : "Search"}
+          {loading ? "..." : "Search"}
         </button>
       </div>
       {candidates.length > 0 && (

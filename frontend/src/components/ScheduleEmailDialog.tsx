@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import * as schedulesApi from "../config/schedulesApi";
 import type { EmailSchedule, WidgetConfig, WidgetOverrideRef, WidgetStateOverride } from "../types/entities";
 import "../styles/schedules.css";
@@ -9,6 +9,7 @@ interface ScheduleEmailDialogProps {
   widgets?: WidgetConfig[];
   currentOverrides?: WidgetStateOverride[];
   schedule?: EmailSchedule;
+  userEmail?: string;
   onSave: () => void;
   onCancel: () => void;
 }
@@ -40,6 +41,7 @@ export function ScheduleEmailDialog({
   widgets = [],
   currentOverrides,
   schedule,
+  userEmail = "",
   onSave,
   onCancel,
 }: ScheduleEmailDialogProps) {
@@ -47,8 +49,42 @@ export function ScheduleEmailDialog({
 
   const [name, setName] = useState(schedule?.name ?? "");
   const [recipients, setRecipients] = useState(
-    schedule ? schedule.recipients.join(", ") : ""
+    schedule ? schedule.recipients.join(", ") : userEmail
   );
+
+  // Widget selection — default to all
+  const allWidgetIds = widgets.map((w) => w.widget_id);
+  const [selectedWidgetIds, setSelectedWidgetIds] = useState<Set<string>>(
+    schedule?.widget_ids ? new Set(schedule.widget_ids) : new Set(allWidgetIds)
+  );
+  const allSelected = selectedWidgetIds.size === allWidgetIds.length;
+  const [widgetDropdownOpen, setWidgetDropdownOpen] = useState(false);
+  const widgetDropdownRef = useRef<HTMLDivElement>(null);
+
+  const handleToggleWidget = (widgetId: string) => {
+    setSelectedWidgetIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(widgetId)) {
+        if (next.size === 1) return prev; // keep at least one
+        next.delete(widgetId);
+      } else {
+        next.add(widgetId);
+      }
+      return next;
+    });
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!widgetDropdownOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (widgetDropdownRef.current && !widgetDropdownRef.current.contains(e.target as Node)) {
+        setWidgetDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [widgetDropdownOpen]);
   const [timeOfDay, setTimeOfDay] = useState(
     utcToEstOptionValue(schedule?.time_of_day ?? "14:00")
   );
@@ -106,8 +142,9 @@ export function ScheduleEmailDialog({
           day_of_month: recurrenceType === "monthly" ? dayOfMonth : null,
         });
       } else {
-        // Burst all widgets from the current view using live state
-        const widgetOverrides: WidgetOverrideRef[] = widgets.map((w) => {
+        // Burst selected widgets from the current view using live state
+        const selectedWidgets = widgets.filter((w) => selectedWidgetIds.has(w.widget_id));
+        const widgetOverrides: WidgetOverrideRef[] = selectedWidgets.map((w) => {
           const live = currentOverrides?.find((o) => o.widget_id === w.widget_id);
           return {
             widget_id: w.widget_id,
@@ -119,11 +156,13 @@ export function ScheduleEmailDialog({
           };
         });
 
+        const widgetIds = allSelected ? null : Array.from(selectedWidgetIds);
+
         await schedulesApi.createSchedule({
           name: trimmedName,
           entity_type: entityType,
           entity_id: entityId,
-          widget_ids: null,
+          widget_ids: widgetIds,
           recipients: recipientList,
           recurrence_type: recurrenceType,
           time_of_day: timeOfDay,
@@ -163,6 +202,42 @@ export function ScheduleEmailDialog({
               autoFocus
             />
           </div>
+
+          {widgets.length > 0 && (
+            <div className="schedule-dialog__field">
+              <label>Widgets</label>
+              <div className="schedule-dialog__dropdown" ref={widgetDropdownRef}>
+                <button
+                  type="button"
+                  className="schedule-dialog__dropdown-toggle"
+                  onClick={() => setWidgetDropdownOpen((v) => !v)}
+                >
+                  <span className="schedule-dialog__dropdown-text">
+                    {allSelected
+                      ? `All Widgets (${widgets.length})`
+                      : `${selectedWidgetIds.size} of ${widgets.length} selected`}
+                  </span>
+                  <span className={`schedule-dialog__dropdown-arrow${widgetDropdownOpen ? " schedule-dialog__dropdown-arrow--open" : ""}`}>
+                    &#9662;
+                  </span>
+                </button>
+                {widgetDropdownOpen && (
+                  <div className="schedule-dialog__dropdown-menu">
+                    {widgets.map((w) => (
+                      <label key={w.widget_id} className="schedule-dialog__dropdown-item">
+                        <input
+                          type="checkbox"
+                          checked={selectedWidgetIds.has(w.widget_id)}
+                          onChange={() => handleToggleWidget(w.widget_id)}
+                        />
+                        {w.title}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="schedule-dialog__field">
             <label htmlFor="schedule-recipients">Recipients</label>

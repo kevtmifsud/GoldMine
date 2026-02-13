@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
+import { Link } from "react-router-dom";
 import api from "../config/api";
 import type { WidgetConfig, PaginatedResponse, WidgetStateOverride } from "../types/entities";
 import { Pagination } from "./Pagination";
@@ -289,7 +290,16 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
                   <tr key={idx}>
                     {activeColumns.map((col) => (
                       <td key={col.key} className="smartlist__td">
-                        {formatValue(row[col.key], col.format)}
+                        {col.key === "ticker" && row[col.key] ? (
+                          <Link
+                            className="smartlist__link"
+                            to={`/entity/stock/${row[col.key]}`}
+                          >
+                            {formatValue(row[col.key], col.format)}
+                          </Link>
+                        ) : (
+                          formatValue(row[col.key], col.format)
+                        )}
                       </td>
                     ))}
                   </tr>

@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
+import { SearchBar } from "./SearchBar";
 import "../styles/layout.css";
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
+  const { pathname } = useLocation();
+  const isHome = pathname === "/";
 
   return (
     <div className="layout">
@@ -20,6 +23,11 @@ export function Layout({ children }: { children: ReactNode }) {
             </nav>
           )}
         </div>
+        {user && !isHome && (
+          <div className="header-center">
+            <SearchBar compact />
+          </div>
+        )}
         <div className="header-right">
           {user && (
             <>

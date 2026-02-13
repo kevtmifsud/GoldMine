@@ -29,6 +29,7 @@ def validate_credentials(username: str, password: str) -> UserInfo:
         username=user["username"],
         display_name=user["display_name"],
         role=user["role"],
+        email=user.get("email", ""),
     )
 
 
@@ -38,6 +39,7 @@ def create_token(user: UserInfo) -> str:
         "sub": user.username,
         "name": user.display_name,
         "role": user.role,
+        "email": user.email,
         "exp": expire,
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
@@ -50,6 +52,7 @@ def decode_token(token: str) -> UserInfo:
             username=payload["sub"],
             display_name=payload["name"],
             role=payload["role"],
+            email=payload.get("email", ""),
         )
     except JWTError as e:
         raise AuthenticationError(f"Invalid token: {e}")

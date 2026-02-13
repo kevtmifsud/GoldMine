@@ -5,6 +5,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from app.auth.service import decode_token
+from app.auth.users import USERS
 from app.exceptions import AuthenticationError
 from app.logging_config import get_logger
 
@@ -36,6 +37,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         try:
             user = decode_token(token)
+            # Backfill email for tokens minted before the email field was added
+            if not user.email:
+                stored = USERS.get(user.username)
+                if stored:
+                    user.email = stored.get("email", "")
             request.state.user = user
         except AuthenticationError:
             logger.warning("auth_invalid_token", path=path)

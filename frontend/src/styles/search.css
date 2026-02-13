@@ -4,6 +4,73 @@
   padding-top: 4rem;
 }
 
+.search--compact {
+  max-width: none;
+  margin: 0;
+  padding-top: 0;
+  width: 100%;
+  position: relative;
+}
+
+.search--compact .search__input-row {
+  gap: 0.35rem;
+}
+
+.search--compact .search__input {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+.search--compact .search__input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.search--compact .search__input:focus {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: none;
+}
+
+.search--compact .search__button {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.search--compact .search__button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.search--compact .search__candidates {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 0.35rem;
+  z-index: 50;
+}
+
+.search--compact .search__message {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 0.35rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.5rem 0.75rem;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  z-index: 50;
+}
+
 .search__input-row {
   display: flex;
   gap: 0.5rem;

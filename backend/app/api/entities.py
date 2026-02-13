@@ -126,6 +126,59 @@ async def resolve_entity(q: str = Query(..., min_length=1)) -> EntityResolution:
 
 
 # ---------------------------------------------------------------------------
+# Autocomplete endpoint
+# ---------------------------------------------------------------------------
+
+@router.get("/autocomplete")
+async def autocomplete_entities(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(10, ge=1, le=50),
+) -> list[EntityCandidate]:
+    provider = get_data_provider()
+    query_lower = q.strip().lower()
+    results: list[EntityCandidate] = []
+
+    stocks = provider.query("stocks", FilterParams(page=1, page_size=200)).data
+    for stock in stocks:
+        ticker = stock.get("ticker", "")
+        name = stock.get("company_name", "")
+        if query_lower in ticker.lower() or query_lower in name.lower():
+            results.append(EntityCandidate(
+                entity_type="stock",
+                entity_id=ticker,
+                display_name=f"{name} ({ticker})",
+            ))
+            if len(results) >= limit:
+                return results
+
+    people = provider.query("people", FilterParams(page=1, page_size=200)).data
+    for person in people:
+        pid = person.get("person_id", "")
+        name = person.get("name", "")
+        if query_lower in name.lower() or query_lower in pid.lower():
+            results.append(EntityCandidate(
+                entity_type="person",
+                entity_id=pid,
+                display_name=name,
+            ))
+            if len(results) >= limit:
+                return results
+
+    datasets = provider.list_datasets()
+    for ds in datasets:
+        if query_lower in ds.display_name.lower() or query_lower in ds.name.lower():
+            results.append(EntityCandidate(
+                entity_type="dataset",
+                entity_id=ds.name,
+                display_name=ds.display_name,
+            ))
+            if len(results) >= limit:
+                return results
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Entity detail endpoint
 # ---------------------------------------------------------------------------
 

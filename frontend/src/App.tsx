@@ -8,6 +8,7 @@ import { PacksListPage } from "./pages/PacksListPage";
 import { PackPage } from "./pages/PackPage";
 import { PackBuilderPage } from "./pages/PackBuilderPage";
 import { DatasetsPage } from "./pages/DatasetsPage";
+import { AlertsPage } from "./pages/AlertsPage";
 
 function App() {
   return (
@@ -35,6 +36,14 @@ function App() {
           element={
             <AuthGuard>
               <DatasetsPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/alerts"
+          element={
+            <AuthGuard>
+              <AlertsPage />
             </AuthGuard>
           }
         />

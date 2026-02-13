@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class WidgetOverrideRef(BaseModel):
@@ -20,7 +20,8 @@ class EmailSchedule(BaseModel):
     entity_id: str
     widget_ids: list[str] | None = None
     recipients: list[str]
-    recurrence: str = Field(pattern="^(daily|weekly|monthly)$")
+    time_of_day: str = Field(default="09:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    days_of_week: list[int] = Field(default=[0, 1, 2, 3, 4])
     next_run_at: str = ""
     last_run_at: str = ""
     status: str = Field(default="active", pattern="^(active|paused|failed)$")
@@ -45,13 +46,35 @@ class EmailScheduleCreate(BaseModel):
     entity_id: str
     widget_ids: list[str] | None = None
     recipients: list[str] = Field(min_length=1)
-    recurrence: str = Field(pattern="^(daily|weekly|monthly)$")
+    time_of_day: str = Field(default="09:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    days_of_week: list[int] = Field(default=[0, 1, 2, 3, 4])
     widget_overrides: list[WidgetOverrideRef] = Field(default_factory=list)
+
+    @field_validator("days_of_week")
+    @classmethod
+    def validate_days(cls, v: list[int]) -> list[int]:
+        if not v:
+            raise ValueError("days_of_week must contain at least one day")
+        if any(d < 0 or d > 6 for d in v):
+            raise ValueError("days_of_week values must be 0-6 (Mon=0, Sun=6)")
+        return sorted(set(v))
 
 
 class EmailScheduleUpdate(BaseModel):
     name: str | None = None
     recipients: list[str] | None = None
-    recurrence: str | None = Field(default=None, pattern="^(daily|weekly|monthly)$")
+    time_of_day: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    days_of_week: list[int] | None = None
     status: str | None = Field(default=None, pattern="^(active|paused|failed)$")
     widget_overrides: list[WidgetOverrideRef] | None = None
+
+    @field_validator("days_of_week")
+    @classmethod
+    def validate_days(cls, v: list[int] | None) -> list[int] | None:
+        if v is None:
+            return v
+        if not v:
+            raise ValueError("days_of_week must contain at least one day")
+        if any(d < 0 or d > 6 for d in v):
+            raise ValueError("days_of_week values must be 0-6 (Mon=0, Sun=6)")
+        return sorted(set(v))

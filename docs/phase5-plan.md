@@ -2,7 +2,7 @@
 
 ## Context
 
-Phase 4 delivered document ingestion, keyword search, and LLM-powered research queries. Phase 5 adds an email scheduling system enabling users to schedule automated email deliverables for individual widgets or entire entity pages. Emails are sent on a recurring basis (daily, weekly, monthly) and reflect the current state of widgets including applied filters and layout.
+Phase 4 delivered document ingestion, keyword search, and LLM-powered research queries. Phase 5 adds an email scheduling system enabling users to schedule automated email deliverables for individual widgets or entire entity pages. Emails are sent on a configurable day-of-week and time-of-day basis (e.g. Mon/Wed/Fri at 9:00 AM UTC) and reflect the current state of widgets including applied filters and layout. On creation, a burst send is performed immediately. A top-level Alerts page (`/alerts`) lists all of the current user's schedules across entities.
 
 **User decisions:**
 - Email delivery: Console/file mock — renders HTML emails and logs to JSON file + console. No real SMTP. Swappable later.
@@ -58,11 +58,11 @@ Phase 4 delivered document ingestion, keyword search, and LLM-powered research q
 **New files:** `backend/app/email/__init__.py`, `models.py`, `interfaces.py`, `console_provider.py`, `json_schedule_provider.py`, `factory.py`
 
 **`models.py`** — Core data models:
-- `EmailSchedule(schedule_id, owner, name, entity_type, entity_id, widget_ids: list[str] | None, recipients: list[str], recurrence: str, next_run_at: str, last_run_at: str, status: str, widget_overrides: list[WidgetOverrideRef], retry_count: int, created_at, updated_at)` — `widget_ids=None` means full entity page; `recurrence` is one of `"daily"`, `"weekly"`, `"monthly"`; `status` is one of `"active"`, `"paused"`, `"failed"`
+- `EmailSchedule(schedule_id, owner, name, entity_type, entity_id, widget_ids: list[str] | None, recipients: list[str], time_of_day: str, days_of_week: list[int], next_run_at: str, last_run_at: str, status: str, widget_overrides: list[WidgetOverrideRef], retry_count: int, created_at, updated_at)` — `widget_ids=None` means full entity page; `time_of_day` is `"HH:MM"` format (default `"09:00"`); `days_of_week` is list of 0–6 (Mon=0, Sun=6, default weekdays `[0,1,2,3,4]`); `status` is one of `"active"`, `"paused"`, `"failed"`
 - `WidgetOverrideRef(widget_id, server_filters, sort_by, sort_order, visible_columns, page_size)` — captures the widget state at schedule creation time (reuses same shape as `WidgetStateOverride` from views)
 - `EmailLog(log_id, schedule_id, sent_at, status: str, error: str | None, recipients: list[str])` — `status` is `"sent"` or `"failed"`
-- `EmailScheduleCreate(name, entity_type, entity_id, widget_ids: list[str] | None, recipients: list[str], recurrence: str, widget_overrides: list[WidgetOverrideRef])` — request body for creation
-- `EmailScheduleUpdate(name: str | None, recipients: list[str] | None, recurrence: str | None, status: str | None, widget_overrides: list[WidgetOverrideRef] | None)` — partial update
+- `EmailScheduleCreate(name, entity_type, entity_id, widget_ids: list[str] | None, recipients: list[str], time_of_day: str, days_of_week: list[int], widget_overrides: list[WidgetOverrideRef])` — request body for creation
+- `EmailScheduleUpdate(name: str | None, recipients: list[str] | None, time_of_day: str | None, days_of_week: list[int] | None, status: str | None, widget_overrides: list[WidgetOverrideRef] | None)` — partial update
 
 **`interfaces.py`** — Two abstract classes:
 - `EmailProvider` with: `send_email(recipients: list[str], subject: str, html_body: str, text_body: str) -> bool`
@@ -133,10 +133,8 @@ async def _scheduler_loop():
       - If `retry_count >= 3`: set `status = "failed"`, log final failure
 3. All processing in `asyncio.to_thread()` to avoid blocking the event loop
 
-`_compute_next_run(current: datetime, recurrence: str) -> str`:
-- `"daily"` → +1 day
-- `"weekly"` → +7 days
-- `"monthly"` → +1 month (using `dateutil.relativedelta`)
+`_compute_next_run(current: datetime, days_of_week: list[int], time_of_day: str) -> str`:
+- From `current + 1 day`, walks forward to find the next day whose `weekday()` is in `days_of_week`, sets time to `time_of_day` UTC
 
 ---
 
@@ -148,10 +146,10 @@ Router prefix: `/api/schedules`, tags: `["schedules"]`
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/schedules/` | Create schedule. Body: EmailScheduleCreate. Sets `owner` from `request.state.user`, generates `schedule_id`, computes initial `next_run_at` from recurrence. Returns 201. |
+| `POST` | `/api/schedules/` | Create schedule. Body: EmailScheduleCreate. Sets `owner` from `request.state.user`, generates `schedule_id`, computes initial `next_run_at` from `time_of_day`+`days_of_week`, performs a burst send immediately. Returns 201. |
 | `GET` | `/api/schedules/` | List user's schedules. Optional `entity_type`, `entity_id` query filters. Returns only schedules owned by current user. |
 | `GET` | `/api/schedules/{schedule_id}` | Get single schedule. 404 if not found or not owned by user. |
-| `PUT` | `/api/schedules/{schedule_id}` | Update schedule. Owner only. Body: EmailScheduleUpdate. Recomputes `next_run_at` if recurrence changed. |
+| `PUT` | `/api/schedules/{schedule_id}` | Update schedule. Owner only. Body: EmailScheduleUpdate. Recomputes `next_run_at` if `time_of_day` or `days_of_week` changed. |
 | `DELETE` | `/api/schedules/{schedule_id}` | Delete schedule. Owner only. Returns 204. |
 | `GET` | `/api/schedules/{schedule_id}/logs` | Get delivery logs for a schedule. Returns list of EmailLog sorted by sent_at desc. Owner only. |
 | `POST` | `/api/schedules/{schedule_id}/send-now` | Trigger immediate send for testing. Renders + sends email, creates log entry. Owner only. |
@@ -160,9 +158,9 @@ Router prefix: `/api/schedules`, tags: `["schedules"]`
 
 ## Stage 5: Backend Tests
 
-- `test_schedules.py` — 10 tests: CRUD, owner-only access, send-now, auth required
+- `test_schedules.py` — 13 tests: CRUD, owner-only access, send-now, auth required, burst send on create, next_run respects days_of_week
 - `test_email_renderer.py` — 3 tests: stock email rendering, single widget, row truncation
-- `test_scheduler.py` — 3 tests: due schedule detection, success processing, retry logic
+- `test_scheduler.py` — 4 tests: due schedule detection, success processing, retry logic, compute_next_run skips non-matching days
 
 ---
 
@@ -170,10 +168,14 @@ Router prefix: `/api/schedules`, tags: `["schedules"]`
 
 - TypeScript interfaces added to `entities.ts` (EmailSchedule, EmailLog, etc.)
 - `schedulesApi.ts` — 7 typed API functions
-- `ScheduleEmailDialog.tsx` — Modal with name, recipients, recurrence, scope (entire page / selected widgets)
-- `SchedulesList.tsx` — Panel showing schedule cards with Send Now / Delete buttons
-- `schedules.css` — Full BEM styling
+- `ScheduleEmailDialog.tsx` — Modal with name, recipients, time-of-day picker, day-of-week checkboxes, scope (entire page / selected widgets)
+- `SchedulesList.tsx` — Panel showing schedule cards with formatted days+time (e.g. "Mon, Wed, Fri @ 9:00 AM"), Send Now / Delete buttons
+- `AlertsPage.tsx` — Top-level `/alerts` page listing all user schedules across entities with entity links, recipients, schedule info, status, and actions
+- `alerts.css` — BEM styles for alerts page
+- `schedules.css` — Full BEM styling including day-picker toggle buttons
 - `EntityPage.tsx` — "Schedule Email" button + SchedulesList panel below LLM panel
+- `Layout.tsx` — "Alerts" nav link added to header
+- `App.tsx` — `/alerts` route added
 
 ---
 
@@ -185,5 +187,8 @@ Router prefix: `/api/schedules`, tags: `["schedules"]`
 4. **Data fetched directly, not via HTTP** — The renderer calls `get_data_provider().query()` directly rather than making HTTP requests to widget endpoints. This avoids auth/networking issues in the background task.
 5. **Retry policy: 3 retries at 5-minute intervals** — Failed sends increment `retry_count`. After 3 failures, schedule status set to `"failed"`. Users can see this in the UI.
 6. **Widget overrides captured at creation time** — When a user creates a schedule, the current widget filter/sort/column state is captured and stored with the schedule. This ensures emails always reflect the intended view.
+7. **Granular day-of-week + time-of-day scheduling** — Replaced simple recurrence (daily/weekly/monthly) with explicit day-of-week selection (multi-select, 0=Mon through 6=Sun) and time-of-day in HH:MM format. This enables schedules like "Mon, Wed, Fri at 9:00 AM UTC".
+8. **Burst send on creation** — When a schedule is first created, the email is immediately sent (burst). The schedule's `next_run_at` remains at the computed future time. This gives users immediate feedback.
+9. **Alerts page** — A top-level `/alerts` route lists all of the current user's schedules across all entities, providing a single view of all configured email alerts with entity links and management actions.
 7. **Separate panels, not widgets** — Like Documents/LLM in Phase 4, the Schedules panel lives below the widget grid and doesn't participate in the views/overrides system.
-8. **`python-dateutil` for month arithmetic** — Reliable `relativedelta(months=1)` avoids edge cases with varying month lengths.
+10. **`python-dateutil` for retry arithmetic** — `relativedelta` used for retry interval calculations in the scheduler.

@@ -7,7 +7,7 @@ import pytest
 from dateutil.relativedelta import relativedelta
 
 from app.email.factory import get_schedule_provider
-from app.email.models import EmailScheduleCreate, WidgetOverrideRef
+from app.email.models import EmailScheduleCreate
 from app.email.scheduler import _compute_next_run, _process_due_schedules, _update_schedule_fields
 
 
@@ -20,7 +20,8 @@ async def test_get_due_schedules():
             entity_type="stock",
             entity_id="AAPL",
             recipients=["test@example.com"],
-            recurrence="daily",
+            time_of_day="09:00",
+            days_of_week=[0, 1, 2, 3, 4],
         ),
         owner="analyst1",
     )
@@ -42,7 +43,8 @@ async def test_process_due_schedule_success():
             entity_type="stock",
             entity_id="AAPL",
             recipients=["test@example.com"],
-            recurrence="daily",
+            time_of_day="09:00",
+            days_of_week=[0, 1, 2, 3, 4],
         ),
         owner="analyst1",
     )
@@ -72,7 +74,8 @@ async def test_process_due_schedule_retry():
             entity_type="stock",
             entity_id="AAPL",
             recipients=["test@example.com"],
-            recurrence="daily",
+            time_of_day="09:00",
+            days_of_week=[0, 1, 2, 3, 4],
         ),
         owner="analyst1",
     )
@@ -100,3 +103,22 @@ async def test_process_due_schedule_retry():
     # next_run_at should be roughly 5 minutes in the future
     next_run = datetime.fromisoformat(updated.next_run_at)
     assert next_run > datetime.now(timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_compute_next_run_skips_days():
+    # Schedule for Mon/Wed/Fri (0, 2, 4)
+    # Current is a Monday at 09:00
+    # Find a Monday
+    now = datetime.now(timezone.utc)
+    days_until_monday = (0 - now.weekday()) % 7
+    monday = (now + relativedelta(days=days_until_monday)).replace(
+        hour=9, minute=0, second=0, microsecond=0,
+    )
+
+    next_run = _compute_next_run(monday, [0, 2, 4], "09:00")
+    next_dt = datetime.fromisoformat(next_run)
+    # Next should be Wednesday (weekday=2)
+    assert next_dt.weekday() == 2
+    assert next_dt.hour == 9
+    assert next_dt.minute == 0

@@ -220,7 +220,8 @@ export interface EmailSchedule {
   entity_id: string;
   widget_ids: string[] | null;
   recipients: string[];
-  recurrence: string;
+  time_of_day: string;
+  days_of_week: number[];
   next_run_at: string;
   last_run_at: string;
   status: string;
@@ -245,14 +246,16 @@ export interface EmailScheduleCreate {
   entity_id: string;
   widget_ids: string[] | null;
   recipients: string[];
-  recurrence: string;
+  time_of_day: string;
+  days_of_week: number[];
   widget_overrides: WidgetOverrideRef[];
 }
 
 export interface EmailScheduleUpdate {
   name?: string;
   recipients?: string[];
-  recurrence?: string;
+  time_of_day?: string;
+  days_of_week?: number[];
   status?: string;
   widget_overrides?: WidgetOverrideRef[];
 }

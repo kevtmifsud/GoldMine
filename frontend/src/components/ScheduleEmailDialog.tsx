@@ -12,6 +12,16 @@ interface ScheduleEmailDialogProps {
   onCancel: () => void;
 }
 
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => {
+  const value = `${String(i).padStart(2, "0")}:00`;
+  const hour12 = i === 0 ? 12 : i > 12 ? i - 12 : i;
+  const ampm = i < 12 ? "AM" : "PM";
+  const label = `${hour12}:00 ${ampm}`;
+  return { value, label };
+});
+
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
 export function ScheduleEmailDialog({
   entityType,
   entityId,
@@ -22,7 +32,10 @@ export function ScheduleEmailDialog({
 }: ScheduleEmailDialogProps) {
   const [name, setName] = useState("");
   const [recipients, setRecipients] = useState("");
-  const [recurrence, setRecurrence] = useState("daily");
+  const [timeOfDay, setTimeOfDay] = useState("09:00");
+  const [selectedDays, setSelectedDays] = useState<Set<number>>(
+    new Set([0, 1, 2, 3, 4])
+  );
   const [scope, setScope] = useState<"all" | "selected">(
     preSelectedWidgetId ? "selected" : "all"
   );
@@ -31,6 +44,19 @@ export function ScheduleEmailDialog({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleToggleDay = (day: number) => {
+    setSelectedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) {
+        if (next.size === 1) return prev; // keep at least one
+        next.delete(day);
+      } else {
+        next.add(day);
+      }
+      return next;
+    });
+  };
 
   const handleToggleWidget = (widgetId: string) => {
     setSelectedWidgets((prev) => {
@@ -88,7 +114,8 @@ export function ScheduleEmailDialog({
         entity_id: entityId,
         widget_ids: widgetIds,
         recipients: recipientList,
-        recurrence,
+        time_of_day: timeOfDay,
+        days_of_week: Array.from(selectedDays).sort(),
         widget_overrides: widgetOverrides,
       });
       onSave();
@@ -130,17 +157,35 @@ export function ScheduleEmailDialog({
           </div>
 
           <div className="schedule-dialog__field">
-            <label htmlFor="schedule-recurrence">Recurrence</label>
+            <label htmlFor="schedule-time">Time of Day (UTC)</label>
             <select
-              id="schedule-recurrence"
+              id="schedule-time"
               className="schedule-dialog__select"
-              value={recurrence}
-              onChange={(e) => setRecurrence(e.target.value)}
+              value={timeOfDay}
+              onChange={(e) => setTimeOfDay(e.target.value)}
             >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
+              {HOUR_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
+          </div>
+
+          <div className="schedule-dialog__field">
+            <label>Days of Week</label>
+            <div className="schedule-dialog__day-picker">
+              {DAY_LABELS.map((label, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className={`schedule-dialog__day-btn${selectedDays.has(idx) ? " schedule-dialog__day-btn--active" : ""}`}
+                  onClick={() => handleToggleDay(idx)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="schedule-dialog__field">

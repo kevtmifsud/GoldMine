@@ -1,0 +1,108 @@
+.alerts-page {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.alerts-page__header {
+  margin-bottom: 1.5rem;
+}
+
+.alerts-page__header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.alerts-page__loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
+}
+
+.alerts-page__empty {
+  color: var(--color-text-secondary);
+  font-style: italic;
+  text-align: center;
+  padding: 3rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.alerts-page__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alerts-page__card {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  grid-template-rows: auto auto auto;
+  gap: 0.35rem 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transition: border-color 0.15s;
+}
+
+.alerts-page__card:hover {
+  border-color: var(--color-primary-light);
+}
+
+.alerts-page__card-name {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: 0.95rem;
+  grid-column: 1 / 2;
+}
+
+.alerts-page__card-entity {
+  font-size: 0.85rem;
+  grid-column: 2 / 3;
+}
+
+.alerts-page__card-entity a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.alerts-page__card-entity a:hover {
+  text-decoration: underline;
+}
+
+.alerts-page__card-actions {
+  grid-column: 3 / 4;
+  grid-row: 1 / 4;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.alerts-page__card-recipients {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  grid-column: 1 / 2;
+}
+
+.alerts-page__card-schedule {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  grid-column: 1 / 2;
+}
+
+.alerts-page__card-status {
+  font-size: 0.8rem;
+  grid-column: 2 / 3;
+}
+
+.alerts-page__card-next-run {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  grid-column: 2 / 3;
+}

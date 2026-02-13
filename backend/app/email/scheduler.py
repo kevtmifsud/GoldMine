@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from dateutil.relativedelta import relativedelta
 from fastapi import FastAPI
 
 from app.config.settings import settings
 from app.email.factory import get_email_provider, get_schedule_provider
 from app.email.models import EmailLog, EmailScheduleUpdate
+from dateutil.relativedelta import relativedelta
 from app.email.renderer import render_email
 from app.logging_config import get_logger
 
@@ -73,7 +73,8 @@ def _process_due_schedules() -> None:
                 ))
                 next_run = _compute_next_run(
                     datetime.fromisoformat(schedule.next_run_at),
-                    schedule.recurrence,
+                    schedule.days_of_week,
+                    schedule.time_of_day,
                 )
                 schedule_provider.update_schedule(
                     schedule.schedule_id,
@@ -147,14 +148,12 @@ def _update_schedule_fields(schedule_id: str, fields: dict) -> None:
             return
 
 
-def _compute_next_run(current: datetime, recurrence: str) -> str:
-    """Compute the next run time based on recurrence."""
-    if recurrence == "daily":
-        next_dt = current + relativedelta(days=1)
-    elif recurrence == "weekly":
-        next_dt = current + relativedelta(weeks=1)
-    elif recurrence == "monthly":
-        next_dt = current + relativedelta(months=1)
-    else:
-        next_dt = current + relativedelta(days=1)
-    return next_dt.isoformat()
+def _compute_next_run(current: datetime, days_of_week: list[int], time_of_day: str) -> str:
+    """Compute the next run time based on days_of_week and time_of_day."""
+    hour, minute = map(int, time_of_day.split(":"))
+    for offset in range(1, 8):
+        candidate = (current + timedelta(days=offset)).replace(
+            hour=hour, minute=minute, second=0, microsecond=0,
+        )
+        if candidate.weekday() in days_of_week:
+            return candidate.isoformat()

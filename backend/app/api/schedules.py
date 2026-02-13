@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from dateutil.relativedelta import relativedelta
 from fastapi import APIRouter, Query, Request
 from starlette.responses import Response
 
@@ -25,9 +24,43 @@ async def create_schedule(request: Request, body: EmailScheduleCreate) -> EmailS
     schedule = provider.create_schedule(body, owner=user.username)
 
     # Compute initial next_run_at
-    next_run = _compute_initial_next_run(body.recurrence)
+    next_run = _compute_initial_next_run(body.time_of_day, body.days_of_week)
     from app.email.scheduler import _update_schedule_fields
     _update_schedule_fields(schedule.schedule_id, {"next_run_at": next_run})
+
+    # Burst send: immediately send the email on creation
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        subject, html_body, text_body = render_email(
+            entity_type=schedule.entity_type,
+            entity_id=schedule.entity_id,
+            schedule_name=schedule.name,
+            widget_ids=schedule.widget_ids,
+            widget_overrides=schedule.widget_overrides,
+        )
+        email_provider = get_email_provider()
+        success = email_provider.send_email(
+            recipients=schedule.recipients,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+        )
+        status = "sent" if success else "failed"
+        error = None if success else "Email provider returned False"
+    except Exception as e:
+        status = "failed"
+        error = str(e)
+
+    log = EmailLog(
+        log_id=str(uuid.uuid4()),
+        schedule_id=schedule.schedule_id,
+        sent_at=now,
+        status=status,
+        error=error,
+        recipients=schedule.recipients,
+    )
+    provider.add_log(log)
+    _update_schedule_fields(schedule.schedule_id, {"last_run_at": now})
 
     return provider.get_schedule(schedule.schedule_id) or schedule
 
@@ -65,9 +98,13 @@ async def update_schedule(request: Request, schedule_id: str, body: EmailSchedul
     if updated is None:
         raise NotFoundError(f"Schedule '{schedule_id}' not found")
 
-    # If recurrence changed, recompute next_run_at
-    if body.recurrence is not None and body.recurrence != existing.recurrence:
-        next_run = _compute_initial_next_run(body.recurrence)
+    # If time_of_day or days_of_week changed, recompute next_run_at
+    time_changed = body.time_of_day is not None and body.time_of_day != existing.time_of_day
+    days_changed = body.days_of_week is not None and body.days_of_week != existing.days_of_week
+    if time_changed or days_changed:
+        new_time = body.time_of_day if body.time_of_day is not None else existing.time_of_day
+        new_days = body.days_of_week if body.days_of_week is not None else existing.days_of_week
+        next_run = _compute_initial_next_run(new_time, new_days)
         from app.email.scheduler import _update_schedule_fields
         _update_schedule_fields(schedule_id, {"next_run_at": next_run})
         return provider.get_schedule(schedule_id) or updated
@@ -139,23 +176,20 @@ async def send_now(request: Request, schedule_id: str) -> EmailLog:
     return log
 
 
-def _compute_initial_next_run(recurrence: str) -> str:
-    """Compute the first next_run_at based on recurrence."""
+def _compute_initial_next_run(time_of_day: str, days_of_week: list[int]) -> str:
+    """Compute the first next_run_at based on time_of_day and days_of_week."""
     now = datetime.now(timezone.utc)
+    hour, minute = map(int, time_of_day.split(":"))
 
-    if recurrence == "daily":
-        # Tomorrow at 05:00 UTC
-        next_dt = (now + relativedelta(days=1)).replace(hour=5, minute=0, second=0, microsecond=0)
-    elif recurrence == "weekly":
-        # Next Monday at 05:00 UTC
-        days_until_monday = (7 - now.weekday()) % 7
-        if days_until_monday == 0:
-            days_until_monday = 7
-        next_dt = (now + relativedelta(days=days_until_monday)).replace(hour=5, minute=0, second=0, microsecond=0)
-    elif recurrence == "monthly":
-        # First of next month at 05:00 UTC
-        next_dt = (now + relativedelta(months=1)).replace(day=1, hour=5, minute=0, second=0, microsecond=0)
-    else:
-        next_dt = (now + relativedelta(days=1)).replace(hour=5, minute=0, second=0, microsecond=0)
+    # Check today first
+    today_target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if now.weekday() in days_of_week and today_target > now:
+        return today_target.isoformat()
 
-    return next_dt.isoformat()
+    # Walk forward up to 7 days to find the next matching day
+    for offset in range(1, 8):
+        candidate = (now + timedelta(days=offset)).replace(
+            hour=hour, minute=minute, second=0, microsecond=0,
+        )
+        if candidate.weekday() in days_of_week:
+            return candidate.isoformat()

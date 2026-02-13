@@ -9,6 +9,23 @@ interface SchedulesListProps {
   refreshKey?: number;
 }
 
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+export function formatSchedule(days_of_week: number[], time_of_day: string): string {
+  const dayNames = days_of_week
+    .slice()
+    .sort()
+    .map((d) => DAY_LABELS[d] ?? `Day${d}`);
+
+  const [hourStr, minuteStr] = time_of_day.split(":");
+  const hour = parseInt(hourStr, 10);
+  const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  const ampm = hour < 12 ? "AM" : "PM";
+  const timeLabel = `${hour12}:${minuteStr} ${ampm}`;
+
+  return `${dayNames.join(", ")} @ ${timeLabel}`;
+}
+
 export function SchedulesList({
   entityType,
   entityId,
@@ -112,7 +129,7 @@ export function SchedulesList({
                 <div className="schedules-list__item-name">{s.name}</div>
                 <div className="schedules-list__item-meta">
                   <span className="schedules-list__item-recurrence">
-                    {s.recurrence}
+                    {formatSchedule(s.days_of_week, s.time_of_day)}
                   </span>
                   <span className="schedules-list__item-next-run">
                     Next: {formatDate(s.next_run_at)}

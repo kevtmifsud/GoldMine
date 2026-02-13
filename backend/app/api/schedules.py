@@ -24,14 +24,14 @@ async def create_schedule(request: Request, body: EmailScheduleCreate) -> EmailS
     schedule = provider.create_schedule(body, owner=user.username)
 
     # Compute initial next_run_at
-    next_run = _compute_initial_next_run(body.time_of_day, body.days_of_week)
+    next_run = _compute_initial_next_run(body.time_of_day, body.days_of_week, body.recurrence_type, body.day_of_month)
     from app.email.scheduler import _update_schedule_fields
     _update_schedule_fields(schedule.schedule_id, {"next_run_at": next_run})
 
     # Burst send: immediately send the email on creation
     now = datetime.now(timezone.utc).isoformat()
     try:
-        subject, html_body, text_body = render_email(
+        subject, html_body, text_body, images = render_email(
             entity_type=schedule.entity_type,
             entity_id=schedule.entity_id,
             schedule_name=schedule.name,
@@ -44,6 +44,7 @@ async def create_schedule(request: Request, body: EmailScheduleCreate) -> EmailS
             subject=subject,
             html_body=html_body,
             text_body=text_body,
+            images=images,
         )
         status = "sent" if success else "failed"
         error = None if success else "Email provider returned False"
@@ -98,13 +99,17 @@ async def update_schedule(request: Request, schedule_id: str, body: EmailSchedul
     if updated is None:
         raise NotFoundError(f"Schedule '{schedule_id}' not found")
 
-    # If time_of_day or days_of_week changed, recompute next_run_at
+    # If scheduling fields changed, recompute next_run_at
     time_changed = body.time_of_day is not None and body.time_of_day != existing.time_of_day
     days_changed = body.days_of_week is not None and body.days_of_week != existing.days_of_week
-    if time_changed or days_changed:
+    recurrence_changed = body.recurrence_type is not None and body.recurrence_type != existing.recurrence_type
+    dom_changed = body.day_of_month is not None and body.day_of_month != existing.day_of_month
+    if time_changed or days_changed or recurrence_changed or dom_changed:
         new_time = body.time_of_day if body.time_of_day is not None else existing.time_of_day
         new_days = body.days_of_week if body.days_of_week is not None else existing.days_of_week
-        next_run = _compute_initial_next_run(new_time, new_days)
+        new_recurrence = body.recurrence_type if body.recurrence_type is not None else existing.recurrence_type
+        new_dom = body.day_of_month if body.day_of_month is not None else existing.day_of_month
+        next_run = _compute_initial_next_run(new_time, new_days, new_recurrence, new_dom)
         from app.email.scheduler import _update_schedule_fields
         _update_schedule_fields(schedule_id, {"next_run_at": next_run})
         return provider.get_schedule(schedule_id) or updated
@@ -140,7 +145,7 @@ async def send_now(request: Request, schedule_id: str) -> EmailLog:
     if schedule is None or schedule.owner != user.username:
         raise NotFoundError(f"Schedule '{schedule_id}' not found")
 
-    subject, html_body, text_body = render_email(
+    subject, html_body, text_body, images = render_email(
         entity_type=schedule.entity_type,
         entity_id=schedule.entity_id,
         schedule_name=schedule.name,
@@ -157,6 +162,7 @@ async def send_now(request: Request, schedule_id: str) -> EmailLog:
             subject=subject,
             html_body=html_body,
             text_body=text_body,
+            images=images,
         )
         status = "sent" if success else "failed"
         error = None if success else "Email provider returned False"
@@ -176,20 +182,40 @@ async def send_now(request: Request, schedule_id: str) -> EmailLog:
     return log
 
 
-def _compute_initial_next_run(time_of_day: str, days_of_week: list[int]) -> str:
-    """Compute the first next_run_at based on time_of_day and days_of_week."""
+def _compute_initial_next_run(
+    time_of_day: str,
+    days_of_week: list[int],
+    recurrence_type: str = "weekly",
+    day_of_month: int | None = None,
+) -> str:
+    """Compute the first next_run_at based on recurrence settings."""
     now = datetime.now(timezone.utc)
     hour, minute = map(int, time_of_day.split(":"))
 
-    # Check today first
+    if recurrence_type == "monthly" and day_of_month is not None:
+        # Target this month's day_of_month at the given time
+        try:
+            candidate = now.replace(day=day_of_month, hour=hour, minute=minute, second=0, microsecond=0)
+        except ValueError:
+            candidate = now.replace(day=28, hour=hour, minute=minute, second=0, microsecond=0)
+        if candidate > now:
+            return candidate.isoformat()
+        # Otherwise next month
+        from dateutil.relativedelta import relativedelta
+        candidate = candidate + relativedelta(months=1)
+        return candidate.isoformat()
+
+    # daily or weekly: walk forward checking days_of_week
+    # For daily, days_of_week should be [0..6] so every day matches
     today_target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     if now.weekday() in days_of_week and today_target > now:
         return today_target.isoformat()
 
-    # Walk forward up to 7 days to find the next matching day
     for offset in range(1, 8):
         candidate = (now + timedelta(days=offset)).replace(
             hour=hour, minute=minute, second=0, microsecond=0,
         )
         if candidate.weekday() in days_of_week:
             return candidate.isoformat()
+    # Fallback: tomorrow
+    return (now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat()

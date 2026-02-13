@@ -7,8 +7,18 @@ from app.email.models import EmailLog, EmailSchedule, EmailScheduleCreate, Email
 
 class EmailProvider(ABC):
     @abstractmethod
-    def send_email(self, recipients: list[str], subject: str, html_body: str, text_body: str) -> bool:
-        """Send an email. Returns True on success."""
+    def send_email(
+        self,
+        recipients: list[str],
+        subject: str,
+        html_body: str,
+        text_body: str,
+        images: list[tuple[str, bytes]] | None = None,
+    ) -> bool:
+        """Send an email. Returns True on success.
+
+        images: optional list of (cid, png_bytes) tuples for inline images.
+        """
 
 
 class ScheduleProvider(ABC):

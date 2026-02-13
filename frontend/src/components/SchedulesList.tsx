@@ -11,19 +11,46 @@ interface SchedulesListProps {
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-export function formatSchedule(days_of_week: number[], time_of_day: string): string {
+function utcHourToEst(utcHour: number): number {
+  return (utcHour - 5 + 24) % 24;
+}
+
+export function formatSchedule(
+  days_of_week: number[],
+  time_of_day: string,
+  recurrence_type?: string,
+  day_of_month?: number | null,
+): string {
+  const [hourStr, minuteStr] = time_of_day.split(":");
+  const utcHour = parseInt(hourStr, 10);
+  const estHour = utcHourToEst(utcHour);
+  const hour12 = estHour === 0 ? 12 : estHour > 12 ? estHour - 12 : estHour;
+  const ampm = estHour < 12 ? "AM" : "PM";
+  const timeLabel = `${hour12}:${minuteStr} ${ampm} EST`;
+
+  if (recurrence_type === "monthly" && day_of_month != null) {
+    return `Monthly on the ${day_of_month}${ordinalSuffix(day_of_month)} @ ${timeLabel}`;
+  }
+
+  if (recurrence_type === "daily") {
+    return `Daily @ ${timeLabel}`;
+  }
+
   const dayNames = days_of_week
     .slice()
     .sort()
     .map((d) => DAY_LABELS[d] ?? `Day${d}`);
 
-  const [hourStr, minuteStr] = time_of_day.split(":");
-  const hour = parseInt(hourStr, 10);
-  const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  const ampm = hour < 12 ? "AM" : "PM";
-  const timeLabel = `${hour12}:${minuteStr} ${ampm}`;
-
   return `${dayNames.join(", ")} @ ${timeLabel}`;
+}
+
+function ordinalSuffix(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "st";
+  if (mod10 === 2 && mod100 !== 12) return "nd";
+  if (mod10 === 3 && mod100 !== 13) return "rd";
+  return "th";
 }
 
 export function SchedulesList({
@@ -129,7 +156,7 @@ export function SchedulesList({
                 <div className="schedules-list__item-name">{s.name}</div>
                 <div className="schedules-list__item-meta">
                   <span className="schedules-list__item-recurrence">
-                    {formatSchedule(s.days_of_week, s.time_of_day)}
+                    {formatSchedule(s.days_of_week, s.time_of_day, s.recurrence_type, s.day_of_month)}
                   </span>
                   <span className="schedules-list__item-next-run">
                     Next: {formatDate(s.next_run_at)}

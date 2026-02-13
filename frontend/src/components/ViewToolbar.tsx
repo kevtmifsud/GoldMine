@@ -58,12 +58,6 @@ export function ViewToolbar({
         </button>
       )}
 
-      {!dirty && (
-        <button className="view-toolbar__btn" onClick={onSaveNewView}>
-          Save View
-        </button>
-      )}
-
       {isOwner && (
         <button
           className="view-toolbar__btn view-toolbar__btn--danger"

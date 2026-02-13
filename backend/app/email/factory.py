@@ -12,8 +12,12 @@ def get_email_provider() -> EmailProvider:
     if _email_provider is not None:
         return _email_provider
 
-    from app.email.console_provider import ConsoleEmailProvider
-    _email_provider = ConsoleEmailProvider()
+    if settings.EMAIL_PROVIDER == "smtp":
+        from app.email.smtp_provider import SmtpEmailProvider
+        _email_provider = SmtpEmailProvider()
+    else:
+        from app.email.console_provider import ConsoleEmailProvider
+        _email_provider = ConsoleEmailProvider()
     return _email_provider
 
 

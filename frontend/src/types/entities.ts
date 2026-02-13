@@ -31,6 +31,12 @@ export interface FilterDefinition {
   options: FilterOption[];
 }
 
+export interface SecondaryLine {
+  y_key: string;
+  label: string;
+  color: string;
+}
+
 export interface ChartConfig {
   chart_type: string; // "bar" | "line"
   x_key: string;
@@ -38,6 +44,8 @@ export interface ChartConfig {
   x_label: string;
   y_label: string;
   color: string;
+  secondary_y_label: string | null;
+  secondary_lines: SecondaryLine[];
 }
 
 export interface ColumnConfig {
@@ -220,8 +228,10 @@ export interface EmailSchedule {
   entity_id: string;
   widget_ids: string[] | null;
   recipients: string[];
+  recurrence_type: string;
   time_of_day: string;
   days_of_week: number[];
+  day_of_month: number | null;
   next_run_at: string;
   last_run_at: string;
   status: string;
@@ -246,16 +256,20 @@ export interface EmailScheduleCreate {
   entity_id: string;
   widget_ids: string[] | null;
   recipients: string[];
+  recurrence_type: string;
   time_of_day: string;
   days_of_week: number[];
+  day_of_month: number | null;
   widget_overrides: WidgetOverrideRef[];
 }
 
 export interface EmailScheduleUpdate {
   name?: string;
   recipients?: string[];
+  recurrence_type?: string;
   time_of_day?: string;
   days_of_week?: number[];
+  day_of_month?: number | null;
   status?: string;
   widget_overrides?: WidgetOverrideRef[];
 }

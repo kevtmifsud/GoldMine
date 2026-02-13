@@ -5,6 +5,7 @@ from typing import Any
 from app.config.settings import settings
 from app.data_access.factory import get_data_provider
 from app.data_access.models import FilterParams
+from app.email.chart_renderer import render_chart_image
 from app.email.models import WidgetOverrideRef
 from app.logging_config import get_logger
 from app.object_storage.factory import get_storage_provider
@@ -18,10 +19,11 @@ def render_email(
     schedule_name: str,
     widget_ids: list[str] | None = None,
     widget_overrides: list[WidgetOverrideRef] | None = None,
-) -> tuple[str, str, str]:
+) -> tuple[str, str, str, list[tuple[str, bytes]]]:
     """Render an email for an entity.
 
-    Returns (subject, html_body, text_body).
+    Returns (subject, html_body, text_body, images).
+    images is a list of (cid, png_bytes) for inline chart images.
     """
     provider = get_data_provider()
 
@@ -45,37 +47,65 @@ def render_email(
     # Render each widget's data
     widget_sections_html: list[str] = []
     widget_sections_text: list[str] = []
+    images: list[tuple[str, bytes]] = []
+    chart_index = 0
 
     for widget in all_widgets:
         wid = widget["widget_id"]
         title = widget["title"]
         columns = widget.get("columns", [])
         endpoint = widget.get("endpoint", "")
-
-        if not columns:
-            continue  # Skip chart-only widgets
+        chart_config = widget.get("chart_config")
+        widget_type = widget.get("widget_type", "table")
 
         override = override_map.get(wid)
-        rows = _fetch_widget_data(entity_type, entity_id, endpoint, columns, override)
 
-        col_keys = [c["key"] for c in columns]
-        col_labels = [c["label"] for c in columns]
+        if chart_config and widget_type == "chart":
+            # Render as PNG chart image embedded via CID
+            chart_columns = [
+                {"key": chart_config["x_key"], "label": chart_config["x_label"]},
+                {"key": chart_config["y_key"], "label": chart_config["y_label"]},
+            ]
+            rows = _fetch_widget_data(entity_type, entity_id, endpoint, chart_columns, override)
+            cid = f"chart_{chart_index}"
+            chart_index += 1
+            png_bytes = render_chart_image(rows, chart_config, title, highlight_value=entity_id)
+            images.append((cid, png_bytes))
+            widget_sections_html.append(
+                f'<div style="margin:1.5rem 0 1rem 0;">'
+                f'<img src="cid:{cid}" alt="{_escape(title)}" '
+                f'style="max-width:100%;height:auto;display:block;" />'
+                f'</div>'
+            )
+            # Plain-text fallback
+            col_keys = [c["key"] for c in chart_columns]
+            col_labels = [c["label"] for c in chart_columns]
+            widget_sections_text.append(_render_text_table(title, col_keys, col_labels, rows))
+        else:
+            # Render as HTML table
+            if not columns:
+                continue
 
-        # Apply visible_columns override
-        if override and override.visible_columns is not None:
-            vis = set(override.visible_columns)
-            filtered = [(k, l) for k, l in zip(col_keys, col_labels) if k in vis]
-            col_keys = [k for k, _ in filtered]
-            col_labels = [l for _, l in filtered]
+            rows = _fetch_widget_data(entity_type, entity_id, endpoint, columns, override)
 
-        widget_sections_html.append(_render_html_table(title, col_keys, col_labels, rows))
-        widget_sections_text.append(_render_text_table(title, col_keys, col_labels, rows))
+            col_keys = [c["key"] for c in columns]
+            col_labels = [c["label"] for c in columns]
+
+            # Apply visible_columns override
+            if override and override.visible_columns is not None:
+                vis = set(override.visible_columns)
+                filtered = [(k, l) for k, l in zip(col_keys, col_labels) if k in vis]
+                col_keys = [k for k, _ in filtered]
+                col_labels = [l for _, l in filtered]
+
+            widget_sections_html.append(_render_html_table(title, col_keys, col_labels, rows))
+            widget_sections_text.append(_render_text_table(title, col_keys, col_labels, rows))
 
     # Compose full email
     html_body = _render_full_html(display_name, entity_type, header_fields, widget_sections_html)
     text_body = _render_full_text(display_name, entity_type, header_fields, widget_sections_text)
 
-    return subject, html_body, text_body
+    return subject, html_body, text_body, images
 
 
 def _get_entity_header(entity_type: str, entity_id: str) -> tuple[str, list[dict[str, str]]]:
@@ -134,15 +164,26 @@ def _get_entity_widgets(entity_type: str, entity_id: str) -> list[dict[str, Any]
     else:
         return []
 
-    return [
-        {
+    result = []
+    for w in detail.widgets:
+        entry: dict[str, Any] = {
             "widget_id": w.widget_id,
             "title": w.title,
             "endpoint": w.endpoint,
+            "widget_type": w.widget_type,
             "columns": [{"key": c.key, "label": c.label} for c in w.columns],
         }
-        for w in detail.widgets
-    ]
+        if w.chart_config:
+            entry["chart_config"] = {
+                "chart_type": w.chart_config.chart_type,
+                "x_key": w.chart_config.x_key,
+                "y_key": w.chart_config.y_key,
+                "x_label": w.chart_config.x_label,
+                "y_label": w.chart_config.y_label,
+                "color": w.chart_config.color,
+            }
+        result.append(entry)
+    return result
 
 
 def _fetch_widget_data(

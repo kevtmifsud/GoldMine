@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     SCHEDULES_DIR: str = "../data/schedules"
     SCHEDULER_INTERVAL_SECONDS: int = 60
     EMAIL_MAX_ROWS_PER_WIDGET: int = 50
+    EMAIL_PROVIDER: str = "console"
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_TLS: bool = True
+    SMTP_SENDER: str = ""
     ANTHROPIC_API_KEY: str = ""
     LLM_MODEL: str = "claude-sonnet-4-20250514"
     LLM_MAX_CONTEXT_CHUNKS: int = 15
@@ -26,7 +33,7 @@ class Settings(BaseSettings):
     MAX_PAGE_SIZE: int = 200
     DEFAULT_PAGE_SIZE: int = 50
 
-    model_config = {"env_prefix": "GOLDMINE_"}
+    model_config = {"env_prefix": "GOLDMINE_", "env_file": ".env"}
 
 
 settings = Settings()

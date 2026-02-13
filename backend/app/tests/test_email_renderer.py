@@ -7,7 +7,7 @@ from app.email.renderer import render_email
 
 @pytest.mark.asyncio
 async def test_render_stock_email():
-    subject, html_body, text_body = render_email(
+    subject, html_body, text_body, _images = render_email(
         entity_type="stock",
         entity_id="AAPL",
         schedule_name="Test Report",
@@ -23,7 +23,7 @@ async def test_render_stock_email():
 
 @pytest.mark.asyncio
 async def test_render_single_widget():
-    subject, html_body, text_body = render_email(
+    subject, html_body, text_body, _images = render_email(
         entity_type="stock",
         entity_id="AAPL",
         schedule_name="People Only",
@@ -37,7 +37,7 @@ async def test_render_single_widget():
 @pytest.mark.asyncio
 async def test_render_truncates_rows():
     # The stock peers widget can return many rows; verify truncation
-    subject, html_body, text_body = render_email(
+    subject, html_body, text_body, _images = render_email(
         entity_type="dataset",
         entity_id="stocks",
         schedule_name="Full Dataset",

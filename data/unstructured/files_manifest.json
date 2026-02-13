@@ -175,8 +175,32 @@
       ],
       "date": "2025-01-25",
       "description": "Apple Investor Day 2025 recording (placeholder)"
+    },
+    {
+      "file_id": "FILE-402",
+      "filename": "test_upload.txt",
+      "path": "transcripts/test_upload.txt",
+      "type": "transcript",
+      "mime_type": "text/plain",
+      "size_bytes": 63,
+      "tickers": [
+        "AAPL"
+      ],
+      "date": "2025-01-01",
+      "description": "A test document"
+    },
+    {
+      "file_id": "FILE-403",
+      "filename": "test_upload.txt",
+      "path": "transcripts/test_upload.txt",
+      "type": "transcript",
+      "mime_type": "text/plain",
+      "size_bytes": 63,
+      "tickers": [
+        "AAPL"
+      ],
+      "date": "2025-01-01",
+      "description": "A test document"
     }
-  ],
-  "generated_at": "2025-01-30T00:00:00Z",
-  "total_count": 14
+  ]
 }

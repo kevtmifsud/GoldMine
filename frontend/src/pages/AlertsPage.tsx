@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { EmailSchedule } from "../types/entities";
 import { Layout } from "../components/Layout";
+import { ScheduleEmailDialog } from "../components/ScheduleEmailDialog";
 import { formatSchedule } from "../components/SchedulesList";
 import * as schedulesApi from "../config/schedulesApi";
 import "../styles/alerts.css";
@@ -11,13 +12,18 @@ export function AlertsPage() {
   const [loading, setLoading] = useState(true);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<EmailSchedule | null>(null);
 
-  useEffect(() => {
+  const fetchSchedules = () => {
     schedulesApi
       .listSchedules()
       .then(setSchedules)
       .catch(() => {})
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchSchedules();
   }, []);
 
   const handleSendNow = async (scheduleId: string) => {
@@ -104,7 +110,7 @@ export function AlertsPage() {
                   {s.recipients.join(", ")}
                 </div>
                 <div className="alerts-page__card-schedule">
-                  {formatSchedule(s.days_of_week, s.time_of_day)}
+                  {formatSchedule(s.days_of_week, s.time_of_day, s.recurrence_type, s.day_of_month)}
                 </div>
                 <div className="alerts-page__card-status">
                   <span
@@ -117,6 +123,12 @@ export function AlertsPage() {
                   Next: {formatDate(s.next_run_at)}
                 </div>
                 <div className="alerts-page__card-actions">
+                  <button
+                    className="schedules-list__item-btn"
+                    onClick={() => setEditingSchedule(s)}
+                  >
+                    Edit
+                  </button>
                   <button
                     className="schedules-list__item-btn"
                     onClick={() => handleSendNow(s.schedule_id)}
@@ -134,6 +146,16 @@ export function AlertsPage() {
               </div>
             ))}
           </div>
+        )}
+        {editingSchedule && (
+          <ScheduleEmailDialog
+            schedule={editingSchedule}
+            onSave={() => {
+              setEditingSchedule(null);
+              fetchSchedules();
+            }}
+            onCancel={() => setEditingSchedule(null)}
+          />
         )}
       </div>
     </Layout>

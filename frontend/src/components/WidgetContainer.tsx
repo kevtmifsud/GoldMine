@@ -6,13 +6,14 @@ import type { SmartlistWidgetHandle } from "./SmartlistWidget";
 
 interface WidgetContainerProps {
   config: WidgetConfig;
+  entityId?: string;
   onStateChange?: () => void;
 }
 
 export const WidgetContainer = forwardRef<SmartlistWidgetHandle, WidgetContainerProps>(
-  function WidgetContainer({ config, onStateChange }, ref) {
+  function WidgetContainer({ config, entityId, onStateChange }, ref) {
     if (config.widget_type === "chart") {
-      return <ChartWidget config={config} />;
+      return <ChartWidget config={config} entityId={entityId} />;
     }
     return <SmartlistWidget ref={ref} config={config} onStateChange={onStateChange} />;
   }

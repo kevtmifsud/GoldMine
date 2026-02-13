@@ -36,6 +36,12 @@ class FilterDefinition(BaseModel):
     options: list[FilterOption] = Field(default_factory=list)
 
 
+class SecondaryLine(BaseModel):
+    y_key: str
+    label: str
+    color: str = "#e86319"
+
+
 class ChartConfig(BaseModel):
     chart_type: str  # "bar" or "line"
     x_key: str
@@ -43,6 +49,8 @@ class ChartConfig(BaseModel):
     x_label: str
     y_label: str
     color: str = "#2a4a7f"
+    secondary_y_label: str | None = None
+    secondary_lines: list[SecondaryLine] = Field(default_factory=list)
 
 
 class ColumnConfig(BaseModel):

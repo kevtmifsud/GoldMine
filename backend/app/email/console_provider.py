@@ -15,7 +15,7 @@ class ConsoleEmailProvider(EmailProvider):
     def __init__(self) -> None:
         self._log_path = Path(settings.SCHEDULES_DIR).resolve() / "email_log.json"
 
-    def send_email(self, recipients: list[str], subject: str, html_body: str, text_body: str) -> bool:
+    def send_email(self, recipients: list[str], subject: str, html_body: str, text_body: str, images: list[tuple[str, bytes]] | None = None) -> bool:
         logger.info(
             "email_sent",
             recipients=recipients,

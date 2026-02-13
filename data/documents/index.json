@@ -1,0 +1,389 @@
+[
+  {
+    "file_id": "FILE-101",
+    "filename": "ABT_Q4_2024_earnings.txt",
+    "title": "Abbott Laboratories Q4 2024 earnings call transcript",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-11",
+    "description": "Abbott Laboratories Q4 2024 earnings call transcript",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "ABT"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "69868f86-82a1-4777-9d35-f59eaccb7d3d",
+        "file_id": "FILE-101",
+        "chunk_index": 0,
+        "text": "Abbott Laboratories (ABT) \u2014 Q4 2024 Earnings Call TranscriptDate: January 11, 2025Participants: CEO, CFO, Head of IROPERATOR: Good morning and welcome to the Abbott Laboratories fourth quarter 2024 earnings call.CEO: Thank you, operator. Good morning everyone. We're pleased to report strong resultsfor the fourth quarter and full year 2024. Revenue grew 6% year-over-year,driven by new customer acquisition.Our key highlights for the quarter include:- Revenue of $44.5 billion- Operating margin expansion of 162 basis points- Free cash flow of $4.8 billion- Successful product launchesCFO: Thank you. Let me walk through the financial details...[Transcript continues with Q&A session]ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly.",
+        "char_start": 0,
+        "char_end": 787
+      },
+      {
+        "chunk_id": "9fcfc4ef-727f-4e16-abf6-e6baa4be28b2",
+        "file_id": "FILE-101",
+        "chunk_index": 1,
+        "text": "ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly. We saw improvements across all segments...Q: What's your outlook for 2025?A: We're cautiously optimistic. Our guidance reflects...[END OF TRANSCRIPT]",
+        "char_start": 707,
+        "char_end": 941
+      }
+    ],
+    "indexed_at": "2026-02-11T05:04:00.123172+00:00"
+  },
+  {
+    "file_id": "FILE-102",
+    "filename": "UNH_Q4_2024_earnings.txt",
+    "title": "UnitedHealth Group Q4 2024 earnings call transcript",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-12",
+    "description": "UnitedHealth Group Q4 2024 earnings call transcript",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "UNH"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "7cb11b43-bc60-4651-abda-f59d07837eea",
+        "file_id": "FILE-102",
+        "chunk_index": 0,
+        "text": "UnitedHealth Group (UNH) \u2014 Q4 2024 Earnings Call TranscriptDate: January 12, 2025Participants: CEO, CFO, Head of IROPERATOR: Good morning and welcome to the UnitedHealth Group fourth quarter 2024 earnings call.CEO: Thank you, operator. Good morning everyone. We're pleased to report strong resultsfor the fourth quarter and full year 2024. Revenue grew 14% year-over-year,driven by pricing optimization.Our key highlights for the quarter include:- Revenue of $39.9 billion- Operating margin expansion of 188 basis points- Free cash flow of $16.8 billion- Record customer additionsCFO: Thank you. Let me walk through the financial details...[Transcript continues with Q&A session]ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly.",
+        "char_start": 0,
+        "char_end": 781
+      },
+      {
+        "chunk_id": "18e6b773-5fce-4f47-9859-2c6bdd623d6d",
+        "file_id": "FILE-102",
+        "chunk_index": 1,
+        "text": "ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly. We saw improvements across all segments...Q: What's your outlook for 2025?A: We're cautiously optimistic. Our guidance reflects...[END OF TRANSCRIPT]",
+        "char_start": 701,
+        "char_end": 935
+      }
+    ],
+    "indexed_at": "2026-02-11T05:04:00.123498+00:00"
+  },
+  {
+    "file_id": "FILE-103",
+    "filename": "MCD_Q4_2024_earnings.txt",
+    "title": "McDonald's Corp. Q4 2024 earnings call transcript",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-13",
+    "description": "McDonald's Corp. Q4 2024 earnings call transcript",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "MCD"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "76b6f39d-2746-410b-b27c-d5ae5ac79879",
+        "file_id": "FILE-103",
+        "chunk_index": 0,
+        "text": "McDonald's Corp. (MCD) \u2014 Q4 2024 Earnings Call TranscriptDate: January 13, 2025Participants: CEO, CFO, Head of IROPERATOR: Good morning and welcome to the McDonald's Corp. fourth quarter 2024 earnings call.CEO: Thank you, operator. Good morning everyone. We're pleased to report strong resultsfor the fourth quarter and full year 2024. Revenue grew 24% year-over-year,driven by strong product demand.Our key highlights for the quarter include:- Revenue of $60.6 billion- Operating margin expansion of 204 basis points- Free cash flow of $9.1 billion- Record customer additionsCFO: Thank you. Let me walk through the financial details...[Transcript continues with Q&A session]ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly. We saw improvements across all segments...",
+        "char_start": 0,
+        "char_end": 821
+      },
+      {
+        "chunk_id": "94b151ad-88d7-4cb8-a361-22b8deb92c8e",
+        "file_id": "FILE-103",
+        "chunk_index": 1,
+        "text": "A: Certainly. We saw improvements across all segments...Q: What's your outlook for 2025?A: We're cautiously optimistic. Our guidance reflects...[END OF TRANSCRIPT]",
+        "char_start": 765,
+        "char_end": 931
+      }
+    ],
+    "indexed_at": "2026-02-11T05:04:00.123807+00:00"
+  },
+  {
+    "file_id": "FILE-104",
+    "filename": "NVDA_Q4_2024_earnings.txt",
+    "title": "NVIDIA Corporation Q4 2024 earnings call transcript",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-14",
+    "description": "NVIDIA Corporation Q4 2024 earnings call transcript",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "NVDA"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "b24fb92b-1528-4702-9611-2a65ef912788",
+        "file_id": "FILE-104",
+        "chunk_index": 0,
+        "text": "NVIDIA Corporation (NVDA) \u2014 Q4 2024 Earnings Call TranscriptDate: January 14, 2025Participants: CEO, CFO, Head of IROPERATOR: Good morning and welcome to the NVIDIA Corporation fourth quarter 2024 earnings call.CEO: Thank you, operator. Good morning everyone. We're pleased to report strong resultsfor the fourth quarter and full year 2024. Revenue grew 12% year-over-year,driven by operational efficiency.Our key highlights for the quarter include:- Revenue of $80.1 billion- Operating margin expansion of 245 basis points- Free cash flow of $9.1 billion- Record customer additionsCFO: Thank you. Let me walk through the financial details...[Transcript continues with Q&A session]ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly.",
+        "char_start": 0,
+        "char_end": 783
+      },
+      {
+        "chunk_id": "90ade2aa-c945-4ef3-b697-fefc9a8a1398",
+        "file_id": "FILE-104",
+        "chunk_index": 1,
+        "text": "ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly. We saw improvements across all segments...Q: What's your outlook for 2025?A: We're cautiously optimistic. Our guidance reflects...[END OF TRANSCRIPT]",
+        "char_start": 703,
+        "char_end": 937
+      }
+    ],
+    "indexed_at": "2026-02-11T05:04:00.124049+00:00"
+  },
+  {
+    "file_id": "FILE-105",
+    "filename": "GOOGL_Q4_2024_earnings.txt",
+    "title": "Alphabet Inc. Q4 2024 earnings call transcript",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-15",
+    "description": "Alphabet Inc. Q4 2024 earnings call transcript",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "GOOGL"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "7203012b-251b-4431-9013-8ff57ac430c4",
+        "file_id": "FILE-105",
+        "chunk_index": 0,
+        "text": "Alphabet Inc. (GOOGL) \u2014 Q4 2024 Earnings Call TranscriptDate: January 15, 2025Participants: CEO, CFO, Head of IROPERATOR: Good morning and welcome to the Alphabet Inc. fourth quarter 2024 earnings call.CEO: Thank you, operator. Good morning everyone. We're pleased to report strong resultsfor the fourth quarter and full year 2024. Revenue grew 20% year-over-year,driven by operational efficiency.Our key highlights for the quarter include:- Revenue of $61.5 billion- Operating margin expansion of 96 basis points- Free cash flow of $19.7 billion- Successful product launchesCFO: Thank you. Let me walk through the financial details...[Transcript continues with Q&A session]ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly. We saw improvements across all segments...",
+        "char_start": 0,
+        "char_end": 820
+      },
+      {
+        "chunk_id": "282cfee8-7d5f-4d5c-bbfc-adceb2236caf",
+        "file_id": "FILE-105",
+        "chunk_index": 1,
+        "text": "A: Certainly. We saw improvements across all segments...Q: What's your outlook for 2025?A: We're cautiously optimistic. Our guidance reflects...[END OF TRANSCRIPT]",
+        "char_start": 764,
+        "char_end": 930
+      }
+    ],
+    "indexed_at": "2026-02-11T05:04:00.124300+00:00"
+  },
+  {
+    "file_id": "FILE-201",
+    "filename": "MA_research_report_2025.pdf",
+    "title": "Mastercard Inc. research initiation report",
+    "doc_type": "report",
+    "mime_type": "application/pdf",
+    "date": "2025-01-16",
+    "description": "Mastercard Inc. research initiation report",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "MA"
+      }
+    ],
+    "chunks": [],
+    "indexed_at": "2026-02-11T05:04:00.148903+00:00"
+  },
+  {
+    "file_id": "FILE-202",
+    "filename": "GOOGL_research_report_2025.pdf",
+    "title": "Alphabet Inc. research initiation report",
+    "doc_type": "report",
+    "mime_type": "application/pdf",
+    "date": "2025-01-17",
+    "description": "Alphabet Inc. research initiation report",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "GOOGL"
+      }
+    ],
+    "chunks": [],
+    "indexed_at": "2026-02-11T05:04:00.149400+00:00"
+  },
+  {
+    "file_id": "FILE-203",
+    "filename": "LLY_research_report_2025.pdf",
+    "title": "Eli Lilly and Co. research initiation report",
+    "doc_type": "report",
+    "mime_type": "application/pdf",
+    "date": "2025-01-18",
+    "description": "Eli Lilly and Co. research initiation report",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "LLY"
+      }
+    ],
+    "chunks": [],
+    "indexed_at": "2026-02-11T05:04:00.149768+00:00"
+  },
+  {
+    "file_id": "FILE-204",
+    "filename": "XOM_research_report_2025.pdf",
+    "title": "Exxon Mobil Corp. research initiation report",
+    "doc_type": "report",
+    "mime_type": "application/pdf",
+    "date": "2025-01-19",
+    "description": "Exxon Mobil Corp. research initiation report",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "XOM"
+      }
+    ],
+    "chunks": [],
+    "indexed_at": "2026-02-11T05:04:00.150123+00:00"
+  },
+  {
+    "file_id": "FILE-205",
+    "filename": "WMT_research_report_2025.pdf",
+    "title": "Walmart Inc. research initiation report",
+    "doc_type": "report",
+    "mime_type": "application/pdf",
+    "date": "2025-01-20",
+    "description": "Walmart Inc. research initiation report",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "WMT"
+      }
+    ],
+    "chunks": [],
+    "indexed_at": "2026-02-11T05:04:00.150479+00:00"
+  },
+  {
+    "file_id": "FILE-301",
+    "filename": "sector_performance_2024.csv",
+    "title": "Sector performance summary for 2024",
+    "doc_type": "data_export",
+    "mime_type": "text/csv",
+    "date": "2025-01-21",
+    "description": "Sector performance summary for 2024",
+    "entities": [],
+    "chunks": [
+      {
+        "chunk_id": "c3cfb054-0ec2-4bf3-bcf9-a91ee2629159",
+        "file_id": "FILE-301",
+        "chunk_index": 0,
+        "text": "sector,return_ytd,return_q4,weightTechnology,32.5,8.2,28.5Healthcare,12.3,3.1,15.2Financials,18.7,5.4,13.8Energy,-5.2,-2.1,4.5",
+        "char_start": 0,
+        "char_end": 130
+      }
+    ],
+    "indexed_at": "2026-02-11T05:04:00.150785+00:00"
+  },
+  {
+    "file_id": "FILE-302",
+    "filename": "top_holdings_q4.csv",
+    "title": "Top portfolio holdings Q4 2024",
+    "doc_type": "data_export",
+    "mime_type": "text/csv",
+    "date": "2025-01-22",
+    "description": "Top portfolio holdings Q4 2024",
+    "entities": [],
+    "chunks": [
+      {
+        "chunk_id": "723ddec8-04fd-4550-8490-29b4d3ddfe84",
+        "file_id": "FILE-302",
+        "chunk_index": 0,
+        "text": "ticker,weight,shares,cost_basis,market_valueAAPL,8.5,10000,145.20,182.50MSFT,7.2,5000,310.40,378.90NVDA,6.8,3000,420.10,520.30",
+        "char_start": 0,
+        "char_end": 129
+      }
+    ],
+    "indexed_at": "2026-02-11T05:04:00.151120+00:00"
+  },
+  {
+    "file_id": "FILE-303",
+    "filename": "dividend_schedule.csv",
+    "title": "Upcoming dividend schedule",
+    "doc_type": "data_export",
+    "mime_type": "text/csv",
+    "date": "2025-01-23",
+    "description": "Upcoming dividend schedule",
+    "entities": [],
+    "chunks": [
+      {
+        "chunk_id": "69f28b6c-07a3-4305-9ac7-377c90643020",
+        "file_id": "FILE-303",
+        "chunk_index": 0,
+        "text": "ticker,ex_date,pay_date,amount,frequencyAAPL,2025-02-07,2025-02-13,0.25,quarterlyMSFT,2025-02-20,2025-03-13,0.75,quarterly",
+        "char_start": 0,
+        "char_end": 124
+      }
+    ],
+    "indexed_at": "2026-02-11T05:04:00.151415+00:00"
+  },
+  {
+    "file_id": "FILE-401",
+    "filename": "AAPL_investor_day_2025.mp3",
+    "title": "Apple Investor Day 2025 recording (placeholder)",
+    "doc_type": "audio",
+    "mime_type": "audio/mpeg",
+    "date": "2025-01-25",
+    "description": "Apple Investor Day 2025 recording (placeholder)",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "AAPL"
+      }
+    ],
+    "chunks": [],
+    "indexed_at": "2026-02-11T05:04:00.151734+00:00"
+  },
+  {
+    "file_id": "FILE-402",
+    "filename": "test_upload.txt",
+    "title": "A test document",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-01",
+    "description": "A test document",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "AAPL"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "f0639bbf-b2bb-4726-a71a-418ac9fb24ed",
+        "file_id": "FILE-402",
+        "chunk_index": 0,
+        "text": "This is a test document about earnings and revenue for testing.",
+        "char_start": 0,
+        "char_end": 63
+      }
+    ],
+    "indexed_at": "2026-02-11T05:04:00.152043+00:00"
+  },
+  {
+    "file_id": "FILE-403",
+    "filename": "test_upload.txt",
+    "title": "A test document",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-01",
+    "description": "A test document",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "AAPL"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "5bbfd97a-04a3-4eaa-b37c-86f8491d83a4",
+        "file_id": "FILE-403",
+        "chunk_index": 0,
+        "text": "This is a test document about earnings and revenue for testing.",
+        "char_start": 0,
+        "char_end": 63
+      }
+    ],
+    "indexed_at": "2026-02-11T05:04:00.152369+00:00"
+  }
+]

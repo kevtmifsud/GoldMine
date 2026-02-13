@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import csv
 import math
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
@@ -14,6 +16,7 @@ from app.api.entity_models import (
     EntityResolution,
     FilterDefinition,
     FilterOption,
+    SecondaryLine,
     WidgetConfig,
 )
 from app.data_access.factory import get_data_provider
@@ -171,16 +174,50 @@ def _build_stock_detail(ticker: str) -> EntityDetail:
 
     widgets = [
         WidgetConfig(
-            widget_id="price_vs_peers",
-            title="Price vs Sector Peers",
+            widget_id="price_history",
+            title="Price History",
+            endpoint=f"/api/entities/stock/{ticker}/price-history",
+            widget_type="chart",
+            chart_config=ChartConfig(
+                chart_type="line",
+                x_key="date",
+                y_key="close",
+                x_label="Date",
+                y_label="Close Price ($)",
+                secondary_y_label="EPS ($)",
+                secondary_lines=[
+                    SecondaryLine(y_key="eps_estimate", label="EPS Estimate", color="#805ad5"),
+                    SecondaryLine(y_key="eps_actual", label="EPS Actual", color="#38a169"),
+                ],
+            ),
+            columns=[],
+            default_page_size=5000,
+        ),
+        WidgetConfig(
+            widget_id="valuation_vs_peers",
+            title="Valuation vs Peers",
             endpoint=f"/api/entities/stock/{ticker}/peers",
             widget_type="chart",
             chart_config=ChartConfig(
                 chart_type="bar",
                 x_key="ticker",
-                y_key="market_cap_b",
+                y_key="pe_ratio",
                 x_label="Ticker",
-                y_label="Market Cap ($B)",
+                y_label="P/E Ratio",
+            ),
+            columns=[],
+        ),
+        WidgetConfig(
+            widget_id="earnings_vs_peers",
+            title="Earnings vs Peers",
+            endpoint=f"/api/entities/stock/{ticker}/peers",
+            widget_type="chart",
+            chart_config=ChartConfig(
+                chart_type="bar",
+                x_key="ticker",
+                y_key="eps",
+                x_label="Ticker",
+                y_label="EPS ($)",
             ),
             columns=[],
         ),
@@ -470,6 +507,44 @@ async def get_person_stocks(
 # ---------------------------------------------------------------------------
 # Chart data endpoints
 # ---------------------------------------------------------------------------
+
+_STOCK_HISTORY_CSV = Path(__file__).resolve().parent.parent.parent.parent / "data" / "structured" / "stock_history.csv"
+
+
+@router.get("/stock/{ticker}/price-history")
+async def get_stock_price_history(
+    ticker: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=5000, ge=1, le=10000),
+) -> PaginatedResponse:
+    provider = get_data_provider()
+    stock = provider.get_record("stocks", ticker)
+    if stock is None:
+        raise NotFoundError(f"Stock '{ticker}' not found")
+
+    if not _STOCK_HISTORY_CSV.exists():
+        return PaginatedResponse(
+            data=[], page=1, page_size=page_size,
+            total_records=0, total_pages=1, has_next=False, has_previous=False,
+        )
+
+    rows: list[dict[str, Any]] = []
+    with open(_STOCK_HISTORY_CSV, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row["ticker"] == ticker:
+                entry: dict[str, Any] = {"date": row["date"], "close": row["close"]}
+                if row.get("eps_estimate"):
+                    entry["eps_estimate"] = row["eps_estimate"]
+                if row.get("eps_actual"):
+                    entry["eps_actual"] = row["eps_actual"]
+                rows.append(entry)
+
+    # Already sorted chronologically in the CSV, but ensure it
+    rows.sort(key=lambda r: r["date"])
+
+    return _paginate(rows, page, page_size, None, "asc")
+
 
 @router.get("/stock/{ticker}/peers")
 async def get_stock_peers(ticker: str) -> PaginatedResponse:

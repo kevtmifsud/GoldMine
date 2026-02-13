@@ -20,8 +20,10 @@ class EmailSchedule(BaseModel):
     entity_id: str
     widget_ids: list[str] | None = None
     recipients: list[str]
+    recurrence_type: str = Field(default="weekly", pattern="^(daily|weekly|monthly)$")
     time_of_day: str = Field(default="09:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     days_of_week: list[int] = Field(default=[0, 1, 2, 3, 4])
+    day_of_month: int | None = Field(default=None, ge=1, le=28)
     next_run_at: str = ""
     last_run_at: str = ""
     status: str = Field(default="active", pattern="^(active|paused|failed)$")
@@ -46,8 +48,10 @@ class EmailScheduleCreate(BaseModel):
     entity_id: str
     widget_ids: list[str] | None = None
     recipients: list[str] = Field(min_length=1)
+    recurrence_type: str = Field(default="weekly", pattern="^(daily|weekly|monthly)$")
     time_of_day: str = Field(default="09:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     days_of_week: list[int] = Field(default=[0, 1, 2, 3, 4])
+    day_of_month: int | None = Field(default=None, ge=1, le=28)
     widget_overrides: list[WidgetOverrideRef] = Field(default_factory=list)
 
     @field_validator("days_of_week")
@@ -63,8 +67,10 @@ class EmailScheduleCreate(BaseModel):
 class EmailScheduleUpdate(BaseModel):
     name: str | None = None
     recipients: list[str] | None = None
+    recurrence_type: str | None = Field(default=None, pattern="^(daily|weekly|monthly)$")
     time_of_day: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     days_of_week: list[int] | None = None
+    day_of_month: int | None = Field(default=None, ge=1, le=28)
     status: str | None = Field(default=None, pattern="^(active|paused|failed)$")
     widget_overrides: list[WidgetOverrideRef] | None = None
 

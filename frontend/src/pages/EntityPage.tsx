@@ -6,7 +6,6 @@ import type { SmartlistWidgetHandle } from "../components/SmartlistWidget";
 import { Layout } from "../components/Layout";
 import { EntityHeader } from "../components/EntityHeader";
 import { WidgetContainer } from "../components/WidgetContainer";
-import { ViewToolbar } from "../components/ViewToolbar";
 import { SaveViewDialog } from "../components/SaveViewDialog";
 import { DocumentsPanel } from "../components/DocumentsPanel";
 import { LLMQueryPanel } from "../components/LLMQueryPanel";
@@ -30,7 +29,6 @@ export function EntityPage() {
   const [views, setViews] = useState<SavedView[]>([]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
-  const [schedulePreSelectedWidget, setSchedulePreSelectedWidget] = useState<string | null>(null);
   const [schedulesRefreshKey, setSchedulesRefreshKey] = useState(0);
   const [dirty, setDirty] = useState(false);
 
@@ -153,12 +151,65 @@ export function EntityPage() {
     return widgetRefs.current.get(widgetId)!;
   };
 
+  const activeView = detail?.active_view_id
+    ? views.find((v) => v.view_id === detail.active_view_id)
+    : null;
+  const isViewOwner = activeView?.owner === (user?.username ?? "");
+
   return (
     <Layout>
       <div className="entity-page">
-        <Link to="/" className="entity-page__back">
-          &larr; Back to Search
-        </Link>
+        <div className="entity-page__top-bar">
+          <Link to="/" className="entity-page__back">
+            &larr; Back to Search
+          </Link>
+          {detail && (
+            <div className="entity-page__actions">
+              <select
+                className="entity-page__view-select"
+                value={detail.active_view_id ?? ""}
+                onChange={(e) => handleViewSelect(e.target.value || null)}
+              >
+                <option value="">Default View</option>
+                {views.map((v) => (
+                  <option key={v.view_id} value={v.view_id}>
+                    {v.name}{v.owner !== (user?.username ?? "") ? ` (${v.owner})` : ""}
+                  </option>
+                ))}
+              </select>
+              {isViewOwner && (
+                <button
+                  className="entity-page__action-btn entity-page__action-btn--danger"
+                  onClick={() => handleDeleteView(detail.active_view_id!)}
+                >
+                  Delete
+                </button>
+              )}
+              {dirty && isViewOwner && (
+                <button
+                  className="entity-page__action-btn"
+                  onClick={handleOverwriteView}
+                >
+                  Save
+                </button>
+              )}
+              {dirty && (
+                <button
+                  className="entity-page__action-btn"
+                  onClick={() => setShowSaveDialog(true)}
+                >
+                  Save As New
+                </button>
+              )}
+              <button
+                className="entity-page__action-btn entity-page__action-btn--primary"
+                onClick={() => setShowScheduleDialog(true)}
+              >
+                Create Alert
+              </button>
+            </div>
+          )}
+        </div>
         {loading && (
           <div className="entity-page__loading">
             <div className="spinner" />
@@ -172,37 +223,45 @@ export function EntityPage() {
               entityType={detail.entity_type}
               headerFields={detail.header_fields}
             />
-            <ViewToolbar
-              entityType={detail.entity_type}
-              entityId={detail.entity_id}
-              activeViewId={detail.active_view_id}
-              activeViewName={detail.active_view_name}
-              views={views}
-              currentUser={user?.username ?? ""}
-              dirty={dirty}
-              onViewSelect={handleViewSelect}
-              onOverwriteView={handleOverwriteView}
-              onSaveNewView={() => setShowSaveDialog(true)}
-              onDeleteView={handleDeleteView}
-            />
-            <button
-              className="entity-page__schedule-btn"
-              onClick={() => {
-                setSchedulePreSelectedWidget(null);
-                setShowScheduleDialog(true);
-              }}
-            >
-              Schedule Email
-            </button>
             <div className="entity-page__widgets">
-              {detail.widgets.map((widget) => (
-                <WidgetContainer
-                  key={widget.widget_id}
-                  ref={getWidgetRef(widget.widget_id)}
-                  config={widget}
-                  onStateChange={handleWidgetStateChange}
-                />
-              ))}
+              {detail.widgets
+                .filter((w) => w.widget_type === "chart" && w.widget_id === "price_history")
+                .map((widget) => (
+                  <div key={widget.widget_id} className="entity-page__chart-full">
+                    <WidgetContainer
+                      ref={getWidgetRef(widget.widget_id)}
+                      config={widget}
+                      entityId={detail.entity_id}
+                      onStateChange={handleWidgetStateChange}
+                    />
+                  </div>
+                ))}
+              {detail.widgets.some((w) => w.widget_type === "chart" && w.widget_id !== "price_history") && (
+                <div className="entity-page__charts">
+                  {detail.widgets
+                    .filter((w) => w.widget_type === "chart" && w.widget_id !== "price_history")
+                    .map((widget) => (
+                      <WidgetContainer
+                        key={widget.widget_id}
+                        ref={getWidgetRef(widget.widget_id)}
+                        config={widget}
+                        entityId={detail.entity_id}
+                        onStateChange={handleWidgetStateChange}
+                      />
+                    ))}
+                </div>
+              )}
+              {detail.widgets
+                .filter((w) => w.widget_type !== "chart")
+                .map((widget) => (
+                  <WidgetContainer
+                    key={widget.widget_id}
+                    ref={getWidgetRef(widget.widget_id)}
+                    config={widget}
+                    entityId={detail.entity_id}
+                    onStateChange={handleWidgetStateChange}
+                  />
+                ))}
             </div>
             <div className="entity-page__documents">
               <DocumentsPanel entityType={detail.entity_type} entityId={detail.entity_id} />
@@ -230,7 +289,7 @@ export function EntityPage() {
             entityType={detail.entity_type}
             entityId={detail.entity_id}
             widgets={detail.widgets}
-            preSelectedWidgetId={schedulePreSelectedWidget}
+            currentOverrides={collectOverrides()}
             onSave={() => {
               setShowScheduleDialog(false);
               setSchedulesRefreshKey((k) => k + 1);

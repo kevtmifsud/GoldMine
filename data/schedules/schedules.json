@@ -1,0 +1,54 @@
+[
+  {
+    "schedule_id": "afe17596-05b0-4f19-9b1e-2a502fabbd61",
+    "owner": "analyst1",
+    "name": "Daily AAPL Full Page Summary",
+    "entity_type": "stock",
+    "entity_id": "AAPL",
+    "widget_ids": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ],
+    "recurrence": "weekly",
+    "next_run_at": "2026-02-16T05:00:00+00:00",
+    "last_run_at": "",
+    "status": "active",
+    "widget_overrides": [
+      {
+        "widget_id": "valuation_vs_peers",
+        "server_filters": {},
+        "sort_by": null,
+        "sort_order": null,
+        "visible_columns": null,
+        "page_size": 10
+      },
+      {
+        "widget_id": "earnings_vs_peers",
+        "server_filters": {},
+        "sort_by": null,
+        "sort_order": null,
+        "visible_columns": null,
+        "page_size": 10
+      },
+      {
+        "widget_id": "related_people",
+        "server_filters": {},
+        "sort_by": null,
+        "sort_order": null,
+        "visible_columns": null,
+        "page_size": 10
+      },
+      {
+        "widget_id": "related_files",
+        "server_filters": {},
+        "sort_by": null,
+        "sort_order": null,
+        "visible_columns": null,
+        "page_size": 10
+      }
+    ],
+    "retry_count": 0,
+    "created_at": "2026-02-13T01:37:10.246154+00:00",
+    "updated_at": "2026-02-13T01:37:10.248663+00:00"
+  }
+]

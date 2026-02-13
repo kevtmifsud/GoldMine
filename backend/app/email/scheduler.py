@@ -46,7 +46,7 @@ def _process_due_schedules() -> None:
 
     for schedule in due:
         try:
-            subject, html_body, text_body = render_email(
+            subject, html_body, text_body, images = render_email(
                 entity_type=schedule.entity_type,
                 entity_id=schedule.entity_id,
                 schedule_name=schedule.name,
@@ -59,6 +59,7 @@ def _process_due_schedules() -> None:
                 subject=subject,
                 html_body=html_body,
                 text_body=text_body,
+                images=images,
             )
 
             now = datetime.now(timezone.utc).isoformat()
@@ -75,6 +76,8 @@ def _process_due_schedules() -> None:
                     datetime.fromisoformat(schedule.next_run_at),
                     schedule.days_of_week,
                     schedule.time_of_day,
+                    schedule.recurrence_type,
+                    schedule.day_of_month,
                 )
                 schedule_provider.update_schedule(
                     schedule.schedule_id,
@@ -148,12 +151,30 @@ def _update_schedule_fields(schedule_id: str, fields: dict) -> None:
             return
 
 
-def _compute_next_run(current: datetime, days_of_week: list[int], time_of_day: str) -> str:
-    """Compute the next run time based on days_of_week and time_of_day."""
+def _compute_next_run(
+    current: datetime,
+    days_of_week: list[int],
+    time_of_day: str,
+    recurrence_type: str = "weekly",
+    day_of_month: int | None = None,
+) -> str:
+    """Compute the next run time based on recurrence settings."""
     hour, minute = map(int, time_of_day.split(":"))
+
+    if recurrence_type == "monthly" and day_of_month is not None:
+        candidate = current + relativedelta(months=1)
+        try:
+            candidate = candidate.replace(day=day_of_month, hour=hour, minute=minute, second=0, microsecond=0)
+        except ValueError:
+            candidate = candidate.replace(day=28, hour=hour, minute=minute, second=0, microsecond=0)
+        return candidate.isoformat()
+
+    # daily or weekly
     for offset in range(1, 8):
         candidate = (current + timedelta(days=offset)).replace(
             hour=hour, minute=minute, second=0, microsecond=0,
         )
         if candidate.weekday() in days_of_week:
             return candidate.isoformat()
+    # Fallback
+    return (current + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat()

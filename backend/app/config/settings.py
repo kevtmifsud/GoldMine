@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     STORAGE_DIR: str = "../data/unstructured"
     VIEWS_DIR: str = "../data/views"
     DOCUMENTS_DIR: str = "../data/documents"
+    SCHEDULES_DIR: str = "../data/schedules"
+    SCHEDULER_INTERVAL_SECONDS: int = 60
+    EMAIL_MAX_ROWS_PER_WIDGET: int = 50
     ANTHROPIC_API_KEY: str = ""
     LLM_MODEL: str = "claude-sonnet-4-20250514"
     LLM_MAX_CONTEXT_CHUNKS: int = 15

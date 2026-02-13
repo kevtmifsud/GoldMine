@@ -14,6 +14,9 @@ os.environ["GOLDMINE_VIEWS_DIR"] = _views_tmpdir
 _docs_tmpdir = tempfile.mkdtemp(prefix="goldmine_docs_test_")
 os.environ["GOLDMINE_DOCUMENTS_DIR"] = _docs_tmpdir
 
+_schedules_tmpdir = tempfile.mkdtemp(prefix="goldmine_schedules_test_")
+os.environ["GOLDMINE_SCHEDULES_DIR"] = _schedules_tmpdir
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -25,6 +28,7 @@ import app.object_storage.factory as osf
 import app.views.factory as vf
 import app.documents.factory as docf
 import app.llm.factory as llmf
+import app.email.factory as emf
 import app.api.documents as docs_api
 
 
@@ -35,6 +39,8 @@ def _reset_providers():
     vf._provider = None
     docf._provider = None
     llmf._provider = None
+    emf._email_provider = None
+    emf._schedule_provider = None
     docs_api._indexed_existing = False
     # Clean views files between tests
     import glob
@@ -42,6 +48,9 @@ def _reset_providers():
         os.remove(f)
     # Clean documents index between tests
     for f in glob.glob(os.path.join(_docs_tmpdir, "*.json")):
+        os.remove(f)
+    # Clean schedules data between tests
+    for f in glob.glob(os.path.join(_schedules_tmpdir, "*.json")):
         os.remove(f)
     yield
 

@@ -10,6 +10,8 @@ import { ViewToolbar } from "../components/ViewToolbar";
 import { SaveViewDialog } from "../components/SaveViewDialog";
 import { DocumentsPanel } from "../components/DocumentsPanel";
 import { LLMQueryPanel } from "../components/LLMQueryPanel";
+import { ScheduleEmailDialog } from "../components/ScheduleEmailDialog";
+import { SchedulesList } from "../components/SchedulesList";
 import { useAuth } from "../auth/useAuth";
 import * as viewsApi from "../config/viewsApi";
 import "../styles/entity.css";
@@ -27,6 +29,9 @@ export function EntityPage() {
   const [error, setError] = useState<string | null>(null);
   const [views, setViews] = useState<SavedView[]>([]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
+  const [schedulePreSelectedWidget, setSchedulePreSelectedWidget] = useState<string | null>(null);
+  const [schedulesRefreshKey, setSchedulesRefreshKey] = useState(0);
   const [dirty, setDirty] = useState(false);
 
   const widgetRefs = useRef<Map<string, React.RefObject<SmartlistWidgetHandle>>>(new Map());
@@ -180,6 +185,15 @@ export function EntityPage() {
               onSaveNewView={() => setShowSaveDialog(true)}
               onDeleteView={handleDeleteView}
             />
+            <button
+              className="entity-page__schedule-btn"
+              onClick={() => {
+                setSchedulePreSelectedWidget(null);
+                setShowScheduleDialog(true);
+              }}
+            >
+              Schedule Email
+            </button>
             <div className="entity-page__widgets">
               {detail.widgets.map((widget) => (
                 <WidgetContainer
@@ -196,12 +210,32 @@ export function EntityPage() {
             <div className="entity-page__llm">
               <LLMQueryPanel entityType={detail.entity_type} entityId={detail.entity_id} />
             </div>
+            <div className="entity-page__schedules">
+              <SchedulesList
+                entityType={detail.entity_type}
+                entityId={detail.entity_id}
+                refreshKey={schedulesRefreshKey}
+              />
+            </div>
           </>
         )}
         {showSaveDialog && (
           <SaveViewDialog
             onSave={handleSaveNewView}
             onCancel={() => setShowSaveDialog(false)}
+          />
+        )}
+        {showScheduleDialog && detail && (
+          <ScheduleEmailDialog
+            entityType={detail.entity_type}
+            entityId={detail.entity_id}
+            widgets={detail.widgets}
+            preSelectedWidgetId={schedulePreSelectedWidget}
+            onSave={() => {
+              setShowScheduleDialog(false);
+              setSchedulesRefreshKey((k) => k + 1);
+            }}
+            onCancel={() => setShowScheduleDialog(false)}
           />
         )}
       </div>

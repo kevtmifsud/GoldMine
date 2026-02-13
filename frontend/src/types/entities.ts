@@ -207,3 +207,52 @@ export interface LLMQueryResponse {
   model: string;
   token_usage: Record<string, number>;
 }
+
+// --- Email Schedules ---
+
+export type WidgetOverrideRef = WidgetStateOverride;
+
+export interface EmailSchedule {
+  schedule_id: string;
+  owner: string;
+  name: string;
+  entity_type: string;
+  entity_id: string;
+  widget_ids: string[] | null;
+  recipients: string[];
+  recurrence: string;
+  next_run_at: string;
+  last_run_at: string;
+  status: string;
+  widget_overrides: WidgetOverrideRef[];
+  retry_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmailLog {
+  log_id: string;
+  schedule_id: string;
+  sent_at: string;
+  status: string;
+  error: string | null;
+  recipients: string[];
+}
+
+export interface EmailScheduleCreate {
+  name: string;
+  entity_type: string;
+  entity_id: string;
+  widget_ids: string[] | null;
+  recipients: string[];
+  recurrence: string;
+  widget_overrides: WidgetOverrideRef[];
+}
+
+export interface EmailScheduleUpdate {
+  name?: string;
+  recipients?: string[];
+  recurrence?: string;
+  status?: string;
+  widget_overrides?: WidgetOverrideRef[];
+}

@@ -304,7 +304,7 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
                 )}
                 <Line
                   yAxisId="left"
-                  type="monotone"
+                  type="linear"
                   dataKey={chartConfig.y_key}
                   stroke={chartConfig.color || "#3182ce"}
                   dot={false}
@@ -315,12 +315,13 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
                   <Line
                     key={sl.y_key}
                     yAxisId={hasSecondaryAxis ? "right" : "left"}
-                    type="monotone"
+                    type="linear"
                     dataKey={sl.y_key}
                     stroke={sl.color}
-                    dot={{ r: 3, fill: sl.color }}
-                    strokeWidth={0}
-                    connectNulls={false}
+                    strokeOpacity={0.45}
+                    dot={false}
+                    strokeWidth={1.5}
+                    connectNulls
                     isAnimationActive={false}
                   />
                 ))}

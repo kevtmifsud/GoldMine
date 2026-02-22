@@ -1,41 +1,41 @@
 person_id,name,title,organization,type,tickers
-PER-001,Dorothy Young,CFO,Coca-Cola Company,executive,CRM;IBM;VZ
-PER-002,Christopher Thomas,CFO,NVIDIA Corporation,executive,GE;BA
-PER-003,Elizabeth Anderson,CFO,Walmart Inc.,executive,LLY;CSCO
-PER-004,Mark Perez,COO,McDonald's Corp.,executive,LOW;DIS;BRK.B
-PER-005,Mark Harris,VP of Strategy,Apple Inc.,executive,GOOGL;RY;SCHW
-PER-006,Matthew Martin,COO,Mastercard Inc.,executive,DIS;ASML
-PER-007,Joseph Moore,SVP,Visa Inc.,executive,APD;AMZN
-PER-008,Betty Hernandez,CEO,Abbott Laboratories,executive,HD;ASML
-PER-009,Betty Nguyen,CTO,Cisco Systems,executive,AMZN;V;CMCSA
-PER-010,Sandra Lopez,SVP,Visa Inc.,executive,AMD
-PER-011,Susan Robinson,President,Broadcom Inc.,executive,RTX;SCHW
-PER-012,Mark Taylor,CEO,Costco Wholesale,executive,TGT
-PER-013,Paul Brown,CEO,Broadcom Inc.,executive,ACN;UNH
-PER-014,Mary Thomas,CTO,Berkshire Hathaway,executive,GOOGL
-PER-015,David Walker,VP of Strategy,Coca-Cola Company,executive,PG;SHEL;CSCO
-PER-016,Thomas White,CTO,Johnson & Johnson,executive,PG
-PER-017,Michael Nguyen,SVP,JPMorgan Chase & Co.,executive,NOW
-PER-018,Richard Jones,CFO,Thermo Fisher Scientific,executive,ORCL;WMT;INTU
-PER-019,Joshua Williams,EVP,Alphabet Inc.,executive,ASML;CMCSA
-PER-020,Andrew Perez,VP of Strategy,Amazon.com Inc.,executive,DIS
-PER-021,Margaret White,CTO,Costco Wholesale,executive,SBUX;LLY;T
-PER-022,Dorothy Moore,SVP,McDonald's Corp.,executive,ASML;FCX;LOW
-PER-023,Emily Moore,President,Accenture plc,executive,ORCL;XOM
-PER-024,Donald Thomas,EVP,Apple Inc.,executive,SHEL;SCHW
-PER-025,Ashley Lee,COO,Exxon Mobil Corp.,executive,APD
-PER-026,Thomas Perez,Research Analyst,GoldMine Capital,analyst,IBM;TM;MSFT;BABA
-PER-027,Jessica Clark,Senior Analyst,GoldMine Capital,analyst,TM;CRM;TGT;APD;NKE
-PER-028,Christopher Anderson,Sector Head,Atlas Fund,analyst,ORCL;NOW;BHP;BLK;TGT
-PER-029,Matthew Ramirez,Research Analyst,GoldMine Capital,analyst,GE;GS;SBUX;INTC;NOW;NFLX
-PER-030,Richard Lee,Research Analyst,Apex Research,analyst,ASML;COST
-PER-031,Steven Moore,Portfolio Manager,Apex Research,analyst,TSM;QCOM;JPM;AVGO;TXN;ABT
-PER-032,Karen Smith,Research Analyst,Pinnacle Partners,analyst,HD;IBM;META;TSLA;SAP;TXN
-PER-033,Michael Smith,Senior Analyst,Summit Advisors,analyst,QCOM;TGT;FCX;VZ;RTX;COST
-PER-034,Steven Davis,Senior Analyst,Atlas Fund,analyst,NEE;APD
-PER-035,Patricia Martinez,Research Analyst,GoldMine Capital,analyst,SHEL;INTU;V
-PER-036,Kimberly Clark,Sector Head,Pinnacle Partners,analyst,ACN;BABA;SCHW;NKE;VZ;INTU
-PER-037,Karen Torres,Research Analyst,Apex Research,analyst,BRK.B;JPM;MCD;CSCO;AMD;V
-PER-038,Barbara Scott,Associate PM,Pinnacle Partners,analyst,ABBV;AAPL
-PER-039,Kenneth Walker,Senior Analyst,Apex Research,analyst,NVDA;ABT;QCOM;SBUX
-PER-040,Thomas Nguyen,Research Analyst,Apex Research,analyst,CMCSA;PG;NVO
+PER-001,Steven Johnson,CTO,Alphabet Inc. (Class A),executive,DIS;NWSA
+PER-002,Margaret Hernandez,EVP,Advanced Micro Devices,executive,AVB
+PER-003,Richard Clark,President,Altria,executive,LVS;PCG;VICI
+PER-004,Christopher Martin,CEO,Akamai Technologies,executive,ADP
+PER-005,Joshua Scott,EVP,3M,executive,CHRW;AIG
+PER-006,Margaret Garcia,VP of Strategy,Advanced Micro Devices,executive,SBUX;NI
+PER-007,Michael Johnson,President,Abbott Laboratories,executive,CARR
+PER-008,Steven Davis,VP of Strategy,Align Technology,executive,ROP;FOX
+PER-009,Thomas Garcia,EVP,American Tower,executive,KR;FI;CNP
+PER-010,Anthony White,CEO,Aflac,executive,HSY
+PER-011,Donald Robinson,President,Allstate,executive,CL;SNPS
+PER-012,Patricia Martinez,EVP,American Electric Power,executive,NTRS;ADP;ANET
+PER-013,Paul Clark,SVP,American Express,executive,CMCSA;LVS;AME
+PER-014,Dorothy Clark,VP of Strategy,Allstate,executive,ODFL;TMO;WAB
+PER-015,Jessica Walker,CEO,Allegion,executive,APTV;FOXA
+PER-016,Joshua King,CFO,Ameren,executive,NVDA;MAA;BLDR
+PER-017,Donald Lopez,COO,American Electric Power,executive,XEL
+PER-018,Richard Rodriguez,CFO,Altria,executive,GPC
+PER-019,Margaret Gonzalez,President,Air Products,executive,BLDR;SYF;MTCH
+PER-020,John Garcia,EVP,American International Group,executive,LDOS;FOX
+PER-021,Sarah King,CEO,American Electric Power,executive,VRSK;TSCO
+PER-022,Donna Nguyen,SVP,Accenture,executive,ROL;GIS;BAX
+PER-023,Elizabeth Torres,CFO,American Water Works,executive,MKTX;DGX;WMB
+PER-024,Michael Torres,President,American International Group,executive,ROST
+PER-025,Paul Thompson,VP of Strategy,Allstate,executive,DHR;FSLR
+PER-026,Kenneth Walker,Associate PM,Apex Research,analyst,CAT;DE
+PER-027,Donna Hill,Research Analyst,GoldMine Capital,analyst,GOOGL;FOXA;USB;TRV;ETR
+PER-028,Steven Moore,Portfolio Manager,Summit Advisors,analyst,APD;EQT;SO;SBAC
+PER-029,Sarah Young,Research Analyst,Apex Research,analyst,XEL;TJX
+PER-030,Karen Lewis,Senior Analyst,Apex Research,analyst,DDOG;PNC;GD;MRK
+PER-031,Donald Wilson,Portfolio Manager,GoldMine Capital,analyst,PGR;PODD;DGX;JNJ;TJX
+PER-032,Andrew Hernandez,Sector Head,Pinnacle Partners,analyst,EMN;PAYX
+PER-033,David King,Senior Analyst,Apex Research,analyst,ARE;CAT;CHTR;TT;SMCI;CHD
+PER-034,Robert Robinson,Research Analyst,Summit Advisors,analyst,VZ;EXPE
+PER-035,Nancy Robinson,Research Analyst,Summit Advisors,analyst,FOX;MCO;VTRS;BLK;NXPI;ALGN
+PER-036,Ashley Hill,Sector Head,Summit Advisors,analyst,CBRE;WY;TKO;IBM;MMC
+PER-037,Matthew Hernandez,Portfolio Manager,GoldMine Capital,analyst,PTC;SYK;OMC;T
+PER-038,Anthony Brown,Research Analyst,Apex Research,analyst,TDY;L;ROK
+PER-039,Joseph Wilson,Senior Analyst,Pinnacle Partners,analyst,NEM;GEHC;JKHY;APD
+PER-040,David Lopez,Portfolio Manager,Summit Advisors,analyst,NOW;ACN;COIN;CTRA;MET;SPG

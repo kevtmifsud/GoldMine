@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
-import { Link } from "react-router-dom";
+import { AgGridReact } from "ag-grid-react";
+import type { SortChangedEvent } from "ag-grid-community";
 import api from "../config/api";
 import type { WidgetConfig, PaginatedResponse, WidgetStateOverride } from "../types/entities";
-import { Pagination } from "./Pagination";
+import { buildColumnDefs } from "./ag-grid/columnDefBuilder";
+import { gridTheme } from "./ag-grid/theme";
 import "../styles/smartlist.css";
 
 interface SmartlistWidgetProps {
@@ -17,9 +19,6 @@ export interface SmartlistWidgetHandle {
 export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidgetProps>(
   function SmartlistWidget({ config, onStateChange }, ref) {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalRecords, setTotalRecords] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string | null>(config.initial_sort_by ?? null);
@@ -63,24 +62,20 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
         sort_by: sortBy,
         sort_order: sortOrder,
         visible_columns: Array.from(visibleColumns),
-        page_size: config.default_page_size,
+        page_size: null,
       };
     },
   }));
 
   const fetchData = useCallback(
-    async (p: number, sb: string | null, so: string, filters: Record<string, string>) => {
+    async (filters: Record<string, string>) => {
       setLoading(true);
       setError(null);
       try {
         const params: Record<string, string | number> = {
-          page: p,
-          page_size: config.default_page_size,
+          page: 1,
+          page_size: 200,
         };
-        if (sb) {
-          params.sort_by = sb;
-          params.sort_order = so;
-        }
         // Add server-side filters as query params
         for (const [k, v] of Object.entries(filters)) {
           if (v) params[k] = v;
@@ -89,20 +84,18 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
           params,
         });
         setData(resp.data.data);
-        setTotalPages(resp.data.total_pages);
-        setTotalRecords(resp.data.total_records);
       } catch {
         setError("Failed to load data");
       } finally {
         setLoading(false);
       }
     },
-    [config.endpoint, config.default_page_size]
+    [config.endpoint]
   );
 
   useEffect(() => {
-    fetchData(page, sortBy, sortOrder, serverFilters);
-  }, [fetchData, page, sortBy, sortOrder, serverFilters]);
+    fetchData(serverFilters);
+  }, [fetchData, serverFilters]);
 
   // Click-outside handler for column picker
   useEffect(() => {
@@ -116,23 +109,20 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showColumnPicker]);
 
-  const handleSort = (key: string) => {
-    if (sortBy === key) {
-      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  const handleSortChanged = useCallback((event: SortChangedEvent) => {
+    const colState = event.api.getColumnState();
+    const sorted = colState.find((c) => c.sort);
+    if (sorted) {
+      setSortBy(sorted.colId);
+      setSortOrder(sorted.sort as "asc" | "desc");
     } else {
-      setSortBy(key);
+      setSortBy(null);
       setSortOrder("asc");
     }
-    setPage(1);
-  };
-
-  const handlePageChange = (newPage: number) => {
-    setPage(newPage);
-  };
+  }, []);
 
   const handleServerFilterChange = (field: string, value: string) => {
     setServerFilters((prev) => ({ ...prev, [field]: value }));
-    setPage(1);
   };
 
   const handleToggleColumn = (key: string) => {
@@ -147,27 +137,6 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
     });
   };
 
-  const formatValue = (value: unknown, format: string): string => {
-    if (value === null || value === undefined || value === "") return "\u2014";
-    const str = String(value);
-    switch (format) {
-      case "currency": {
-        const num = parseFloat(str);
-        return isNaN(num) ? str : `$${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      }
-      case "percent": {
-        const num = parseFloat(str);
-        return isNaN(num) ? str : `${num.toFixed(2)}%`;
-      }
-      case "number": {
-        const num = parseFloat(str);
-        return isNaN(num) ? str : num.toLocaleString("en-US");
-      }
-      default:
-        return str;
-    }
-  };
-
   // Client-side filtered data
   const displayData = useMemo(() => {
     if (!clientFilterText || config.client_filterable_columns.length === 0) return data;
@@ -179,7 +148,19 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
     );
   }, [data, clientFilterText, config.client_filterable_columns]);
 
-  const activeColumns = config.columns.filter((c) => visibleColumns.has(c.key));
+  const columnDefs = useMemo(
+    () => buildColumnDefs(config.columns, visibleColumns),
+    [config.columns, visibleColumns]
+  );
+
+  const initialState = useMemo(() => ({
+    sort: {
+      sortModel: config.initial_sort_by
+        ? [{ colId: config.initial_sort_by, sort: (config.initial_sort_order ?? "asc") as "asc" | "desc" }]
+        : [],
+    },
+  }), [config.initial_sort_by, config.initial_sort_order]);
+
   const hasFilters = config.filter_definitions.length > 0;
   const hasQuickFilter = config.client_filterable_columns.length > 0;
   const hasColumnToggle = config.columns.length > 0;
@@ -247,7 +228,7 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
           )}
         </div>
       )}
-      {loading && (
+      {loading && data.length === 0 && (
         <div className="smartlist__loading">
           <div className="spinner" />
         </div>
@@ -255,65 +236,29 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
       {error && (
         <div className="smartlist__error">
           <p>{error}</p>
-          <button onClick={() => fetchData(page, sortBy, sortOrder, serverFilters)}>
+          <button onClick={() => fetchData(serverFilters)}>
             Retry
           </button>
         </div>
       )}
-      {!loading && !error && displayData.length === 0 && (
+      {!error && !loading && data.length === 0 && (
         <div className="smartlist__empty">No records found</div>
       )}
-      {!loading && !error && displayData.length > 0 && (
-        <>
-          <div className="smartlist__table-wrapper">
-            <table className="smartlist__table">
-              <thead>
-                <tr>
-                  {activeColumns.map((col) => (
-                    <th
-                      key={col.key}
-                      className={`smartlist__th ${col.sortable ? "smartlist__th--sortable" : ""}`}
-                      onClick={() => col.sortable && handleSort(col.key)}
-                    >
-                      {col.label}
-                      {sortBy === col.key && (
-                        <span className="smartlist__sort-indicator">
-                          {sortOrder === "asc" ? " \u25B2" : " \u25BC"}
-                        </span>
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {displayData.map((row, idx) => (
-                  <tr key={idx}>
-                    {activeColumns.map((col) => (
-                      <td key={col.key} className="smartlist__td">
-                        {col.key === "ticker" && row[col.key] ? (
-                          <Link
-                            className="smartlist__link"
-                            to={`/entity/stock/${row[col.key]}`}
-                          >
-                            {formatValue(row[col.key], col.format)}
-                          </Link>
-                        ) : (
-                          formatValue(row[col.key], col.format)
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {!error && data.length > 0 && (
+          <div className="smartlist__grid" style={{ height: 600 }}>
+            <AgGridReact
+              theme={gridTheme}
+              loading={loading}
+              rowData={displayData}
+              columnDefs={columnDefs}
+              initialState={initialState}
+              autoSizeStrategy={{ type: "fitCellContents", skipHeader: true }}
+              defaultColDef={{ wrapHeaderText: true, autoHeaderHeight: true, minWidth: 100 }}
+              onSortChanged={handleSortChanged}
+              suppressPaginationPanel={true}
+              suppressMovableColumns={false}
+            />
           </div>
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            totalRecords={totalRecords}
-            onPageChange={handlePageChange}
-          />
-        </>
       )}
     </div>
   );

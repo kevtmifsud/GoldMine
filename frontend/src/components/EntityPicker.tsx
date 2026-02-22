@@ -1,0 +1,236 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+import api from "../config/api";
+import type {
+  EntityResolution,
+  EntityCandidate,
+  EntityDetail,
+} from "../types/entities";
+import "../styles/search.css";
+
+interface EntityPickerProps {
+  onSelect: (entity: EntityDetail) => void;
+  onCancel?: () => void;
+  placeholder?: string;
+  autoFocus?: boolean;
+}
+
+export function EntityPicker({
+  onSelect,
+  onCancel,
+  placeholder = "Search entity (e.g. AAPL, PER-001)...",
+  autoFocus = false,
+}: EntityPickerProps) {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [candidates, setCandidates] = useState<EntityCandidate[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState<EntityCandidate[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const fetchSuggestions = useCallback(async (q: string) => {
+    if (q.trim().length === 0) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    try {
+      const resp = await api.get<EntityCandidate[]>("/api/entities/autocomplete", {
+        params: { q: q.trim(), limit: 10 },
+      });
+      setSuggestions(resp.data);
+      setShowSuggestions(resp.data.length > 0);
+      setActiveIndex(-1);
+    } catch {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, []);
+
+  const handleInputChange = (value: string) => {
+    setQuery(value);
+    setCandidates([]);
+    setMessage(null);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(value), 200);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const resolveAndSelect = useCallback(
+    async (entityType: string, entityId: string) => {
+      setLoading(true);
+      try {
+        const resp = await api.get<EntityDetail>(
+          `/api/entities/${entityType}/${entityId}`
+        );
+        onSelect(resp.data);
+      } catch {
+        setMessage("Failed to load entity details.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [onSelect]
+  );
+
+  const handleSelectCandidate = (candidate: EntityCandidate) => {
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setCandidates([]);
+    setMessage(null);
+    resolveAndSelect(candidate.entity_type, candidate.entity_id);
+  };
+
+  const handleSearch = async () => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setLoading(true);
+    setCandidates([]);
+    setMessage(null);
+
+    try {
+      const resp = await api.get<EntityResolution>("/api/entities/resolve", {
+        params: { q: trimmed },
+      });
+      const result = resp.data;
+
+      if (result.resolved && result.entity_type && result.entity_id) {
+        resolveAndSelect(result.entity_type, result.entity_id);
+      } else if (result.candidates.length > 0) {
+        setCandidates(result.candidates);
+      } else {
+        setMessage(result.message || "No entity found.");
+      }
+    } catch {
+      setMessage("Search failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
+      } else if (e.key === "Enter" && activeIndex >= 0) {
+        e.preventDefault();
+        handleSelectCandidate(suggestions[activeIndex]);
+        return;
+      } else if (e.key === "Escape") {
+        setShowSuggestions(false);
+        return;
+      }
+    }
+    if (e.key === "Enter") {
+      handleSearch();
+    }
+    if (e.key === "Escape" && onCancel) {
+      onCancel();
+    }
+  };
+
+  return (
+    <div className="entity-picker" ref={containerRef}>
+      <div className="entity-picker__input-row">
+        <input
+          type="text"
+          className="pack-builder__input"
+          placeholder={placeholder}
+          value={query}
+          onChange={(e) => handleInputChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            if (suggestions.length > 0) setShowSuggestions(true);
+          }}
+          disabled={loading}
+          autoComplete="off"
+          autoFocus={autoFocus}
+        />
+        <button
+          className="packs-list__create-btn"
+          onClick={handleSearch}
+          disabled={loading || !query.trim()}
+        >
+          {loading ? "..." : "Search"}
+        </button>
+        {onCancel && (
+          <button className="pack-builder__remove-btn" onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+      </div>
+
+      {showSuggestions && suggestions.length > 0 && (
+        <ul className="entity-picker__autocomplete">
+          {suggestions.map((s, idx) => (
+            <li
+              key={`${s.entity_type}-${s.entity_id}`}
+              className={`search__autocomplete-item${idx === activeIndex ? " search__autocomplete-item--active" : ""}`}
+              onMouseDown={() => handleSelectCandidate(s)}
+              onMouseEnter={() => setActiveIndex(idx)}
+            >
+              <span
+                className={`search__candidate-badge search__candidate-badge--${s.entity_type}`}
+              >
+                {s.entity_type}
+              </span>
+              <span className="search__autocomplete-name">{s.display_name}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {candidates.length > 0 && (
+        <div className="entity-picker__candidates">
+          <p className="search__candidates-label">
+            Multiple matches found. Select one:
+          </p>
+          <ul className="search__candidates-list">
+            {candidates.map((c) => (
+              <li
+                key={`${c.entity_type}-${c.entity_id}`}
+                className="search__candidate"
+                onClick={() => handleSelectCandidate(c)}
+              >
+                <span
+                  className={`search__candidate-badge search__candidate-badge--${c.entity_type}`}
+                >
+                  {c.entity_type}
+                </span>
+                <span className="search__candidate-name">{c.display_name}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {message && <p className="entity-picker__message">{message}</p>}
+    </div>
+  );
+}

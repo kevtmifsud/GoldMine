@@ -20,11 +20,15 @@ def render_email(
     widget_ids: list[str] | None = None,
     widget_overrides: list[WidgetOverrideRef] | None = None,
 ) -> tuple[str, str, str, list[tuple[str, bytes]]]:
-    """Render an email for an entity.
+    """Render an email for an entity or pack.
 
     Returns (subject, html_body, text_body, images).
     images is a list of (cid, png_bytes) for inline chart images.
     """
+
+    if entity_type == "pack":
+        return _render_pack_email(entity_id, schedule_name, widget_ids, widget_overrides)
+
     provider = get_data_provider()
 
     # Build entity header
@@ -66,7 +70,7 @@ def render_email(
                 {"key": chart_config["x_key"], "label": chart_config["x_label"]},
                 {"key": chart_config["y_key"], "label": chart_config["y_label"]},
             ]
-            rows = _fetch_widget_data(entity_type, entity_id, endpoint, chart_columns, override)
+            rows = _fetch_widget_data(entity_type, entity_id, endpoint, chart_columns, override, is_chart=True)
             cid = f"chart_{chart_index}"
             chart_index += 1
             png_bytes = render_chart_image(rows, chart_config, title, highlight_value=entity_id)
@@ -104,6 +108,186 @@ def render_email(
     # Compose full email
     html_body = _render_full_html(display_name, entity_type, header_fields, widget_sections_html)
     text_body = _render_full_text(display_name, entity_type, header_fields, widget_sections_text)
+
+    return subject, html_body, text_body, images
+
+
+def _render_pack_email(
+    pack_id: str,
+    schedule_name: str,
+    widget_ids: list[str] | None = None,
+    widget_overrides: list[WidgetOverrideRef] | None = None,
+) -> tuple[str, str, str, list[tuple[str, bytes]]]:
+    """Render an email for an analyst pack, resolving all widgets from their source entities."""
+    from app.api.entities import _build_stock_detail, _build_person_detail, _build_dataset_detail
+    from app.views.factory import get_views_provider
+
+    provider = get_views_provider()
+    pack = provider.get_pack(pack_id)
+    if pack is None:
+        return (
+            f"GoldMine: {schedule_name}",
+            "<html><body><p>Pack not found.</p></body></html>",
+            "Pack not found.",
+            [],
+        )
+
+    subject = f"GoldMine: {_escape(pack.name)} \u2014 {schedule_name}"
+
+    # Build override lookup
+    override_map: dict[str, WidgetOverrideRef] = {}
+    if widget_overrides:
+        for ov in widget_overrides:
+            override_map[ov.widget_id] = ov
+
+    # Group widgets by row
+    max_row = max((w.row for w in pack.widgets), default=-1)
+    row_widgets: dict[int, list] = {r: [] for r in range(max_row + 1)}
+    for ref in pack.widgets:
+        if widget_ids is not None and ref.widget_id not in widget_ids:
+            continue
+        row_widgets.setdefault(ref.row, []).append(ref)
+
+    # Sort widgets within each row by column
+    for r in row_widgets:
+        row_widgets[r].sort(key=lambda w: w.col)
+
+    # Resolve and render each widget, building a grid layout
+    # cell_html[row_idx][col_idx] = rendered HTML for that cell
+    cell_html: dict[int, dict[int, str]] = {}
+    widget_sections_text: list[str] = []
+    images: list[tuple[str, bytes]] = []
+    chart_index = 0
+
+    for row_idx in sorted(row_widgets.keys()):
+        refs = row_widgets[row_idx]
+        cell_html.setdefault(row_idx, {})
+
+        for ref in refs:
+            # Resolve the source entity to get widget config
+            try:
+                if ref.source_entity_type == "stock":
+                    detail = _build_stock_detail(ref.source_entity_id)
+                elif ref.source_entity_type == "person":
+                    detail = _build_person_detail(ref.source_entity_id)
+                elif ref.source_entity_type == "dataset":
+                    detail = _build_dataset_detail(ref.source_entity_id)
+                else:
+                    continue
+            except Exception:
+                continue
+
+            widget_config = None
+            for w in detail.widgets:
+                if w.widget_id == ref.widget_id:
+                    widget_config = w
+                    break
+            if widget_config is None:
+                continue
+
+            # Apply title override
+            title = ref.title_override if ref.title_override else widget_config.title
+            widget_type = widget_config.widget_type
+            chart_config_obj = widget_config.chart_config
+            columns = [{"key": c.key, "label": c.label} for c in widget_config.columns]
+            endpoint = widget_config.endpoint
+
+            override = override_map.get(ref.widget_id)
+
+            if chart_config_obj and widget_type == "chart":
+                chart_config = {
+                    "chart_type": chart_config_obj.chart_type,
+                    "x_key": chart_config_obj.x_key,
+                    "y_key": chart_config_obj.y_key,
+                    "x_label": chart_config_obj.x_label,
+                    "y_label": chart_config_obj.y_label,
+                    "color": chart_config_obj.color,
+                    "secondary_y_label": chart_config_obj.secondary_y_label,
+                    "secondary_lines": [
+                        {"y_key": sl.y_key, "label": sl.label, "color": sl.color}
+                        for sl in chart_config_obj.secondary_lines
+                    ],
+                }
+                chart_columns = [
+                    {"key": chart_config["x_key"], "label": chart_config["x_label"]},
+                    {"key": chart_config["y_key"], "label": chart_config["y_label"]},
+                ]
+                rows = _fetch_widget_data(
+                    ref.source_entity_type, ref.source_entity_id, endpoint, chart_columns, override,
+                    is_chart=True,
+                )
+                cid = f"chart_{chart_index}"
+                chart_index += 1
+                png_bytes = render_chart_image(
+                    rows, chart_config, title, highlight_value=ref.source_entity_id
+                )
+                images.append((cid, png_bytes))
+                cell_html[row_idx][ref.col] = (
+                    f'<h3 style="color:#1a365d;margin:0 0 0.5rem 0;font-size:14px;">{_escape(title)}</h3>'
+                    f'<img src="cid:{cid}" alt="{_escape(title)}" '
+                    f'style="max-width:100%;height:auto;display:block;" />'
+                )
+                col_keys = [c["key"] for c in chart_columns]
+                col_labels = [c["label"] for c in chart_columns]
+                widget_sections_text.append(_render_text_table(title, col_keys, col_labels, rows))
+            else:
+                if not columns:
+                    continue
+
+                rows = _fetch_widget_data(
+                    ref.source_entity_type, ref.source_entity_id, endpoint, columns, override
+                )
+
+                col_keys = [c["key"] for c in columns]
+                col_labels = [c["label"] for c in columns]
+
+                if override and override.visible_columns is not None:
+                    vis = set(override.visible_columns)
+                    filtered = [(k, l) for k, l in zip(col_keys, col_labels) if k in vis]
+                    col_keys = [k for k, _ in filtered]
+                    col_labels = [l for _, l in filtered]
+
+                cell_html[row_idx][ref.col] = _render_html_table(title, col_keys, col_labels, rows)
+                widget_sections_text.append(_render_text_table(title, col_keys, col_labels, rows))
+
+    # Build grid HTML matching pack row_columns layout
+    grid_html_parts: list[str] = []
+    for row_idx in range(len(pack.row_columns)):
+        col_count = pack.row_columns[row_idx] if row_idx < len(pack.row_columns) else 1
+
+        # Row description
+        row_desc = ""
+        if pack.row_descriptions and row_idx < len(pack.row_descriptions):
+            row_desc = pack.row_descriptions[row_idx]
+
+        if row_desc:
+            grid_html_parts.append(
+                f'<p style="color:#718096;font-size:12px;margin:1.25rem 0 0.25rem 0;font-style:italic;">'
+                f'{_escape(row_desc)}</p>'
+            )
+
+        # Build table row with equal-width cells
+        width_pct = int(100 / col_count)
+        grid_html_parts.append(
+            '<table style="width:100%;border-collapse:collapse;margin-bottom:0.75rem;"><tr>'
+        )
+        cells = cell_html.get(row_idx, {})
+        for col_idx in range(col_count):
+            content = cells.get(col_idx, "")
+            grid_html_parts.append(
+                f'<td style="width:{width_pct}%;vertical-align:top;padding:4px 8px;">{content}</td>'
+            )
+        grid_html_parts.append("</tr></table>")
+
+    # Compose full email with pack header
+    header_fields = [
+        {"label": "Pack", "value": pack.name},
+    ]
+    if pack.description:
+        header_fields.append({"label": "Description", "value": pack.description})
+
+    html_body = _render_full_html(pack.name, "pack", header_fields, grid_html_parts)
+    text_body = _render_full_text(pack.name, "pack", header_fields, widget_sections_text)
 
     return subject, html_body, text_body, images
 
@@ -181,6 +365,11 @@ def _get_entity_widgets(entity_type: str, entity_id: str) -> list[dict[str, Any]
                 "x_label": w.chart_config.x_label,
                 "y_label": w.chart_config.y_label,
                 "color": w.chart_config.color,
+                "secondary_y_label": w.chart_config.secondary_y_label,
+                "secondary_lines": [
+                    {"y_key": sl.y_key, "label": sl.label, "color": sl.color}
+                    for sl in w.chart_config.secondary_lines
+                ],
             }
         result.append(entry)
     return result
@@ -192,6 +381,7 @@ def _fetch_widget_data(
     endpoint: str,
     columns: list[dict[str, str]],
     override: WidgetOverrideRef | None,
+    is_chart: bool = False,
 ) -> list[dict[str, Any]]:
     """Fetch widget data by parsing the endpoint and querying directly."""
     provider = get_data_provider()
@@ -208,7 +398,12 @@ def _fetch_widget_data(
         sort_by = override.sort_by
         sort_order = override.sort_order or "asc"
         if override.page_size:
-            page_size = min(override.page_size, max_rows)
+            # Charts (especially line charts) need all data points for fidelity;
+            # tables stay capped at max_rows to keep emails readable.
+            if is_chart:
+                page_size = override.page_size
+            else:
+                page_size = min(override.page_size, max_rows)
 
     # Parse endpoint to determine data source
     # Patterns:
@@ -230,7 +425,7 @@ def _fetch_widget_data(
 
     if "/stock/" in endpoint and endpoint.endswith("/people"):
         ticker = entity_id.upper()
-        all_people = provider.query("people", FilterParams(page=1, page_size=200)).data
+        all_people = provider.query("people", FilterParams(page=1, page_size=600)).data
         filtered = [
             p for p in all_people
             if ticker in [t.strip() for t in p.get("tickers", "").split(";")]
@@ -254,12 +449,33 @@ def _fetch_widget_data(
         ]
         return _apply_in_memory_overrides(filtered, filters, sort_by, sort_order)[:max_rows]
 
+    if "/stock/" in endpoint and "price-history" in endpoint:
+        import csv
+        from pathlib import Path
+        ticker = entity_id.upper()
+        history_csv = Path(__file__).resolve().parent.parent.parent.parent / "data" / "structured" / "stock_history.csv"
+        if not history_csv.exists():
+            return []
+        rows: list[dict[str, Any]] = []
+        with open(history_csv, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row["ticker"] == ticker:
+                    entry: dict[str, Any] = {"date": row["date"], "close": row["close"]}
+                    if row.get("eps_estimate"):
+                        entry["eps_estimate"] = row["eps_estimate"]
+                    if row.get("eps_actual"):
+                        entry["eps_actual"] = row["eps_actual"]
+                    rows.append(entry)
+        rows.sort(key=lambda r: r["date"])
+        return rows[:page_size]
+
     if "/stock/" in endpoint and endpoint.endswith("/peers"):
         ticker = entity_id.upper()
         stock = provider.get_record("stocks", ticker)
         if stock:
             sector = stock.get("sector", "")
-            all_stocks = provider.query("stocks", FilterParams(page=1, page_size=200)).data
+            all_stocks = provider.query("stocks", FilterParams(page=1, page_size=600)).data
             peers = [s for s in all_stocks if s.get("sector") == sector]
             peers.sort(key=lambda s: float(s.get("market_cap_b", 0) or 0), reverse=True)
             return peers[:max_rows]
@@ -295,7 +511,7 @@ def _fetch_widget_data(
     if "/dataset/" in endpoint and "distribution" in endpoint:
         parts = endpoint.split("/dataset/")[1]
         dataset_name = parts.split("/")[0]
-        all_data = provider.query(dataset_name, FilterParams(page=1, page_size=200)).data
+        all_data = provider.query(dataset_name, FilterParams(page=1, page_size=600)).data
         # Parse group_by from endpoint
         group_by = "sector"
         if "group_by=" in endpoint:
@@ -388,6 +604,7 @@ def _render_full_html(
         "stock": ("#ebf8ff", "#2b6cb0"),
         "person": ("#faf5ff", "#6b46c1"),
         "dataset": ("#f0fff4", "#276749"),
+        "pack": ("#fffbeb", "#975a16"),
     }
     bg, fg = badge_colors.get(entity_type, ("#f7f8fa", "#1a365d"))
 

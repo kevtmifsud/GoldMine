@@ -41,7 +41,7 @@ async def resolve_entity(q: str = Query(..., min_length=1)) -> EntityResolution:
     query_lower = query.lower()
 
     # 1. Exact ticker match (case-insensitive)
-    stocks = provider.query("stocks", FilterParams(page=1, page_size=200)).data
+    stocks = provider.query("stocks", FilterParams(page=1, page_size=600)).data
     for stock in stocks:
         if stock.get("ticker", "").lower() == query_lower:
             return EntityResolution(
@@ -52,7 +52,7 @@ async def resolve_entity(q: str = Query(..., min_length=1)) -> EntityResolution:
             )
 
     # 2. Exact person_id match (case-insensitive)
-    people = provider.query("people", FilterParams(page=1, page_size=200)).data
+    people = provider.query("people", FilterParams(page=1, page_size=600)).data
     for person in people:
         if person.get("person_id", "").lower() == query_lower:
             return EntityResolution(
@@ -138,7 +138,7 @@ async def autocomplete_entities(
     query_lower = q.strip().lower()
     results: list[EntityCandidate] = []
 
-    stocks = provider.query("stocks", FilterParams(page=1, page_size=200)).data
+    stocks = provider.query("stocks", FilterParams(page=1, page_size=600)).data
     for stock in stocks:
         ticker = stock.get("ticker", "")
         name = stock.get("company_name", "")
@@ -151,7 +151,7 @@ async def autocomplete_entities(
             if len(results) >= limit:
                 return results
 
-    people = provider.query("people", FilterParams(page=1, page_size=200)).data
+    people = provider.query("people", FilterParams(page=1, page_size=600)).data
     for person in people:
         pid = person.get("person_id", "")
         name = person.get("name", "")
@@ -484,7 +484,7 @@ async def get_stock_people(
         raise NotFoundError(f"Stock '{ticker}' not found")
 
     # Get all people and filter by ticker in their semicolon-separated tickers field
-    all_people = provider.query("people", FilterParams(page=1, page_size=200)).data
+    all_people = provider.query("people", FilterParams(page=1, page_size=600)).data
     ticker_upper = ticker.upper()
     filtered = [
         p for p in all_people
@@ -607,7 +607,7 @@ async def get_stock_peers(ticker: str) -> PaginatedResponse:
         raise NotFoundError(f"Stock '{ticker}' not found")
 
     sector = stock.get("sector", "")
-    all_stocks = provider.query("stocks", FilterParams(page=1, page_size=200)).data
+    all_stocks = provider.query("stocks", FilterParams(page=1, page_size=600)).data
     peers = [s for s in all_stocks if s.get("sector") == sector]
     peers.sort(key=lambda s: float(s.get("market_cap_b", 0) or 0), reverse=True)
 
@@ -652,7 +652,7 @@ async def get_dataset_distribution(
     if ds_meta is None:
         raise NotFoundError(f"Dataset '{dataset_name}' not found")
 
-    all_data = provider.query(ds_meta.name, FilterParams(page=1, page_size=200)).data
+    all_data = provider.query(ds_meta.name, FilterParams(page=1, page_size=600)).data
     counts: dict[str, int] = {}
     for row in all_data:
         val = str(row.get(group_by, "Unknown") or "Unknown")
@@ -719,14 +719,14 @@ def _extract_filters(request: Request) -> dict[str, str]:
 
 def _get_sector_options() -> list[FilterOption]:
     provider = get_data_provider()
-    stocks = provider.query("stocks", FilterParams(page=1, page_size=200)).data
+    stocks = provider.query("stocks", FilterParams(page=1, page_size=600)).data
     sectors = sorted({s.get("sector", "") for s in stocks if s.get("sector")})
     return [FilterOption(value=s, label=s) for s in sectors]
 
 
 def _get_exchange_options() -> list[FilterOption]:
     provider = get_data_provider()
-    stocks = provider.query("stocks", FilterParams(page=1, page_size=200)).data
+    stocks = provider.query("stocks", FilterParams(page=1, page_size=600)).data
     exchanges = sorted({s.get("exchange", "") for s in stocks if s.get("exchange")})
     return [FilterOption(value=e, label=e) for e in exchanges]
 

@@ -34,6 +34,13 @@ export function HomePage() {
             </p>
             <span className="browse-card__count">10 datasets</span>
           </Link>
+          <Link to="/packs/public" className="browse-card">
+            <span className="browse-card__category">analyst</span>
+            <h3 className="browse-card__name">Public Packs</h3>
+            <p className="browse-card__desc">
+              Browse shared analyst packs from your team
+            </p>
+          </Link>
         </div>
       </div>
     </Layout>

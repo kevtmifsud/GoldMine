@@ -4,7 +4,7 @@ import { useAuth } from "../auth/useAuth";
 import { SearchBar } from "./SearchBar";
 import "../styles/layout.css";
 
-export function Layout({ children }: { children: ReactNode }) {
+export function Layout({ children, contentClassName }: { children: ReactNode; contentClassName?: string }) {
   const { user, logout } = useAuth();
   const { pathname } = useLocation();
   const isHome = pathname === "/";
@@ -41,7 +41,7 @@ export function Layout({ children }: { children: ReactNode }) {
           )}
         </div>
       </header>
-      <main className="main-content">{children}</main>
+      <main className={`main-content${contentClassName ? ` ${contentClassName}` : ""}`}>{children}</main>
     </div>
   );
 }

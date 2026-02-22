@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class FilterParams(BaseModel):
     page: int = Field(default=1, ge=1)
-    page_size: int = Field(default=50, ge=1, le=200)
+    page_size: int = Field(default=50, ge=1, le=1000)
     sort_by: str | None = None
     sort_order: str = Field(default="asc", pattern="^(asc|desc)$")
     filters: dict[str, str] = Field(default_factory=dict)

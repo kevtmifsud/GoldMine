@@ -38,14 +38,14 @@ def _hex_to_rgba(hex_color: str, alpha: float) -> tuple[float, float, float, flo
 
 def render_chart_image(
     data: list[dict[str, Any]],
-    chart_config: dict[str, str],
+    chart_config: dict[str, Any],
     title: str,
     highlight_value: str | None = None,
 ) -> bytes:
     """Render a chart as PNG bytes using matplotlib.
 
+    Supports the full ChartConfig spec including secondary_lines (dual Y-axis).
     highlight_value: the entity_id (e.g. ticker) to highlight.
-    Bars are sorted by y-value descending and colored by industry.
     """
     chart_type = chart_config.get("chart_type", "bar")
     x_key = chart_config["x_key"]
@@ -53,6 +53,8 @@ def render_chart_image(
     x_label = chart_config.get("x_label", "")
     y_label = chart_config.get("y_label", "")
     default_color = chart_config.get("color", "#2a4a7f")
+    secondary_lines = chart_config.get("secondary_lines") or []
+    secondary_y_label = chart_config.get("secondary_y_label") or ""
 
     # Parse numeric values and sort descending for bar charts
     parsed = []
@@ -113,13 +115,78 @@ def render_chart_image(
     fig, ax = plt.subplots(figsize=(7, 3.5), dpi=150)
 
     if chart_type == "line":
-        ax.plot(range(len(labels)), values, color=default_color, linewidth=2, marker="o", markersize=4)
-        ax.set_xticks(range(len(labels)))
-        ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=7)
+        n = len(labels)
+        xs = list(range(n))
+
+        # Primary line
+        if n > 100:
+            ax.plot(xs, values, color=default_color, linewidth=1.5)
+        else:
+            ax.plot(xs, values, color=default_color, linewidth=2, marker="o", markersize=4)
+
+        ax.set_ylabel(y_label, fontsize=8, color="#718096")
+
+        # Secondary lines on a right Y-axis
+        legend_handles = [
+            mpatches.Patch(facecolor=default_color, edgecolor="none", label=y_label),
+        ]
+
+        if secondary_lines:
+            ax2 = ax.twinx()
+            for sl in secondary_lines:
+                sl_y_key = sl["y_key"]
+                sl_label = sl.get("label", sl_y_key)
+                sl_color = sl.get("color", "#805ad5")
+
+                # Extract secondary values, skipping None/missing
+                sl_xs = []
+                sl_vals = []
+                for i, row in enumerate(data):
+                    raw = row.get(sl_y_key)
+                    if raw is not None and raw != "":
+                        try:
+                            sl_vals.append(float(raw))
+                            sl_xs.append(i)
+                        except (ValueError, TypeError):
+                            pass
+
+                if sl_vals:
+                    ax2.plot(
+                        sl_xs, sl_vals,
+                        color=sl_color, linewidth=1.5, alpha=0.45,
+                    )
+                    legend_handles.append(
+                        mpatches.Patch(facecolor=sl_color, edgecolor="none", label=sl_label),
+                    )
+
+            ax2.set_ylabel(secondary_y_label, fontsize=8, color="#718096")
+            ax2.tick_params(axis="y", labelsize=7)
+            ax2.spines["top"].set_visible(False)
+
+        ax.legend(
+            handles=legend_handles,
+            fontsize=6,
+            loc="upper left",
+            framealpha=0.8,
+            handlelength=1,
+            handleheight=0.8,
+        )
+
+        # Thin out x-tick labels to ~12 evenly spaced ticks
+        max_ticks = 12
+        if n > max_ticks:
+            step = max(1, n // max_ticks)
+            tick_positions = list(range(0, n, step))
+            ax.set_xticks(tick_positions)
+            ax.set_xticklabels([labels[i] for i in tick_positions], rotation=45, ha="right", fontsize=7)
+        else:
+            ax.set_xticks(xs)
+            ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=7)
     else:
         ax.bar(range(len(labels)), values, color=bar_colors, width=0.6)
         ax.set_xticks(range(len(labels)))
         ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=7)
+        ax.set_ylabel(y_label, fontsize=8, color="#718096")
 
         # Add legend for industries
         if has_industry_data and highlight_value:
@@ -143,7 +210,6 @@ def render_chart_image(
 
     ax.set_title(title, fontsize=11, fontweight="bold", color="#1a365d", pad=10)
     ax.set_xlabel(x_label, fontsize=8, color="#718096")
-    ax.set_ylabel(y_label, fontsize=8, color="#718096")
     ax.tick_params(axis="y", labelsize=7)
     ax.grid(axis="y", linestyle="--", alpha=0.3)
     ax.spines["top"].set_visible(False)

@@ -1,0 +1,5 @@
+/* Custom CSS overrides not available via the AG Grid Theming API */
+.ag-header-cell-text {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

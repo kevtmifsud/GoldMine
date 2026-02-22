@@ -33,10 +33,10 @@ async def test_query_stocks_page_size_enforced(authed_client):
 
 @pytest.mark.asyncio
 async def test_query_stocks_max_page_size(authed_client):
-    response = await authed_client.get("/api/data/stocks?page_size=200")
+    response = await authed_client.get("/api/data/stocks?page_size=600")
     assert response.status_code == 200
     data = response.json()
-    assert data["page_size"] == 200
+    assert data["page_size"] == 600
 
 
 @pytest.mark.asyncio

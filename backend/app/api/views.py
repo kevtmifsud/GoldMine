@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, Request, Response
 
 from app.api.entity_models import WidgetConfig
 from app.api.entities import _build_stock_detail, _build_person_detail, _build_dataset_detail
+from app.auth.users import USERS
 from app.exceptions import GoldMineError, NotFoundError
 from app.logging_config import get_logger
 from app.views.factory import get_views_provider
@@ -19,6 +20,16 @@ from app.views.models import (
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/views", tags=["views"])
+
+
+def _enrich_pack(pack: AnalystPack) -> AnalystPack:
+    """Fill in owner_display_name from the USERS registry."""
+    user_data = USERS.get(pack.owner)
+    if user_data:
+        pack.owner_display_name = user_data["display_name"]
+    else:
+        pack.owner_display_name = pack.owner
+    return pack
 
 
 # ---------------------------------------------------------------------------
@@ -51,14 +62,14 @@ async def create_view(request: Request, body: SavedViewCreate) -> SavedView:
 async def list_packs(request: Request) -> list[AnalystPack]:
     user = request.state.user
     provider = get_views_provider()
-    return provider.list_packs(owner=user.username)
+    return [_enrich_pack(p) for p in provider.list_packs(owner=user.username)]
 
 
 @router.post("/packs/", status_code=201)
 async def create_pack(request: Request, body: AnalystPackCreate) -> AnalystPack:
     user = request.state.user
     provider = get_views_provider()
-    return provider.create_pack(body, owner=user.username)
+    return _enrich_pack(provider.create_pack(body, owner=user.username))
 
 
 @router.get("/packs/{pack_id}/resolved")
@@ -112,7 +123,7 @@ async def get_pack(request: Request, pack_id: str) -> AnalystPack:
         raise NotFoundError(f"Pack '{pack_id}' not found")
     if pack.owner != user.username and not pack.is_shared:
         raise NotFoundError(f"Pack '{pack_id}' not found")
-    return pack
+    return _enrich_pack(pack)
 
 
 @router.put("/packs/{pack_id}")
@@ -127,7 +138,7 @@ async def update_pack(request: Request, pack_id: str, body: AnalystPackUpdate) -
     updated = provider.update_pack(pack_id, body)
     if updated is None:
         raise NotFoundError(f"Pack '{pack_id}' not found")
-    return updated
+    return _enrich_pack(updated)
 
 
 @router.delete("/packs/{pack_id}", status_code=204, response_class=Response)

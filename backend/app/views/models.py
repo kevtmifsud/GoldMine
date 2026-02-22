@@ -46,17 +46,22 @@ class PackWidgetRef(BaseModel):
     widget_id: str
     title_override: str | None = None
     overrides: WidgetStateOverride | None = None
+    row: int = 0
+    col: int = 0
 
 
 class AnalystPack(BaseModel):
     pack_id: str
     name: str
     owner: str
+    owner_display_name: str = ""
     description: str = ""
     widgets: list[PackWidgetRef] = Field(default_factory=list)
     is_shared: bool = False
     created_at: str = ""
     updated_at: str = ""
+    row_columns: list[int] = Field(default_factory=lambda: [2])
+    row_descriptions: list[str] = Field(default_factory=list)
 
 
 class AnalystPackCreate(BaseModel):
@@ -64,6 +69,8 @@ class AnalystPackCreate(BaseModel):
     description: str = ""
     widgets: list[PackWidgetRef] = Field(default_factory=list)
     is_shared: bool = False
+    row_columns: list[int] = Field(default_factory=lambda: [2])
+    row_descriptions: list[str] = Field(default_factory=list)
 
 
 class AnalystPackUpdate(BaseModel):
@@ -71,3 +78,5 @@ class AnalystPackUpdate(BaseModel):
     description: str | None = None
     widgets: list[PackWidgetRef] | None = None
     is_shared: bool | None = None
+    row_columns: list[int] | None = None
+    row_descriptions: list[str] | None = None

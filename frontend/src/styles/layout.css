@@ -13,6 +13,9 @@
   align-items: center;
   justify-content: space-between;
   box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .header-left {
@@ -192,4 +195,31 @@
   font-size: 0.75rem;
   color: var(--color-text-secondary);
   margin-top: 0.25rem;
+}
+
+/* Public Packs section on homepage */
+.public-packs-section {
+  margin-top: 2.5rem;
+}
+
+.public-packs-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.public-packs-section__header .browse-section__title {
+  margin-bottom: 0;
+}
+
+.public-packs-section__link {
+  font-size: 0.8rem;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.public-packs-section__link:hover {
+  text-decoration: underline;
 }

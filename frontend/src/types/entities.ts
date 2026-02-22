@@ -135,17 +135,22 @@ export interface PackWidgetRef {
   widget_id: string;
   title_override: string | null;
   overrides: WidgetStateOverride | null;
+  row: number;
+  col: number;
 }
 
 export interface AnalystPack {
   pack_id: string;
   name: string;
   owner: string;
+  owner_display_name: string;
   description: string;
   widgets: PackWidgetRef[];
   is_shared: boolean;
   created_at: string;
   updated_at: string;
+  row_columns: number[];
+  row_descriptions: string[];
 }
 
 export interface AnalystPackCreate {
@@ -153,6 +158,8 @@ export interface AnalystPackCreate {
   description: string;
   widgets: PackWidgetRef[];
   is_shared: boolean;
+  row_columns: number[];
+  row_descriptions: string[];
 }
 
 export interface AnalystPackUpdate {
@@ -160,6 +167,8 @@ export interface AnalystPackUpdate {
   description?: string;
   widgets?: PackWidgetRef[];
   is_shared?: boolean;
+  row_columns?: number[];
+  row_descriptions?: string[];
 }
 
 // --- Documents & LLM ---

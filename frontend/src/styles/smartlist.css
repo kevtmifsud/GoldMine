@@ -112,49 +112,6 @@
   color: var(--color-text-secondary);
 }
 
-.smartlist__table-wrapper {
-  overflow-x: auto;
-}
-
-.smartlist__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-}
-
-.smartlist__th {
-  text-align: left;
-  padding: 0.625rem 1rem;
-  font-weight: 600;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-secondary);
-  background: var(--color-bg);
-  border-bottom: 1px solid var(--color-border);
-  white-space: nowrap;
-  user-select: none;
-}
-
-.smartlist__th--sortable {
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-.smartlist__th--sortable:hover {
-  color: var(--color-primary);
-}
-
-.smartlist__sort-indicator {
-  font-size: 0.65rem;
-}
-
-.smartlist__td {
-  padding: 0.625rem 1rem;
-  border-bottom: 1px solid var(--color-border);
-  white-space: nowrap;
-}
-
 .smartlist__link {
   color: var(--color-primary);
   text-decoration: none;
@@ -165,8 +122,10 @@
   text-decoration: underline;
 }
 
-.smartlist__table tbody tr:hover {
-  background: var(--color-bg);
+.smartlist__grid {
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
 }
 
 .smartlist__loading {

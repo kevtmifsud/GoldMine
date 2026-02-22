@@ -5,11 +5,19 @@ import { AuthGuard } from "./auth/AuthGuard";
 import { LoginPage } from "./auth/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { EntityPage } from "./pages/EntityPage";
+import { StockEntityPage } from "./pages/stock/StockEntityPage";
+import { StockDetailsSubPage } from "./pages/stock/StockDetailsSubPage";
+import { StockPortfolioSubPage } from "./pages/stock/StockPortfolioSubPage";
+import { StockContactsSubPage } from "./pages/stock/StockContactsSubPage";
+import { StockDataSubPage } from "./pages/stock/StockDataSubPage";
+import { StockResearchSubPage } from "./pages/stock/StockResearchSubPage";
+import { StockAlertsSubPage } from "./pages/stock/StockAlertsSubPage";
 import { PacksListPage } from "./pages/PacksListPage";
 import { PackPage } from "./pages/PackPage";
 import { PackBuilderPage } from "./pages/PackBuilderPage";
 import { DatasetsPage } from "./pages/DatasetsPage";
 import { AlertsPage } from "./pages/AlertsPage";
+import { PublicPacksPage } from "./pages/PublicPacksPage";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -33,6 +41,22 @@ function App() {
             </AuthGuard>
           }
         />
+        <Route
+          path="/entity/stock/:entityId"
+          element={
+            <AuthGuard>
+              <StockEntityPage />
+            </AuthGuard>
+          }
+        >
+          <Route index element={<Navigate to="details" replace />} />
+          <Route path="details" element={<StockDetailsSubPage />} />
+          <Route path="portfolio" element={<StockPortfolioSubPage />} />
+          <Route path="contacts" element={<StockContactsSubPage />} />
+          <Route path="research" element={<StockResearchSubPage />} />
+          <Route path="data" element={<StockDataSubPage />} />
+          <Route path="alerts" element={<StockAlertsSubPage />} />
+        </Route>
         <Route
           path="/entity/:entityType/:entityId"
           element={
@@ -66,6 +90,14 @@ function App() {
           }
         />
         <Route
+          path="/packs/public"
+          element={
+            <AuthGuard>
+              <PublicPacksPage />
+            </AuthGuard>
+          }
+        />
+        <Route
           path="/pack/new"
           element={
             <AuthGuard>
@@ -83,11 +115,7 @@ function App() {
         />
         <Route
           path="/pack/:packId/edit"
-          element={
-            <AuthGuard>
-              <PackBuilderPage />
-            </AuthGuard>
-          }
+          element={<Navigate to=".." replace />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

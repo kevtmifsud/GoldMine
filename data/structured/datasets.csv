@@ -1,5 +1,5 @@
 dataset_id,name,display_name,description,record_count,id_field,category
-DS-001,stocks,Stock Universe,Core stock universe with fundamentals,75,ticker,market_data
+DS-001,stocks,Stock Universe,Core stock universe with fundamentals,506,ticker,market_data
 DS-002,people,People Directory,Executives and analysts,40,person_id,contacts
 DS-003,sectors,Sector Reference,Sector and industry taxonomy,10,sector,reference
 DS-004,watchlists,Watchlists,Portfolio manager watchlists,0,watchlist_id,portfolio

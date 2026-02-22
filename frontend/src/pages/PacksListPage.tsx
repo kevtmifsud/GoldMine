@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { AnalystPack } from "../types/entities";
 import { Layout } from "../components/Layout";
+import { ScheduleEmailDialog } from "../components/ScheduleEmailDialog";
+import { PacksTable } from "../components/ag-grid/PacksTable";
 import { useAuth } from "../auth/useAuth";
 import * as viewsApi from "../config/viewsApi";
 import "../styles/packs.css";
@@ -12,13 +14,37 @@ export function PacksListPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
+  // Send-alert dialog state
+  const [alertPack, setAlertPack] = useState<AnalystPack | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadPacks = () => {
+    setLoading(true);
     viewsApi
       .listPacks()
       .then(setPacks)
       .catch(() => {})
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadPacks();
   }, []);
+
+  const handleDelete = async (pack: AnalystPack) => {
+    if (!confirm(`Delete pack "${pack.name}"?`)) return;
+    setDeletingId(pack.pack_id);
+    try {
+      await viewsApi.deletePack(pack.pack_id);
+      setPacks((prev) => prev.filter((p) => p.pack_id !== pack.pack_id));
+    } catch {
+      // stay
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const isOwner = (pack: AnalystPack) => pack.owner === user?.username;
 
   return (
     <Layout>
@@ -43,29 +69,29 @@ export function PacksListPage() {
           </div>
         )}
         {!loading && packs.length > 0 && (
-          <div className="packs-list__grid">
-            {packs.map((pack) => (
-              <Link
-                key={pack.pack_id}
-                to={`/pack/${pack.pack_id}`}
-                className="pack-card"
-              >
-                <h3 className="pack-card__name">{pack.name}</h3>
-                {pack.description && (
-                  <p className="pack-card__desc">{pack.description}</p>
-                )}
-                <div className="pack-card__meta">
-                  <span>{pack.widgets.length} widget{pack.widgets.length !== 1 ? "s" : ""}</span>
-                  <span>
-                    {pack.owner === user?.username ? "You" : pack.owner}
-                    {pack.is_shared && " (shared)"}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <PacksTable
+            packs={packs}
+            isOwner={isOwner}
+            onEdit={(pack) => navigate(`/pack/${pack.pack_id}`)}
+            onDelete={handleDelete}
+            onSendAlert={(pack) => setAlertPack(pack)}
+            deletingId={deletingId}
+          />
         )}
       </div>
+
+      {alertPack && (
+        <ScheduleEmailDialog
+          entityType="pack"
+          entityId={alertPack.pack_id}
+          userEmail={user?.email}
+          onSave={() => {
+            setAlertPack(null);
+            loadPacks();
+          }}
+          onCancel={() => setAlertPack(null)}
+        />
+      )}
     </Layout>
   );
 }

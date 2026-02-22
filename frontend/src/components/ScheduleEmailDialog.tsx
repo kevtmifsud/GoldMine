@@ -101,16 +101,22 @@ export function ScheduleEmailDialog({
   const [error, setError] = useState<string | null>(null);
 
   const handleToggleDay = (day: number) => {
-    setSelectedDays((prev) => {
-      const next = new Set(prev);
-      if (next.has(day)) {
-        if (next.size === 1) return prev; // keep at least one
-        next.delete(day);
-      } else {
-        next.add(day);
-      }
-      return next;
-    });
+    if (recurrenceType === "weekly") {
+      // Single-select for weekly
+      setSelectedDays(new Set([day]));
+    } else {
+      // Multi-select for daily
+      setSelectedDays((prev) => {
+        const next = new Set(prev);
+        if (next.has(day)) {
+          if (next.size === 1) return prev; // keep at least one
+          next.delete(day);
+        } else {
+          next.add(day);
+        }
+        return next;
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -275,7 +281,10 @@ export function ScheduleEmailDialog({
                   type="radio"
                   name="recurrence"
                   checked={recurrenceType === "daily"}
-                  onChange={() => setRecurrenceType("daily")}
+                  onChange={() => {
+                    setRecurrenceType("daily");
+                    setSelectedDays(new Set([0, 1, 2, 3, 4]));
+                  }}
                 />
                 Daily
               </label>
@@ -284,7 +293,14 @@ export function ScheduleEmailDialog({
                   type="radio"
                   name="recurrence"
                   checked={recurrenceType === "weekly"}
-                  onChange={() => setRecurrenceType("weekly")}
+                  onChange={() => {
+                    setRecurrenceType("weekly");
+                    // Keep only the first currently selected day
+                    setSelectedDays((prev) => {
+                      const first = Math.min(...Array.from(prev));
+                      return new Set([first]);
+                    });
+                  }}
                 />
                 Weekly
               </label>
@@ -302,7 +318,7 @@ export function ScheduleEmailDialog({
 
           {recurrenceType !== "monthly" && (
             <div className="schedule-dialog__field">
-              <label>Days of Week</label>
+              <label>{recurrenceType === "weekly" ? "Day of Week" : "Days of Week"}</label>
               <div className="schedule-dialog__day-picker">
                 {DAY_LABELS.map((label, idx) => (
                   <button

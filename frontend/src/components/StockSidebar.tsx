@@ -1,20 +1,47 @@
-import { NavLink, Link } from "react-router-dom";
+import { NavLink, Link, useLocation } from "react-router-dom";
 
 interface StockSidebarProps {
   displayName: string;
   entityId: string;
 }
 
-const NAV_ITEMS = [
+interface NavChild {
+  to: string;
+  label: string;
+}
+
+interface NavItem {
+  to: string;
+  label: string;
+  children?: NavChild[];
+}
+
+const NAV_ITEMS: NavItem[] = [
   { to: "details", label: "Details" },
   { to: "portfolio", label: "Portfolio & Positions" },
   { to: "contacts", label: "Contacts" },
-  { to: "research", label: "Research" },
+  {
+    to: "research",
+    label: "Research",
+    children: [
+      { to: "research", label: "All Documents" },
+      { to: "research/earnings", label: "Earnings Calls" },
+      { to: "research/filings", label: "SEC Filings" },
+      { to: "research/sellside", label: "Sell-side" },
+      { to: "research/data-files", label: "Data Files" },
+      { to: "research/notes", label: "Notes" },
+      { to: "research/other", label: "Other" },
+    ],
+  },
   { to: "data", label: "Data" },
   { to: "alerts", label: "Alerts" },
 ];
 
 export function StockSidebar({ displayName, entityId }: StockSidebarProps) {
+  const location = useLocation();
+  const basePath = `/entity/stock/${entityId}`;
+  const isResearchActive = location.pathname.startsWith(`${basePath}/research`);
+
   return (
     <aside className="stock-sidebar">
       <div className="stock-sidebar__header">
@@ -23,15 +50,33 @@ export function StockSidebar({ displayName, entityId }: StockSidebarProps) {
       </div>
       <nav className="stock-sidebar__nav">
         {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.to}
-            to={`/entity/stock/${entityId}/${item.to}`}
-            className={({ isActive }) =>
-              `stock-sidebar__link${isActive ? " active" : ""}`
-            }
-          >
-            {item.label}
-          </NavLink>
+          <div key={item.to}>
+            <NavLink
+              to={`${basePath}/${item.to}`}
+              end={!item.children}
+              className={({ isActive }) =>
+                `stock-sidebar__link${isActive ? " active" : ""}`
+              }
+            >
+              {item.label}
+            </NavLink>
+            {item.children && isResearchActive && (
+              <div className="stock-sidebar__sub-nav">
+                {item.children.map((child) => (
+                  <NavLink
+                    key={child.to}
+                    to={`${basePath}/${child.to}`}
+                    end
+                    className={({ isActive }) =>
+                      `stock-sidebar__sub-link${isActive ? " active" : ""}`
+                    }
+                  >
+                    {child.label}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
         ))}
       </nav>
       <div className="stock-sidebar__back">

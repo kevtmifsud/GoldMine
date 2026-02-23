@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../config/api";
 import type { EntityResolution, EntityCandidate } from "../types/entities";
@@ -18,6 +18,21 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
+  // Split suggestions into grouped sections
+  const stockSuggestions = useMemo(
+    () => suggestions.filter((s) => s.entity_type === "stock"),
+    [suggestions]
+  );
+  const peopleSuggestions = useMemo(
+    () => suggestions.filter((s) => s.entity_type === "person"),
+    [suggestions]
+  );
+  // Flat list for keyboard navigation (stocks then people)
+  const flatSuggestions = useMemo(
+    () => [...stockSuggestions, ...peopleSuggestions],
+    [stockSuggestions, peopleSuggestions]
+  );
+
   // Fetch autocomplete suggestions
   const fetchSuggestions = useCallback(async (q: string) => {
     if (q.trim().length === 0) {
@@ -27,7 +42,7 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
     }
     try {
       const resp = await api.get<EntityCandidate[]>("/api/entities/autocomplete", {
-        params: { q: q.trim(), limit: 10 },
+        params: { q: q.trim(), limit: 15 },
       });
       setSuggestions(resp.data);
       setShowSuggestions(resp.data.length > 0);
@@ -108,16 +123,16 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (showSuggestions && suggestions.length > 0) {
+    if (showSuggestions && flatSuggestions.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setActiveIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
+        setActiveIndex((prev) => (prev < flatSuggestions.length - 1 ? prev + 1 : 0));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setActiveIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
+        setActiveIndex((prev) => (prev > 0 ? prev - 1 : flatSuggestions.length - 1));
       } else if (e.key === "Enter" && activeIndex >= 0) {
         e.preventDefault();
-        handleSelect(suggestions[activeIndex]);
+        handleSelect(flatSuggestions[activeIndex]);
         return;
       } else if (e.key === "Escape") {
         setShowSuggestions(false);
@@ -151,24 +166,50 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
           {loading ? "..." : "Search"}
         </button>
       </div>
-      {showSuggestions && suggestions.length > 0 && (
-        <ul className="search__autocomplete">
-          {suggestions.map((s, idx) => (
-            <li
-              key={`${s.entity_type}-${s.entity_id}`}
-              className={`search__autocomplete-item${idx === activeIndex ? " search__autocomplete-item--active" : ""}`}
-              onMouseDown={() => handleSelect(s)}
-              onMouseEnter={() => setActiveIndex(idx)}
-            >
-              <span className={`search__candidate-badge search__candidate-badge--${s.entity_type}`}>
-                {s.entity_type}
-              </span>
-              <span className="search__autocomplete-name">
-                {s.display_name}
-              </span>
-            </li>
-          ))}
-        </ul>
+      {showSuggestions && flatSuggestions.length > 0 && (
+        <div className="search__autocomplete">
+          {stockSuggestions.length > 0 && (
+            <>
+              <div className="search__autocomplete-header">Stocks</div>
+              <ul className="search__autocomplete-list">
+                {stockSuggestions.map((s, idx) => (
+                  <li
+                    key={`${s.entity_type}-${s.entity_id}`}
+                    className={`search__autocomplete-item${idx === activeIndex ? " search__autocomplete-item--active" : ""}`}
+                    onMouseDown={() => handleSelect(s)}
+                    onMouseEnter={() => setActiveIndex(idx)}
+                  >
+                    <span className="search__autocomplete-name">
+                      {s.display_name}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {peopleSuggestions.length > 0 && (
+            <>
+              <div className="search__autocomplete-header">People</div>
+              <ul className="search__autocomplete-list">
+                {peopleSuggestions.map((s, idx) => {
+                  const flatIdx = stockSuggestions.length + idx;
+                  return (
+                    <li
+                      key={`${s.entity_type}-${s.entity_id}`}
+                      className={`search__autocomplete-item${flatIdx === activeIndex ? " search__autocomplete-item--active" : ""}`}
+                      onMouseDown={() => handleSelect(s)}
+                      onMouseEnter={() => setActiveIndex(flatIdx)}
+                    >
+                      <span className="search__autocomplete-name">
+                        {s.display_name}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </div>
       )}
       {candidates.length > 0 && (
         <div className="search__candidates">

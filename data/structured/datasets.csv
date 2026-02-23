@@ -1,6 +1,6 @@
 dataset_id,name,display_name,description,record_count,id_field,category
 DS-001,stocks,Stock Universe,Core stock universe with fundamentals,506,ticker,market_data
-DS-002,people,People Directory,Executives and analysts,40,person_id,contacts
+DS-002,people,People Directory,"Corporate officers, executives, and analysts",4916,person_id,contacts
 DS-003,sectors,Sector Reference,Sector and industry taxonomy,10,sector,reference
 DS-004,watchlists,Watchlists,Portfolio manager watchlists,0,watchlist_id,portfolio
 DS-005,meetings,Meeting Notes,Research meeting records,0,meeting_id,research
@@ -10,6 +10,5 @@ DS-008,events,Corporate Events,"Earnings calls, conferences, filings",0,event_id
 DS-009,macro,Macro Indicators,Macroeconomic data points,0,indicator_id,market_data
 DS-010,filings,SEC Filings,SEC filing metadata,0,filing_id,compliance
 DS-011,stock_info,Stock Info,"Company profiles and contact information",506,symbol,market_data
-DS-012,stock_officers,Stock Officers,"Executive officers and compensation data",0,symbol,market_data
-DS-013,sec_filings,SEC Filings,"SEC filing records for tracked companies",0,symbol,compliance
-DS-014,transcripts_list,Transcripts Index,"Available earnings call transcript listing",0,symbol,market_data
+DS-013,sec_filings,SEC Filings,"SEC filing records for tracked companies",5835,symbol,compliance
+DS-014,transcripts_list,Transcripts Index,"Available earnings call transcript listing",779,symbol,market_data

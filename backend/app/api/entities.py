@@ -52,7 +52,7 @@ async def resolve_entity(q: str = Query(..., min_length=1)) -> EntityResolution:
             )
 
     # 2. Exact person_id match (case-insensitive)
-    people = provider.query("people", FilterParams(page=1, page_size=600)).data
+    people = _get_all_people(provider)
     for person in people:
         if person.get("person_id", "").lower() == query_lower:
             return EntityResolution(
@@ -132,50 +132,42 @@ async def resolve_entity(q: str = Query(..., min_length=1)) -> EntityResolution:
 @router.get("/autocomplete")
 async def autocomplete_entities(
     q: str = Query(..., min_length=1),
-    limit: int = Query(10, ge=1, le=50),
+    limit: int = Query(15, ge=1, le=50),
 ) -> list[EntityCandidate]:
     provider = get_data_provider()
     query_lower = q.strip().lower()
-    results: list[EntityCandidate] = []
+
+    # Collect up to `limit` matches from each category independently
+    stock_matches: list[EntityCandidate] = []
+    people_matches: list[EntityCandidate] = []
 
     stocks = provider.query("stocks", FilterParams(page=1, page_size=600)).data
     for stock in stocks:
         ticker = stock.get("ticker", "")
         name = stock.get("company_name", "")
         if query_lower in ticker.lower() or query_lower in name.lower():
-            results.append(EntityCandidate(
+            stock_matches.append(EntityCandidate(
                 entity_type="stock",
                 entity_id=ticker,
                 display_name=f"{name} ({ticker})",
             ))
-            if len(results) >= limit:
-                return results
+            if len(stock_matches) >= limit:
+                break
 
-    people = provider.query("people", FilterParams(page=1, page_size=600)).data
+    people = _get_all_people(provider)
     for person in people:
-        pid = person.get("person_id", "")
         name = person.get("name", "")
-        if query_lower in name.lower() or query_lower in pid.lower():
-            results.append(EntityCandidate(
+        if query_lower in name.lower():
+            people_matches.append(EntityCandidate(
                 entity_type="person",
-                entity_id=pid,
+                entity_id=person.get("person_id", ""),
                 display_name=name,
             ))
-            if len(results) >= limit:
-                return results
+            if len(people_matches) >= limit:
+                break
 
-    datasets = provider.list_datasets()
-    for ds in datasets:
-        if query_lower in ds.display_name.lower() or query_lower in ds.name.lower():
-            results.append(EntityCandidate(
-                entity_type="dataset",
-                entity_id=ds.name,
-                display_name=ds.display_name,
-            ))
-            if len(results) >= limit:
-                return results
-
-    return results
+    # Return stocks first, then people — each capped at `limit`
+    return stock_matches + people_matches
 
 
 # ---------------------------------------------------------------------------
@@ -276,25 +268,15 @@ def _build_stock_detail(ticker: str) -> EntityDetail:
         ),
         WidgetConfig(
             widget_id="related_people",
-            title="Related People",
+            title="Officers & Executives",
             endpoint=f"/api/entities/stock/{ticker}/people",
             columns=[
                 ColumnConfig(key="name", label="Name"),
                 ColumnConfig(key="title", label="Title"),
-                ColumnConfig(key="organization", label="Organization"),
-                ColumnConfig(key="type", label="Type"),
+                ColumnConfig(key="age", label="Age"),
+                ColumnConfig(key="pay", label="Compensation", format="number"),
             ],
-            filter_definitions=[
-                FilterDefinition(
-                    field="type",
-                    label="Type",
-                    options=[
-                        FilterOption(value="executive", label="Executive"),
-                        FilterOption(value="analyst", label="Analyst"),
-                    ],
-                ),
-            ],
-            client_filterable_columns=["name", "organization"],
+            client_filterable_columns=["name", "title"],
         ),
         WidgetConfig(
             widget_id="related_files",
@@ -432,7 +414,7 @@ def _build_dataset_detail(dataset_name: str) -> EntityDetail:
                 title=f"{ds_meta.display_name} Contents",
                 endpoint=f"/api/data/{ds_meta.name}",
                 columns=columns,
-                default_page_size=20,
+                default_page_size=1000,
                 filter_definitions=filter_defs,
             ),
         )
@@ -483,12 +465,13 @@ async def get_stock_people(
     if stock is None:
         raise NotFoundError(f"Stock '{ticker}' not found")
 
-    # Get all people and filter by ticker in their semicolon-separated tickers field
-    all_people = provider.query("people", FilterParams(page=1, page_size=600)).data
+    # Filter people dataset by ticker (executives only)
+    all_people = _get_all_people(provider)
     ticker_upper = ticker.upper()
     filtered = [
         p for p in all_people
         if ticker_upper in [t.strip() for t in p.get("tickers", "").split(";")]
+        and p.get("type") == "executive"
     ]
 
     return _paginate(filtered, page, page_size, sort_by, sort_order, _extract_filters(request))
@@ -715,6 +698,21 @@ _KNOWN_PARAMS = {"page", "page_size", "sort_by", "sort_order", "search"}
 
 def _extract_filters(request: Request) -> dict[str, str]:
     return {k: v for k, v in request.query_params.items() if k not in _KNOWN_PARAMS}
+
+
+def _get_all_people(provider: Any | None = None) -> list[dict[str, Any]]:
+    """Load all people records across pages (page_size capped at 1000)."""
+    if provider is None:
+        provider = get_data_provider()
+    all_rows: list[dict[str, Any]] = []
+    page = 1
+    while True:
+        result = provider.query("people", FilterParams(page=page, page_size=1000))
+        all_rows.extend(result.data)
+        if not result.has_next:
+            break
+        page += 1
+    return all_rows
 
 
 def _get_sector_options() -> list[FilterOption]:

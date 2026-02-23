@@ -15,6 +15,7 @@ from app.api.documents import router as documents_router
 from app.auth.router import router as auth_router
 from app.auth.middleware import AuthMiddleware
 from app.api.schedules import router as schedules_router
+from app.api.transcripts import router as transcripts_router
 from app.email.scheduler import start_scheduler
 
 setup_logging()
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     application.include_router(views_router)
     application.include_router(documents_router)
     application.include_router(schedules_router)
+    application.include_router(transcripts_router)
 
     start_scheduler(application)
 

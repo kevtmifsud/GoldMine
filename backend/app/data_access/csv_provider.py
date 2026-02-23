@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import csv
 import math
+import sys
 from pathlib import Path
 from typing import Any
+
+csv.field_size_limit(sys.maxsize)
 
 from app.config.settings import settings
 from app.data_access.interfaces import DataAccessProvider

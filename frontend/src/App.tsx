@@ -10,8 +10,12 @@ import { StockDetailsSubPage } from "./pages/stock/StockDetailsSubPage";
 import { StockPortfolioSubPage } from "./pages/stock/StockPortfolioSubPage";
 import { StockContactsSubPage } from "./pages/stock/StockContactsSubPage";
 import { StockDataSubPage } from "./pages/stock/StockDataSubPage";
-import { StockResearchSubPage } from "./pages/stock/StockResearchSubPage";
 import { StockAlertsSubPage } from "./pages/stock/StockAlertsSubPage";
+import { StockResearchLayout } from "./pages/stock/research/StockResearchLayout";
+import { ResearchSummarySubPage } from "./pages/stock/research/ResearchSummarySubPage";
+import { ResearchCategorySubPage } from "./pages/stock/research/ResearchCategorySubPage";
+import { SecFilingsSubPage } from "./pages/stock/research/SecFilingsSubPage";
+import { EarningsTranscriptsSubPage } from "./pages/stock/research/EarningsTranscriptsSubPage";
 import { PacksListPage } from "./pages/PacksListPage";
 import { PackPage } from "./pages/PackPage";
 import { PackBuilderPage } from "./pages/PackBuilderPage";
@@ -53,7 +57,56 @@ function App() {
           <Route path="details" element={<StockDetailsSubPage />} />
           <Route path="portfolio" element={<StockPortfolioSubPage />} />
           <Route path="contacts" element={<StockContactsSubPage />} />
-          <Route path="research" element={<StockResearchSubPage />} />
+          <Route path="research" element={<StockResearchLayout />}>
+            <Route index element={<ResearchSummarySubPage />} />
+            <Route
+              path="earnings"
+              element={<EarningsTranscriptsSubPage />}
+            />
+            <Route
+              path="filings"
+              element={<SecFilingsSubPage />}
+            />
+            <Route
+              path="sellside"
+              element={
+                <ResearchCategorySubPage
+                  title="Sell-side Research"
+                  docTypeFilter={["report"]}
+                  uploadAccept=".pdf"
+                />
+              }
+            />
+            <Route
+              path="data-files"
+              element={
+                <ResearchCategorySubPage
+                  title="Misc Data Files"
+                  docTypeFilter={["data_export"]}
+                  uploadAccept=".csv,.txt"
+                />
+              }
+            />
+            <Route
+              path="notes"
+              element={
+                <ResearchCategorySubPage
+                  title="Notes"
+                  docTypeFilter={["notes"]}
+                  uploadAccept=".pdf"
+                />
+              }
+            />
+            <Route
+              path="other"
+              element={
+                <ResearchCategorySubPage
+                  title="Other Documents"
+                  excludeDocTypes={["audio", "transcript", "report", "data_export", "notes"]}
+                />
+              }
+            />
+          </Route>
           <Route path="data" element={<StockDataSubPage />} />
           <Route path="alerts" element={<StockAlertsSubPage />} />
         </Route>

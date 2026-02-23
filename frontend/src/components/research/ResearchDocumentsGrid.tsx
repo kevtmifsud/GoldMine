@@ -10,6 +10,7 @@ import { EntityLinksRenderer } from "./EntityLinksRenderer";
 import { DocumentActionRenderer } from "./DocumentActionRenderer";
 import type { DocumentActionContext } from "./DocumentActionRenderer";
 import { DocumentInspectorDialog } from "./DocumentInspectorDialog";
+import { TranscriptViewerDialog } from "./TranscriptViewerDialog";
 import "../../styles/research.css";
 
 interface ResearchDocumentsGridProps {
@@ -19,6 +20,12 @@ interface ResearchDocumentsGridProps {
   docTypeFilter?: string[];
   excludeDocTypes?: string[];
   onUploadClick?: () => void;
+}
+
+interface TranscriptViewerState {
+  symbol: string;
+  year: number;
+  quarter: number;
 }
 
 export function ResearchDocumentsGrid({
@@ -33,6 +40,8 @@ export function ResearchDocumentsGrid({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [inspectedDoc, setInspectedDoc] = useState<DocumentListItem | null>(null);
+  const [viewingTranscript, setViewingTranscript] = useState<TranscriptViewerState | null>(null);
+
   const fetchDocs = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -69,6 +78,17 @@ export function ResearchDocumentsGrid({
     a.click();
   }, []);
 
+  const handleViewTranscript = useCallback((doc: DocumentListItem) => {
+    if (doc.metadata) {
+      const symbol = doc.metadata.symbol || entityId;
+      const year = parseInt(doc.metadata.fiscal_year, 10);
+      const quarter = parseInt(doc.metadata.fiscal_quarter, 10);
+      if (symbol && !isNaN(year) && !isNaN(quarter)) {
+        setViewingTranscript({ symbol, year, quarter });
+      }
+    }
+  }, [entityId]);
+
   const columnDefs = useMemo<ColDef<DocumentListItem>[]>(
     () => [
       {
@@ -92,6 +112,7 @@ export function ResearchDocumentsGrid({
         field: "date",
         width: 120,
         sortable: true,
+        sort: "desc",
         filter: "agDateColumnFilter",
         filterParams: dateFilterParams,
         valueFormatter: (params) => {
@@ -125,8 +146,9 @@ export function ResearchDocumentsGrid({
     () => ({
       onInspect: (doc: DocumentListItem) => setInspectedDoc(doc),
       onDownload: handleDownload,
+      onViewTranscript: handleViewTranscript,
     }),
-    [handleDownload]
+    [handleDownload, handleViewTranscript]
   );
 
   return (
@@ -170,6 +192,15 @@ export function ResearchDocumentsGrid({
         <DocumentInspectorDialog
           document={inspectedDoc}
           onClose={() => setInspectedDoc(null)}
+        />
+      )}
+
+      {viewingTranscript && (
+        <TranscriptViewerDialog
+          symbol={viewingTranscript.symbol}
+          year={viewingTranscript.year}
+          quarter={viewingTranscript.quarter}
+          onClose={() => setViewingTranscript(null)}
         />
       )}
     </div>

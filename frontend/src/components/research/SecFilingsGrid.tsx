@@ -101,6 +101,7 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
         field: "filing_date",
         width: 120,
         sortable: true,
+        sort: "desc",
         filter: "agDateColumnFilter",
         filterParams: dateFilterParams,
       },

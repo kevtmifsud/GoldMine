@@ -35,5 +35,5 @@ async def get_file(file_id: str) -> Response:
     return Response(
         content=content,
         media_type=mime_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )

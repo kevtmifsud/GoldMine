@@ -2,131 +2,221 @@
   "files": [
     {
       "file_id": "FILE-101",
+      "filename": "ABT_Q4_2024_earnings.txt",
+      "path": "transcripts/ABT_Q4_2024_earnings.txt",
+      "type": "transcript",
+      "mime_type": "text/plain",
+      "size_bytes": 949,
+      "tickers": ["ABT"],
+      "date": "2025-01-11",
+      "description": "Abbott Laboratories Q4 2024 earnings call transcript"
+    },
+    {
+      "file_id": "FILE-102",
+      "filename": "UNH_Q4_2024_earnings.txt",
+      "path": "transcripts/UNH_Q4_2024_earnings.txt",
+      "type": "transcript",
+      "mime_type": "text/plain",
+      "size_bytes": 927,
+      "tickers": ["UNH"],
+      "date": "2025-01-12",
+      "description": "UnitedHealth Group Q4 2024 earnings call transcript"
+    },
+    {
+      "file_id": "FILE-103",
+      "filename": "MCD_Q4_2024_earnings.txt",
+      "path": "transcripts/MCD_Q4_2024_earnings.txt",
+      "type": "transcript",
+      "mime_type": "text/plain",
+      "size_bytes": 937,
+      "tickers": ["MCD"],
+      "date": "2025-01-13",
+      "description": "McDonald's Corp. Q4 2024 earnings call transcript"
+    },
+    {
+      "file_id": "FILE-104",
+      "filename": "NVDA_Q4_2024_earnings.txt",
+      "path": "transcripts/NVDA_Q4_2024_earnings.txt",
+      "type": "transcript",
+      "mime_type": "text/plain",
+      "size_bytes": 962,
+      "tickers": ["NVDA"],
+      "date": "2025-01-14",
+      "description": "NVIDIA Corporation Q4 2024 earnings call transcript"
+    },
+    {
+      "file_id": "FILE-105",
+      "filename": "GOOGL_Q4_2024_earnings.txt",
+      "path": "transcripts/GOOGL_Q4_2024_earnings.txt",
+      "type": "transcript",
+      "mime_type": "text/plain",
+      "size_bytes": 915,
+      "tickers": ["GOOGL"],
+      "date": "2025-01-15",
+      "description": "Alphabet Inc. Q4 2024 earnings call transcript"
+    },
+    {
+      "file_id": "FILE-110",
       "filename": "ALB_Q4_2024_earnings.txt",
       "path": "transcripts/ALB_Q4_2024_earnings.txt",
       "type": "transcript",
       "mime_type": "text/plain",
       "size_bytes": 949,
-      "tickers": [
-        "ALB"
-      ],
+      "tickers": ["ALB"],
       "date": "2025-01-11",
       "description": "Albemarle Corporation Q4 2024 earnings call transcript"
     },
     {
-      "file_id": "FILE-102",
+      "file_id": "FILE-111",
       "filename": "AMT_Q4_2024_earnings.txt",
       "path": "transcripts/AMT_Q4_2024_earnings.txt",
       "type": "transcript",
       "mime_type": "text/plain",
       "size_bytes": 927,
-      "tickers": [
-        "AMT"
-      ],
+      "tickers": ["AMT"],
       "date": "2025-01-12",
       "description": "American Tower Q4 2024 earnings call transcript"
     },
     {
-      "file_id": "FILE-103",
+      "file_id": "FILE-112",
       "filename": "AKAM_Q4_2024_earnings.txt",
       "path": "transcripts/AKAM_Q4_2024_earnings.txt",
       "type": "transcript",
       "mime_type": "text/plain",
       "size_bytes": 937,
-      "tickers": [
-        "AKAM"
-      ],
+      "tickers": ["AKAM"],
       "date": "2025-01-13",
       "description": "Akamai Technologies Q4 2024 earnings call transcript"
     },
     {
-      "file_id": "FILE-104",
+      "file_id": "FILE-113",
       "filename": "AIG_Q4_2024_earnings.txt",
       "path": "transcripts/AIG_Q4_2024_earnings.txt",
       "type": "transcript",
       "mime_type": "text/plain",
       "size_bytes": 962,
-      "tickers": [
-        "AIG"
-      ],
+      "tickers": ["AIG"],
       "date": "2025-01-14",
       "description": "American International Group Q4 2024 earnings call transcript"
     },
     {
-      "file_id": "FILE-105",
+      "file_id": "FILE-114",
       "filename": "ABNB_Q4_2024_earnings.txt",
       "path": "transcripts/ABNB_Q4_2024_earnings.txt",
       "type": "transcript",
       "mime_type": "text/plain",
       "size_bytes": 915,
-      "tickers": [
-        "ABNB"
-      ],
+      "tickers": ["ABNB"],
       "date": "2025-01-15",
       "description": "Airbnb Q4 2024 earnings call transcript"
     },
     {
       "file_id": "FILE-201",
+      "filename": "MA_research_report_2025.pdf",
+      "path": "reports/MA_research_report_2025.pdf",
+      "type": "report",
+      "mime_type": "application/pdf",
+      "size_bytes": 78,
+      "tickers": ["MA"],
+      "date": "2025-01-16",
+      "description": "Mastercard Inc. research initiation report"
+    },
+    {
+      "file_id": "FILE-202",
+      "filename": "GOOGL_research_report_2025.pdf",
+      "path": "reports/GOOGL_research_report_2025.pdf",
+      "type": "report",
+      "mime_type": "application/pdf",
+      "size_bytes": 77,
+      "tickers": ["GOOGL"],
+      "date": "2025-01-17",
+      "description": "Alphabet Inc. research initiation report"
+    },
+    {
+      "file_id": "FILE-203",
+      "filename": "LLY_research_report_2025.pdf",
+      "path": "reports/LLY_research_report_2025.pdf",
+      "type": "report",
+      "mime_type": "application/pdf",
+      "size_bytes": 65,
+      "tickers": ["LLY"],
+      "date": "2025-01-18",
+      "description": "Eli Lilly and Co. research initiation report"
+    },
+    {
+      "file_id": "FILE-204",
+      "filename": "XOM_research_report_2025.pdf",
+      "path": "reports/XOM_research_report_2025.pdf",
+      "type": "report",
+      "mime_type": "application/pdf",
+      "size_bytes": 68,
+      "tickers": ["XOM"],
+      "date": "2025-01-19",
+      "description": "Exxon Mobil Corp. research initiation report"
+    },
+    {
+      "file_id": "FILE-205",
+      "filename": "WMT_research_report_2025.pdf",
+      "path": "reports/WMT_research_report_2025.pdf",
+      "type": "report",
+      "mime_type": "application/pdf",
+      "size_bytes": 79,
+      "tickers": ["WMT"],
+      "date": "2025-01-20",
+      "description": "Walmart Inc. research initiation report"
+    },
+    {
+      "file_id": "FILE-210",
       "filename": "ALB_research_report_2025.pdf",
       "path": "reports/ALB_research_report_2025.pdf",
       "type": "report",
       "mime_type": "application/pdf",
       "size_bytes": 78,
-      "tickers": [
-        "ALB"
-      ],
+      "tickers": ["ALB"],
       "date": "2025-01-16",
       "description": "Albemarle Corporation research initiation report"
     },
     {
-      "file_id": "FILE-202",
+      "file_id": "FILE-211",
       "filename": "AKAM_research_report_2025.pdf",
       "path": "reports/AKAM_research_report_2025.pdf",
       "type": "report",
       "mime_type": "application/pdf",
       "size_bytes": 77,
-      "tickers": [
-        "AKAM"
-      ],
+      "tickers": ["AKAM"],
       "date": "2025-01-17",
       "description": "Akamai Technologies research initiation report"
     },
     {
-      "file_id": "FILE-203",
+      "file_id": "FILE-212",
       "filename": "ALL_research_report_2025.pdf",
       "path": "reports/ALL_research_report_2025.pdf",
       "type": "report",
       "mime_type": "application/pdf",
       "size_bytes": 65,
-      "tickers": [
-        "ALL"
-      ],
+      "tickers": ["ALL"],
       "date": "2025-01-18",
       "description": "Allstate research initiation report"
     },
     {
-      "file_id": "FILE-204",
+      "file_id": "FILE-213",
       "filename": "AOS_research_report_2025.pdf",
       "path": "reports/AOS_research_report_2025.pdf",
       "type": "report",
       "mime_type": "application/pdf",
       "size_bytes": 68,
-      "tickers": [
-        "AOS"
-      ],
+      "tickers": ["AOS"],
       "date": "2025-01-19",
       "description": "A. O. Smith research initiation report"
     },
     {
-      "file_id": "FILE-205",
+      "file_id": "FILE-214",
       "filename": "AMD_research_report_2025.pdf",
       "path": "reports/AMD_research_report_2025.pdf",
       "type": "report",
       "mime_type": "application/pdf",
       "size_bytes": 79,
-      "tickers": [
-        "AMD"
-      ],
+      "tickers": ["AMD"],
       "date": "2025-01-20",
       "description": "Advanced Micro Devices research initiation report"
     },
@@ -170,9 +260,7 @@
       "type": "audio",
       "mime_type": "audio/mpeg",
       "size_bytes": 1024,
-      "tickers": [
-        "AAPL"
-      ],
+      "tickers": ["AAPL"],
       "date": "2025-01-25",
       "description": "Apple Investor Day 2025 recording (placeholder)"
     },
@@ -183,9 +271,7 @@
       "type": "notes",
       "mime_type": "application/pdf",
       "size_bytes": 1847,
-      "tickers": [
-        "GOOGL"
-      ],
+      "tickers": ["GOOGL"],
       "date": "2025-01-08",
       "description": "Alphabet Inc. Q4 2024 earnings preview notes"
     },
@@ -196,13 +282,11 @@
       "type": "notes",
       "mime_type": "application/pdf",
       "size_bytes": 2431,
-      "tickers": [
-        "GOOGL"
-      ],
+      "tickers": ["GOOGL"],
       "date": "2025-01-29",
       "description": "Alphabet Inc. Q4 2024 post-earnings recap notes"
     }
   ],
   "generated_at": "2025-01-30T00:00:00Z",
-  "total_count": 16
+  "total_count": 27
 }

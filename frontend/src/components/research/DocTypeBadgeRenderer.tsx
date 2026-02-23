@@ -1,7 +1,7 @@
 import type { ICellRendererParams } from "ag-grid-community";
 import type { DocumentListItem } from "../../types/entities";
 
-const KNOWN_TYPES = new Set(["audio", "transcript", "report", "data_export", "notes"]);
+const KNOWN_TYPES = new Set(["audio", "transcript", "report", "data_export", "notes", "sec_filing"]);
 
 export function DocTypeBadgeRenderer(params: ICellRendererParams<DocumentListItem>) {
   const docType = params.value as string;

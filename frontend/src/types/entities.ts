@@ -201,6 +201,7 @@ export interface DocumentListItem {
   entities: EntityAssociation[];
   chunk_count: number;
   indexed_at: string;
+  metadata?: Record<string, string>;
 }
 
 export interface DocumentSearchResult {

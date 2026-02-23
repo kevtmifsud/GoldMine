@@ -15,7 +15,7 @@ import { StockResearchLayout } from "./pages/stock/research/StockResearchLayout"
 import { ResearchSummarySubPage } from "./pages/stock/research/ResearchSummarySubPage";
 import { ResearchCategorySubPage } from "./pages/stock/research/ResearchCategorySubPage";
 import { SecFilingsSubPage } from "./pages/stock/research/SecFilingsSubPage";
-import { EarningsTranscriptsSubPage } from "./pages/stock/research/EarningsTranscriptsSubPage";
+import { TranscriptsSubPage } from "./pages/stock/research/TranscriptsSubPage";
 import { PacksListPage } from "./pages/PacksListPage";
 import { PackPage } from "./pages/PackPage";
 import { PackBuilderPage } from "./pages/PackBuilderPage";
@@ -60,8 +60,8 @@ function App() {
           <Route path="research" element={<StockResearchLayout />}>
             <Route index element={<ResearchSummarySubPage />} />
             <Route
-              path="earnings"
-              element={<EarningsTranscriptsSubPage />}
+              path="transcripts"
+              element={<TranscriptsSubPage />}
             />
             <Route
               path="filings"
@@ -102,7 +102,7 @@ function App() {
               element={
                 <ResearchCategorySubPage
                   title="Other Documents"
-                  excludeDocTypes={["audio", "transcript", "report", "data_export", "notes"]}
+                  excludeDocTypes={["audio", "transcript", "report", "data_export", "notes", "sec_filing"]}
                 />
               }
             />

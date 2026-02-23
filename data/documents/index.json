@@ -461,5 +461,260 @@
       }
     ],
     "indexed_at": "2026-02-22T00:00:00.000000+00:00"
+  },
+  {
+    "file_id": "FILE-110",
+    "filename": "ALB_Q4_2024_earnings.txt",
+    "title": "Albemarle Corporation Q4 2024 earnings call transcript",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-11",
+    "description": "Albemarle Corporation Q4 2024 earnings call transcript",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "ALB"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "214fcfac-3533-45bc-848f-60a7ddd03f7a",
+        "file_id": "FILE-110",
+        "chunk_index": 0,
+        "text": "Albemarle Corporation (ALB) \u2014 Q4 2024 Earnings Call TranscriptDate: January 11, 2025Participants: CEO, CFO, Head of IROPERATOR: Good morning and welcome to the Albemarle Corporation fourth quarter 2024 earnings call.CEO: Thank you, operator. Good morning everyone. We're pleased to report strong resultsfor the fourth quarter and full year 2024. Revenue grew 19% year-over-year,driven by international expansion.Our key highlights for the quarter include:- Revenue of $32.8 billion- Operating margin expansion of 127 basis points- Free cash flow of $17.7 billion- Successful product launchesCFO: Thank you. Let me walk through the financial details...[Transcript continues with Q&A session]ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly.",
+        "char_start": 0,
+        "char_end": 792
+      },
+      {
+        "chunk_id": "db3bfdf0-ae46-4f23-a921-096c73146528",
+        "file_id": "FILE-110",
+        "chunk_index": 1,
+        "text": "ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly. We saw improvements across all segments...Q: What's your outlook for 2025?A: We're cautiously optimistic. Our guidance reflects...[END OF TRANSCRIPT]",
+        "char_start": 712,
+        "char_end": 946
+      }
+    ],
+    "indexed_at": "2026-02-23T02:31:46.140086+00:00"
+  },
+  {
+    "file_id": "FILE-111",
+    "filename": "AMT_Q4_2024_earnings.txt",
+    "title": "American Tower Q4 2024 earnings call transcript",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-12",
+    "description": "American Tower Q4 2024 earnings call transcript",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "AMT"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "f2a07188-b902-4c0e-ad44-040faa27a2bd",
+        "file_id": "FILE-111",
+        "chunk_index": 0,
+        "text": "American Tower (AMT) \u2014 Q4 2024 Earnings Call TranscriptDate: January 12, 2025Participants: CEO, CFO, Head of IROPERATOR: Good morning and welcome to the American Tower fourth quarter 2024 earnings call.CEO: Thank you, operator. Good morning everyone. We're pleased to report strong resultsfor the fourth quarter and full year 2024. Revenue grew 8% year-over-year,driven by strong product demand.Our key highlights for the quarter include:- Revenue of $70.6 billion- Operating margin expansion of 193 basis points- Free cash flow of $20.5 billion- Strong pipeline growthCFO: Thank you. Let me walk through the financial details...[Transcript continues with Q&A session]ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly. We saw improvements across all segments...",
+        "char_start": 0,
+        "char_end": 814
+      },
+      {
+        "chunk_id": "6f8e42d9-e930-44b7-a0a3-6daa2cb685a4",
+        "file_id": "FILE-111",
+        "chunk_index": 1,
+        "text": "A: Certainly. We saw improvements across all segments...Q: What's your outlook for 2025?A: We're cautiously optimistic. Our guidance reflects...[END OF TRANSCRIPT]",
+        "char_start": 758,
+        "char_end": 924
+      }
+    ],
+    "indexed_at": "2026-02-23T02:31:46.144025+00:00"
+  },
+  {
+    "file_id": "FILE-112",
+    "filename": "AKAM_Q4_2024_earnings.txt",
+    "title": "Akamai Technologies Q4 2024 earnings call transcript",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-13",
+    "description": "Akamai Technologies Q4 2024 earnings call transcript",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "AKAM"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "45ff9bb2-0790-4971-95b2-e31209881d8d",
+        "file_id": "FILE-112",
+        "chunk_index": 0,
+        "text": "Akamai Technologies (AKAM) \u2014 Q4 2024 Earnings Call TranscriptDate: January 13, 2025Participants: CEO, CFO, Head of IROPERATOR: Good morning and welcome to the Akamai Technologies fourth quarter 2024 earnings call.CEO: Thank you, operator. Good morning everyone. We're pleased to report strong resultsfor the fourth quarter and full year 2024. Revenue grew 8% year-over-year,driven by pricing optimization.Our key highlights for the quarter include:- Revenue of $13.6 billion- Operating margin expansion of 120 basis points- Free cash flow of $11.5 billion- Strong pipeline growthCFO: Thank you. Let me walk through the financial details...[Transcript continues with Q&A session]ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly. We saw improvements across all segments...",
+        "char_start": 0,
+        "char_end": 824
+      },
+      {
+        "chunk_id": "97e4f55c-c9f0-4a04-800a-07e3401d5884",
+        "file_id": "FILE-112",
+        "chunk_index": 1,
+        "text": "A: Certainly. We saw improvements across all segments...Q: What's your outlook for 2025?A: We're cautiously optimistic. Our guidance reflects...[END OF TRANSCRIPT]",
+        "char_start": 768,
+        "char_end": 934
+      }
+    ],
+    "indexed_at": "2026-02-23T02:31:46.147458+00:00"
+  },
+  {
+    "file_id": "FILE-113",
+    "filename": "AIG_Q4_2024_earnings.txt",
+    "title": "American International Group Q4 2024 earnings call transcript",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-14",
+    "description": "American International Group Q4 2024 earnings call transcript",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "AIG"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "a5335068-5231-45ae-ac4d-9862138e3fb8",
+        "file_id": "FILE-113",
+        "chunk_index": 0,
+        "text": "American International Group (AIG) \u2014 Q4 2024 Earnings Call TranscriptDate: January 14, 2025Participants: CEO, CFO, Head of IROPERATOR: Good morning and welcome to the American International Group fourth quarter 2024 earnings call.CEO: Thank you, operator. Good morning everyone. We're pleased to report strong resultsfor the fourth quarter and full year 2024. Revenue grew 25% year-over-year,driven by international expansion.Our key highlights for the quarter include:- Revenue of $29.3 billion- Operating margin expansion of 182 basis points- Free cash flow of $8.1 billion- Successful product launchesCFO: Thank you. Let me walk through the financial details...[Transcript continues with Q&A session]ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly.",
+        "char_start": 0,
+        "char_end": 805
+      },
+      {
+        "chunk_id": "847f1ffa-6186-4e06-964b-15653d8f8940",
+        "file_id": "FILE-113",
+        "chunk_index": 1,
+        "text": "ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly. We saw improvements across all segments...Q: What's your outlook for 2025?A: We're cautiously optimistic. Our guidance reflects...[END OF TRANSCRIPT]",
+        "char_start": 725,
+        "char_end": 959
+      }
+    ],
+    "indexed_at": "2026-02-23T02:31:46.150046+00:00"
+  },
+  {
+    "file_id": "FILE-114",
+    "filename": "ABNB_Q4_2024_earnings.txt",
+    "title": "Airbnb Q4 2024 earnings call transcript",
+    "doc_type": "transcript",
+    "mime_type": "text/plain",
+    "date": "2025-01-15",
+    "description": "Airbnb Q4 2024 earnings call transcript",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "ABNB"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "db850d4a-1613-4804-93ac-cab7c939aaa9",
+        "file_id": "FILE-114",
+        "chunk_index": 0,
+        "text": "Airbnb (ABNB) \u2014 Q4 2024 Earnings Call TranscriptDate: January 15, 2025Participants: CEO, CFO, Head of IROPERATOR: Good morning and welcome to the Airbnb fourth quarter 2024 earnings call.CEO: Thank you, operator. Good morning everyone. We're pleased to report strong resultsfor the fourth quarter and full year 2024. Revenue grew 17% year-over-year,driven by international expansion.Our key highlights for the quarter include:- Revenue of $22.1 billion- Operating margin expansion of 217 basis points- Free cash flow of $16.5 billion- Strong pipeline growthCFO: Thank you. Let me walk through the financial details...[Transcript continues with Q&A session]ANALYST Q&A:Q: Can you provide more color on the margin expansion?A: Certainly. We saw improvements across all segments...",
+        "char_start": 0,
+        "char_end": 802
+      },
+      {
+        "chunk_id": "e87646ef-94c5-40da-a13f-7ae4b7471dbd",
+        "file_id": "FILE-114",
+        "chunk_index": 1,
+        "text": "A: Certainly. We saw improvements across all segments...Q: What's your outlook for 2025?A: We're cautiously optimistic. Our guidance reflects...[END OF TRANSCRIPT]",
+        "char_start": 746,
+        "char_end": 912
+      }
+    ],
+    "indexed_at": "2026-02-23T02:31:46.152306+00:00"
+  },
+  {
+    "file_id": "FILE-210",
+    "filename": "ALB_research_report_2025.pdf",
+    "title": "Albemarle Corporation research initiation report",
+    "doc_type": "report",
+    "mime_type": "application/pdf",
+    "date": "2025-01-16",
+    "description": "Albemarle Corporation research initiation report",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "ALB"
+      }
+    ],
+    "chunks": [],
+    "indexed_at": "2026-02-23T02:31:46.228389+00:00"
+  },
+  {
+    "file_id": "FILE-211",
+    "filename": "AKAM_research_report_2025.pdf",
+    "title": "Akamai Technologies research initiation report",
+    "doc_type": "report",
+    "mime_type": "application/pdf",
+    "date": "2025-01-17",
+    "description": "Akamai Technologies research initiation report",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "AKAM"
+      }
+    ],
+    "chunks": [],
+    "indexed_at": "2026-02-23T02:31:46.229438+00:00"
+  },
+  {
+    "file_id": "FILE-212",
+    "filename": "ALL_research_report_2025.pdf",
+    "title": "Allstate research initiation report",
+    "doc_type": "report",
+    "mime_type": "application/pdf",
+    "date": "2025-01-18",
+    "description": "Allstate research initiation report",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "ALL"
+      }
+    ],
+    "chunks": [],
+    "indexed_at": "2026-02-23T02:31:46.230332+00:00"
+  },
+  {
+    "file_id": "FILE-213",
+    "filename": "AOS_research_report_2025.pdf",
+    "title": "A. O. Smith research initiation report",
+    "doc_type": "report",
+    "mime_type": "application/pdf",
+    "date": "2025-01-19",
+    "description": "A. O. Smith research initiation report",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "AOS"
+      }
+    ],
+    "chunks": [],
+    "indexed_at": "2026-02-23T02:31:46.231132+00:00"
+  },
+  {
+    "file_id": "FILE-214",
+    "filename": "AMD_research_report_2025.pdf",
+    "title": "Advanced Micro Devices research initiation report",
+    "doc_type": "report",
+    "mime_type": "application/pdf",
+    "date": "2025-01-20",
+    "description": "Advanced Micro Devices research initiation report",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "AMD"
+      }
+    ],
+    "chunks": [],
+    "indexed_at": "2026-02-23T02:31:46.231802+00:00"
   }
 ]

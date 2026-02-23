@@ -52,3 +52,4 @@ class DocumentListItem(BaseModel):
     entities: list[EntityAssociation] = Field(default_factory=list)
     chunk_count: int = 0
     indexed_at: str = ""
+    metadata: dict[str, str] | None = None

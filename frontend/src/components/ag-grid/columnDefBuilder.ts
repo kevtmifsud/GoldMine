@@ -3,6 +3,7 @@ import type { ColumnConfig } from "../../types/entities";
 import { getValueFormatter } from "./formatters";
 import { dateFilterParams } from "./filters";
 import { TickerLinkRenderer } from "./TickerLinkRenderer";
+import { TranscriptViewButtonRenderer } from "./TranscriptViewButtonRenderer";
 
 function getFilterConfig(format: string): Partial<ColDef> {
   switch (format) {
@@ -33,6 +34,13 @@ export function buildColumnDefs(
 
     if (col.key === "ticker") {
       def.cellRenderer = TickerLinkRenderer;
+      delete def.valueFormatter;
+    }
+
+    if (col.format === "transcript_viewer") {
+      def.cellRenderer = TranscriptViewButtonRenderer;
+      def.sortable = false;
+      def.filter = false;
       delete def.valueFormatter;
     }
 

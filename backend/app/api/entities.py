@@ -413,6 +413,21 @@ def _build_dataset_detail(dataset_name: str) -> EntityDetail:
     except Exception:
         pass
 
+    # Customise columns for transcripts_list: hide the massive JSON blob
+    # and add a "View Transcript" action button instead.
+    if ds_meta.name.lower() == "transcripts_list":
+        for col in columns:
+            if col.key == "transcripts":
+                col.visible = False
+        columns.append(
+            ColumnConfig(
+                key="_action",
+                label="",
+                format="transcript_viewer",
+                sortable=False,
+            )
+        )
+
     widgets: list[WidgetConfig] = []
     filter_defs = _get_dataset_filter_definitions(ds_meta.name) if columns else []
     widgets.append(

@@ -45,7 +45,7 @@ export function TranscriptViewerDialog({
         <div className="doc-inspector__header">
           <div className="doc-inspector__header-info">
             <h3 className="doc-inspector__title">
-              {symbol} Q{quarter} {year} Earnings Call Transcript
+              {symbol} Q{quarter} {year} Transcript
             </h3>
             <div className="doc-inspector__meta">
               <span className="doc-type-badge doc-type-badge--transcript">

@@ -9,6 +9,7 @@ from app.config.settings import settings
 from app.data_access.factory import get_data_provider
 from app.documents.extractor import extract_text
 from app.documents.factory import get_document_provider
+from app.data_access.models import FilterParams
 from app.documents.models import (
     DocumentListItem,
     DocumentSearchResult,
@@ -162,7 +163,14 @@ async def list_documents(
 ) -> list[DocumentListItem]:
     _ensure_existing_files_indexed()
     provider = get_document_provider()
-    return provider.list_documents(entity_type=entity_type, entity_id=entity_id)
+    docs = provider.list_documents(entity_type=entity_type, entity_id=entity_id)
+
+    # Merge transcript and SEC filing records from datasets for stock entities
+    if entity_type == "stock" and entity_id:
+        docs = list(docs)  # ensure mutable copy
+        docs.extend(_synthesize_dataset_docs(entity_id))
+
+    return docs
 
 
 @router.get("/search")
@@ -233,6 +241,71 @@ async def llm_query(request: Request, body: LLMQueryRequest) -> LLMQueryResponse
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _synthesize_dataset_docs(symbol: str) -> list[DocumentListItem]:
+    """Synthesize DocumentListItem records from transcripts_list and sec_filings datasets."""
+    data_provider = get_data_provider()
+    items: list[DocumentListItem] = []
+
+    # --- Transcripts ---
+    try:
+        result = data_provider.query(
+            "transcripts_list",
+            FilterParams(page=1, page_size=1000, filters={"symbol": symbol}),
+        )
+        for row in result.data:
+            year = str(row.get("fiscal_year", row.get("year", "")))
+            quarter = str(row.get("fiscal_quarter", row.get("quarter", "")))
+            report_date = str(row.get("report_date", row.get("date", "")))
+            items.append(DocumentListItem(
+                file_id=f"transcript-{symbol}-{year}-Q{quarter}",
+                filename="",
+                title=f"{symbol} Q{quarter} {year} Transcript",
+                doc_type="transcript",
+                date=report_date,
+                description=f"Earnings call transcript for {symbol} Q{quarter} {year}",
+                entities=[EntityAssociation(entity_type="stock", entity_id=symbol)],
+                metadata={
+                    "source": "dataset",
+                    "symbol": symbol,
+                    "fiscal_year": year,
+                    "fiscal_quarter": quarter,
+                },
+            ))
+    except Exception:
+        logger.warning("failed_to_load_transcripts", symbol=symbol)
+
+    # --- SEC Filings ---
+    try:
+        result = data_provider.query(
+            "sec_filings",
+            FilterParams(page=1, page_size=1000, filters={"symbol": symbol}),
+        )
+        for row in result.data:
+            accession = str(row.get("accession_number", row.get("accessionNumber", "")))
+            filing_date = str(row.get("filing_date", row.get("filingDate", "")))
+            form_type = str(row.get("form_type", row.get("formType", "")))
+            description = str(row.get("form_type_description", row.get("description", form_type)))
+            filing_url = str(row.get("filing_url", row.get("filingUrl", "")))
+            items.append(DocumentListItem(
+                file_id=f"sec-{accession}",
+                filename="",
+                title=description,
+                doc_type="sec_filing",
+                date=filing_date,
+                description=f"{form_type} filing for {symbol}",
+                entities=[EntityAssociation(entity_type="stock", entity_id=symbol)],
+                metadata={
+                    "source": "dataset",
+                    "filing_url": filing_url,
+                    "form_type": form_type,
+                },
+            ))
+    except Exception:
+        logger.warning("failed_to_load_sec_filings", symbol=symbol)
+
+    return items
+
 
 def _get_entity_context(entity_type: str, entity_id: str) -> str:
     """Build structured data context string for an entity."""

@@ -25,7 +25,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Research",
     children: [
       { to: "research", label: "All Documents" },
-      { to: "research/earnings", label: "Earnings Calls" },
+      { to: "research/transcripts", label: "Transcripts" },
       { to: "research/filings", label: "SEC Filings" },
       { to: "research/sellside", label: "Sell-side" },
       { to: "research/data-files", label: "Data Files" },

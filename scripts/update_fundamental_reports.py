@@ -2,13 +2,13 @@
 """Download fundamental reports: company info, officers, SEC filings, transcripts.
 
 Runs four phases:
-  Phase 1 — Stock Info:     Company profile data for all tickers
+  Phase 1 — Stock Info:     Company profile data merged into stocks.csv
   Phase 2 — Stock Officers: Executive officer data merged into people.csv
   Phase 3 — SEC Filings:    US domestic filings for whitelist tickers
   Phase 4 — Transcripts:    Earnings call transcripts for whitelist tickers
 
 Output files:
-  data/structured/stock_info.csv
+  data/structured/stocks.csv (info fields merged)
   data/structured/people.csv (officers merged)
   data/structured/sec_filings.csv
   data/structured/transcripts_list.csv
@@ -44,7 +44,6 @@ STOCKS_CSV = ROOT / "data" / "structured" / "stocks.csv"
 STRUCTURED_DIR = ROOT / "data" / "structured"
 TRANSCRIPTS_DIR = STRUCTURED_DIR / "transcripts"
 
-INFO_CSV = STRUCTURED_DIR / "stock_info.csv"
 PEOPLE_CSV = STRUCTURED_DIR / "people.csv"
 FILINGS_CSV = STRUCTURED_DIR / "sec_filings.csv"
 TRANSCRIPTS_LIST_CSV = STRUCTURED_DIR / "transcripts_list.csv"
@@ -65,9 +64,8 @@ ALLOWED_FORM_TYPES = {
 }
 
 INFO_COLUMNS = [
-    "symbol", "address", "city", "country", "phone", "zip",
-    "industry", "sector", "long_business_summary",
-    "full_time_employees", "web_site", "report_date",
+    "address", "city", "phone", "zip",
+    "long_business_summary", "full_time_employees", "web_site", "report_date",
 ]
 
 PEOPLE_COLUMNS = [
@@ -123,7 +121,11 @@ def save_checkpoint(path: Path, data: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def fetch_info_for_ticker(ticker: str) -> dict | None:
-    """Fetch company info for one ticker."""
+    """Fetch company info fields for one ticker.
+
+    Returns a dict with only the INFO_COLUMNS fields (no symbol/sector/industry/country
+    since those already exist in stocks.csv).
+    """
     api_ticker = to_api_ticker(ticker)
     t = Ticker(api_ticker, log_level=logging.WARNING)
     df = t.info()
@@ -137,8 +139,6 @@ def fetch_info_for_ticker(ticker: str) -> dict | None:
         if val is None:
             val = ""
         info[col] = str(val).strip()
-    # Ensure symbol uses our ticker format, not the API format
-    info["symbol"] = ticker
     return info
 
 
@@ -160,9 +160,9 @@ def process_info_ticker(
 
 
 def run_phase_info(tickers: list[str], workers: int, fresh: bool) -> None:
-    """Phase 1: Download stock info for all tickers."""
+    """Phase 1: Download stock info and merge into stocks.csv."""
     print("=" * 60)
-    print("Phase 1: Stock Info")
+    print("Phase 1: Stock Info (merge into stocks.csv)")
     print("=" * 60)
 
     checkpoint: dict[str, dict] = {} if fresh else load_checkpoint(INFO_CHECKPOINT)
@@ -204,20 +204,43 @@ def run_phase_info(tickers: list[str], workers: int, fresh: bool) -> None:
             print(f"WARNING: {len(failed)} tickers failed info fetch: "
                   f"{', '.join(sorted(failed)[:20])}", file=sys.stderr)
 
-    # Write CSV from checkpoint
-    all_rows = list(checkpoint.values())
-    if not all_rows:
-        print("No stock info data to write")
+    if not checkpoint:
+        print("No stock info data to merge")
         return
 
-    STRUCTURED_DIR.mkdir(parents=True, exist_ok=True)
-    with open(INFO_CSV, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=INFO_COLUMNS)
-        writer.writeheader()
-        for row in sorted(all_rows, key=lambda r: r.get("symbol", "")):
-            writer.writerow({col: row.get(col, "") for col in INFO_COLUMNS})
+    # Read existing stocks.csv
+    stocks: list[dict] = []
+    with open(STOCKS_CSV, newline="") as f:
+        reader = csv.DictReader(f)
+        stock_fields = list(reader.fieldnames or [])
+        for row in reader:
+            stocks.append(row)
 
-    print(f"Wrote {len(all_rows)} rows to {INFO_CSV}")
+    # Ensure info columns are in the field list
+    merged_fields = list(stock_fields)
+    for col in INFO_COLUMNS:
+        if col not in merged_fields:
+            merged_fields.append(col)
+
+    # Merge fetched info into stock rows
+    merged_count = 0
+    for stock in stocks:
+        ticker = stock["ticker"].strip()
+        info = checkpoint.get(ticker)
+        if info:
+            merged_count += 1
+            for col in INFO_COLUMNS:
+                stock[col] = info.get(col, "")
+
+    # Write merged stocks.csv
+    STRUCTURED_DIR.mkdir(parents=True, exist_ok=True)
+    with open(STOCKS_CSV, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=merged_fields)
+        writer.writeheader()
+        for stock in stocks:
+            writer.writerow({col: stock.get(col, "") for col in merged_fields})
+
+    print(f"Merged info for {merged_count}/{len(stocks)} tickers into {STOCKS_CSV}")
 
     # Clean up checkpoint if all tickers done
     if len(checkpoint) >= len(tickers) and INFO_CHECKPOINT.exists():

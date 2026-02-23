@@ -74,6 +74,40 @@
   border-right: 3px solid var(--color-primary);
 }
 
+/* Expandable sub-navigation (Research sub-items) */
+.stock-sidebar__sub-nav {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+
+.stock-sidebar__sub-link {
+  display: block;
+  padding: 0.4rem 1.25rem 0.4rem 2.25rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.stock-sidebar__sub-link:hover {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
+.stock-sidebar__sub-link.active {
+  color: var(--color-primary);
+  font-weight: 600;
+  background: #ebf4ff;
+}
+
+/* Flush research grid inside stock content */
+.stock-content .research-grid {
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .stock-sidebar__back {
   margin-top: auto;
   padding: 1rem 1.25rem 0;
@@ -92,12 +126,143 @@
   color: var(--color-primary-light);
 }
 
-/* Content area */
+/* Content area — flush, full-width */
 .stock-content {
   flex: 1;
   min-width: 0;
-  padding: 2rem;
-  max-width: 1200px;
+  padding: 0;
+  background: var(--color-bg);
+}
+
+/* --- Flush widget overrides inside stock content --- */
+
+/* Research bar gets horizontal padding so it doesn't touch edges */
+.stock-content .research-bar {
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+/* View toolbar */
+.stock-content .entity-page__top-bar {
+  padding: 0.5rem 1.25rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+/* Widgets stack: no gap, no margin */
+.stock-content .entity-page__widgets {
+  gap: 0;
+  margin-top: 0;
+}
+
+/* Charts grid: no gap */
+.stock-content .entity-page__charts {
+  gap: 0;
+}
+
+/* Strip card styling from chart widgets */
+.stock-content .chart-widget {
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Strip card styling from smartlist widgets */
+.stock-content .smartlist {
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Strip card styling from documents panel */
+.stock-content .docs-panel {
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  padding: 1.25rem;
+}
+
+/* Strip card styling from LLM panel */
+.stock-content .llm-panel {
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  padding: 1.25rem;
+}
+
+/* Strip card styling from schedules list */
+.stock-content .schedules-list {
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Remove extra spacing from sub-page section wrappers */
+.stock-content .entity-page__documents,
+.stock-content .entity-page__llm,
+.stock-content .entity-page__schedules {
+  margin-top: 0;
+}
+
+/* --- Compact Stock Summary Bar --- */
+.stock-summary {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.625rem 1.25rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.stock-summary__name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.stock-summary__divider {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+.stock-summary__metrics {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.stock-summary__metric {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.stock-summary__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.stock-summary__value {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 /* Loading / error states in stock layout */

@@ -9,8 +9,9 @@ interface ViewToolbarProps {
   views: SavedView[];
   currentUser: string;
   dirty: boolean;
+  viewId: string | null;
   onViewSelect: (viewId: string | null) => void;
-  onOverwriteView: () => void;
+  onSaveView: () => void;
   onSaveNewView: () => void;
   onDeleteView: (viewId: string) => void;
 }
@@ -20,8 +21,9 @@ export function ViewToolbar({
   views,
   currentUser,
   dirty,
+  viewId,
   onViewSelect,
-  onOverwriteView,
+  onSaveView,
   onSaveNewView,
   onDeleteView,
 }: ViewToolbarProps) {
@@ -29,36 +31,37 @@ export function ViewToolbar({
     ? views.find((v) => v.view_id === activeViewId)
     : null;
   const isOwner = activeView?.owner === currentUser;
-  const onSavedView = activeViewId != null;
 
   return (
     <div className="view-toolbar">
       <select
         className="view-toolbar__select"
-        value={activeViewId ?? ""}
+        value={viewId ?? ""}
         onChange={(e) => onViewSelect(e.target.value || null)}
       >
-        <option value="">Default View</option>
-        {views.map((v) => (
+        <option value="">
+          Default View{views.some((v) => v.is_default && v.owner === currentUser) ? " (customized)" : ""}
+        </option>
+        {views.filter((v) => !v.is_default).map((v) => (
           <option key={v.view_id} value={v.view_id}>
             {v.name}{v.owner !== currentUser ? ` (${v.owner})` : ""}
           </option>
         ))}
       </select>
 
-      {dirty && onSavedView && isOwner && (
-        <button className="view-toolbar__btn view-toolbar__btn--primary" onClick={onOverwriteView}>
-          Overwrite View
+      {dirty && (isOwner || !activeViewId) && (
+        <button className="view-toolbar__btn view-toolbar__btn--primary" onClick={onSaveView}>
+          Save
         </button>
       )}
 
       {dirty && (
         <button className="view-toolbar__btn" onClick={onSaveNewView}>
-          Save New View
+          Save As New
         </button>
       )}
 
-      {isOwner && (
+      {isOwner && !activeView?.is_default && (
         <button
           className="view-toolbar__btn view-toolbar__btn--danger"
           onClick={() => onDeleteView(activeViewId!)}

@@ -91,6 +91,7 @@ async def upload_document(
     title: str = Form(""),
     description: str = Form(""),
     date: str = Form(""),
+    doc_type: str = Form(""),
 ) -> DocumentListItem:
     if not file.filename:
         raise GoldMineError("Filename is required", status_code=400)
@@ -101,9 +102,10 @@ async def upload_document(
     if len(file_bytes) > MAX_UPLOAD_SIZE:
         raise GoldMineError("File exceeds 10MB limit", status_code=400)
 
-    # Determine doc type from mime
+    # Determine doc type: use explicit value if provided, otherwise infer from mime
     mime = file.content_type or "application/octet-stream"
-    doc_type = _mime_to_doc_type(mime, file.filename)
+    if not doc_type:
+        doc_type = _mime_to_doc_type(mime, file.filename)
 
     # Store file via object storage
     storage = get_storage_provider()

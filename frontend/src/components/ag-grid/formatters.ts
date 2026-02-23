@@ -29,6 +29,18 @@ export function textFormatter(params: ValueFormatterParams): string {
   return String(value);
 }
 
+export function dateFormatter(params: ValueFormatterParams): string {
+  const value = params.value;
+  if (value === null || value === undefined || value === "") return "\u2014";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function getValueFormatter(format: string) {
   switch (format) {
     case "currency":
@@ -37,6 +49,8 @@ export function getValueFormatter(format: string) {
       return percentFormatter;
     case "number":
       return numberFormatter;
+    case "date":
+      return dateFormatter;
     default:
       return textFormatter;
   }

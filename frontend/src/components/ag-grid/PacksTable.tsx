@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { AgGridReact } from "ag-grid-react";
 import type { ColDef } from "ag-grid-community";
 import type { AnalystPack } from "../../types/entities";
 import { PackNameRenderer } from "./PackNameRenderer";
 import { PackActionRenderer } from "./PackActionRenderer";
-import { gridTheme } from "./theme";
+import { AppGrid } from "./AppGrid";
+import { SetFilter } from "./SetFilter";
+import { dateFilterParams } from "./filters";
 
 export interface PacksTableProps {
   packs: AnalystPack[];
@@ -52,6 +53,7 @@ export function PacksTable({
             : "\u2014",
         sortable: true,
         filter: "agDateColumnFilter",
+        filterParams: dateFilterParams,
       },
     ];
 
@@ -59,19 +61,21 @@ export function PacksTable({
       cols.push({
         headerName: "Visibility",
         field: "is_shared",
-        cellRenderer: (params: { data?: AnalystPack }) => {
-          if (!params.data) return null;
+        valueGetter: (params) =>
+          params.data?.is_shared ? "Public" : "Private",
+        cellRenderer: (params: { value?: string }) => {
+          if (!params.value) return null;
           const cls =
             "packs-list__visibility-badge" +
-            (params.data.is_shared ? " packs-list__visibility-badge--public" : "");
+            (params.value === "Public" ? " packs-list__visibility-badge--public" : "");
           return (
             <span className={cls}>
-              {params.data.is_shared ? "Public" : "Private"}
+              {params.value}
             </span>
           );
         },
         sortable: true,
-        filter: "agTextColumnFilter",
+        filter: SetFilter,
       });
     }
 
@@ -82,6 +86,7 @@ export function PacksTable({
       cellClass: "packs-list__td-actions",
       sortable: false,
       filter: false,
+      floatingFilter: false,
       suppressHeaderMenuButton: true,
     });
 
@@ -100,19 +105,13 @@ export function PacksTable({
   );
 
   return (
-    <div>
-      <AgGridReact<AnalystPack>
-        theme={gridTheme}
-        rowData={packs}
-        columnDefs={columnDefs}
-        autoSizeStrategy={{ type: "fitCellContents", skipHeader: true }}
-        defaultColDef={{ wrapHeaderText: true, autoHeaderHeight: true, minWidth: 100 }}
-        context={context}
-        domLayout="autoHeight"
-        getRowId={(params) => params.data.pack_id}
-        suppressMovableColumns={false}
-        suppressPaginationPanel={true}
-      />
-    </div>
+    <AppGrid<AnalystPack>
+      rowData={packs}
+      columnDefs={columnDefs}
+      context={context}
+      domLayout="autoHeight"
+      getRowId={(params) => params.data.pack_id}
+      suppressPaginationPanel={true}
+    />
   );
 }

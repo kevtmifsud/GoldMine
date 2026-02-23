@@ -558,6 +558,28 @@ COMPANIES = [
 ]
 
 
+SAMPLE_ADDRESSES = [
+    "123 Main Street", "456 Corporate Blvd", "789 Innovation Way",
+    "1000 Technology Drive", "555 Market Street", "200 Park Avenue",
+    "300 Industrial Parkway", "One Commerce Square", "1500 Broadway",
+    "800 Fifth Avenue",
+]
+SAMPLE_CITIES = [
+    "New York", "San Francisco", "Chicago", "Boston", "Seattle",
+    "Austin", "Atlanta", "Denver", "Los Angeles", "Dallas",
+    "Philadelphia", "San Jose", "Charlotte", "Minneapolis", "Houston",
+]
+SAMPLE_ZIPS = [
+    "10001", "94105", "60601", "02101", "98101",
+    "78701", "30301", "80201", "90001", "75201",
+    "19101", "95101", "28201", "55401", "77001",
+]
+SAMPLE_AREA_CODES = [
+    "212", "415", "312", "617", "206",
+    "512", "404", "303", "213", "214",
+]
+
+
 def generate_stocks():
     rows = []
     for ticker, name, sector, industry, mcap, country, exchange in COMPANIES:
@@ -568,6 +590,9 @@ def generate_stocks():
         div_yield = round(random.uniform(0, 4.5), 2)
         eps = round(price / pe, 2) if pe > 0 else 0
         revenue = round(mcap * random.uniform(0.15, 0.6), 1)
+        city = random.choice(SAMPLE_CITIES)
+        city_idx = SAMPLE_CITIES.index(city)
+        area_code = SAMPLE_AREA_CODES[city_idx % len(SAMPLE_AREA_CODES)]
         rows.append({
             "ticker": ticker,
             "company_name": name,
@@ -583,6 +608,14 @@ def generate_stocks():
             "revenue_b": revenue,
             "country": country,
             "exchange": exchange,
+            "address": random.choice(SAMPLE_ADDRESSES),
+            "city": city,
+            "phone": f"({area_code}) {random.randint(200, 999)}-{random.randint(1000, 9999)}",
+            "zip": SAMPLE_ZIPS[city_idx % len(SAMPLE_ZIPS)],
+            "long_business_summary": f"{name} is a leading {industry.lower()} company in the {sector.lower()} sector.",
+            "full_time_employees": random.randint(500, 300000),
+            "web_site": f"https://www.{name.lower().split()[0].replace('.', '').replace(',', '')}.com",
+            "report_date": "2025-01-31",
         })
     path = STRUCTURED_DIR / "stocks.csv"
     with open(path, "w", newline="") as f:
@@ -692,7 +725,6 @@ def generate_datasets():
         {"dataset_id": "DS-007", "name": "portfolios", "display_name": "Portfolios", "description": "Portfolio holdings and allocations", "record_count": 0, "id_field": "portfolio_id", "category": "portfolio"},
         {"dataset_id": "DS-008", "name": "events", "display_name": "Corporate Events", "description": "Earnings calls, conferences, filings", "record_count": 0, "id_field": "event_id", "category": "market_data"},
         {"dataset_id": "DS-009", "name": "macro", "display_name": "Macro Indicators", "description": "Macroeconomic data points", "record_count": 0, "id_field": "indicator_id", "category": "market_data"},
-        {"dataset_id": "DS-010", "name": "filings", "display_name": "SEC Filings", "description": "SEC filing metadata", "record_count": 0, "id_field": "filing_id", "category": "compliance"},
     ]
     path = STRUCTURED_DIR / "datasets.csv"
     with open(path, "w", newline="") as f:

@@ -111,22 +111,40 @@ export function EntityPage() {
     [entityType, entityId, setSearchParams, collectOverrides]
   );
 
-  // Overwrite the currently active view in-place
-  const handleOverwriteView = useCallback(async () => {
-    if (!entityType || !entityId || !viewId) return;
+  // Silently save over the current view (owned view or default)
+  const handleSaveView = useCallback(async () => {
+    if (!entityType || !entityId) return;
 
     const overrides = collectOverrides();
-    await viewsApi.updateView(viewId, { widget_overrides: overrides });
+    const activeId = detail?.active_view_id;
 
-    // Re-fetch to get the merged detail with updated overrides
+    if (activeId) {
+      // Overwrite the currently active view in-place
+      await viewsApi.updateView(activeId, { widget_overrides: overrides });
+    } else {
+      // No active view — create a default view for this entity
+      await viewsApi.createView({
+        name: "Default",
+        entity_type: entityType,
+        entity_id: entityId,
+        widget_overrides: overrides,
+        is_shared: false,
+        is_default: true,
+      });
+      const updated = await viewsApi.listViews(entityType, entityId);
+      setViews(updated);
+    }
+
+    // Re-fetch entity detail (backend auto-applies default view when no view_id)
     setDirty(false);
-    const params: Record<string, string> = { view_id: viewId };
+    const params: Record<string, string> = {};
+    if (viewId) params.view_id = viewId;
     const resp = await api.get<EntityDetail>(
       `/api/entities/${entityType}/${entityId}`,
       { params }
     );
     setDetail(resp.data);
-  }, [entityType, entityId, viewId, collectOverrides]);
+  }, [entityType, entityId, viewId, detail?.active_view_id, collectOverrides]);
 
   const handleDeleteView = useCallback(
     async (deleteViewId: string) => {
@@ -167,17 +185,19 @@ export function EntityPage() {
             <div className="entity-page__actions">
               <select
                 className="entity-page__view-select"
-                value={detail.active_view_id ?? ""}
+                value={viewId ?? ""}
                 onChange={(e) => handleViewSelect(e.target.value || null)}
               >
-                <option value="">Default View</option>
-                {views.map((v) => (
+                <option value="">
+                  Default View{views.some((v) => v.is_default && v.owner === (user?.username ?? "")) ? " (customized)" : ""}
+                </option>
+                {views.filter((v) => !v.is_default).map((v) => (
                   <option key={v.view_id} value={v.view_id}>
                     {v.name}{v.owner !== (user?.username ?? "") ? ` (${v.owner})` : ""}
                   </option>
                 ))}
               </select>
-              {isViewOwner && (
+              {isViewOwner && !activeView?.is_default && (
                 <button
                   className="entity-page__action-btn entity-page__action-btn--danger"
                   onClick={() => handleDeleteView(detail.active_view_id!)}
@@ -185,10 +205,10 @@ export function EntityPage() {
                   Delete
                 </button>
               )}
-              {dirty && isViewOwner && (
+              {dirty && (isViewOwner || !detail.active_view_id) && (
                 <button
                   className="entity-page__action-btn"
-                  onClick={handleOverwriteView}
+                  onClick={handleSaveView}
                 >
                   Save
                 </button>
@@ -263,19 +283,23 @@ export function EntityPage() {
                   />
                 ))}
             </div>
-            <div className="entity-page__documents">
-              <DocumentsPanel entityType={detail.entity_type} entityId={detail.entity_id} />
-            </div>
-            <div className="entity-page__llm">
-              <LLMQueryPanel entityType={detail.entity_type} entityId={detail.entity_id} />
-            </div>
-            <div className="entity-page__schedules">
-              <SchedulesList
-                entityType={detail.entity_type}
-                entityId={detail.entity_id}
-                refreshKey={schedulesRefreshKey}
-              />
-            </div>
+            {detail.entity_type !== "dataset" && (
+              <>
+                <div className="entity-page__documents">
+                  <DocumentsPanel entityType={detail.entity_type} entityId={detail.entity_id} />
+                </div>
+                <div className="entity-page__llm">
+                  <LLMQueryPanel entityType={detail.entity_type} entityId={detail.entity_id} />
+                </div>
+                <div className="entity-page__schedules">
+                  <SchedulesList
+                    entityType={detail.entity_type}
+                    entityId={detail.entity_id}
+                    refreshKey={schedulesRefreshKey}
+                  />
+                </div>
+              </>
+            )}
           </>
         )}
         {showSaveDialog && (

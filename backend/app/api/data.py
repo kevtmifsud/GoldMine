@@ -22,7 +22,7 @@ async def query_dataset(
     request: Request,
     dataset: str,
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=200),
+    page_size: int = Query(default=50, ge=1, le=1000),
     sort_by: str | None = Query(default=None),
     sort_order: str = Query(default="asc", pattern="^(asc|desc)$"),
     search: str | None = Query(default=None),

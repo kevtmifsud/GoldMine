@@ -221,3 +221,7 @@ def _apply_widget_override(widget: WidgetConfig, override: "WidgetStateOverride"
     if override.sort_order is not None:
         widget.initial_sort_order = override.sort_order
         widget.has_overrides = True
+
+    if override.column_filters:
+        widget.initial_column_filters = override.column_filters
+        widget.has_overrides = True

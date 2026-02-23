@@ -7,6 +7,7 @@ interface FileUploadDialogProps {
   entityId: string;
   onUploadComplete: () => void;
   onCancel: () => void;
+  accept?: string;
 }
 
 export function FileUploadDialog({
@@ -14,6 +15,7 @@ export function FileUploadDialog({
   entityId,
   onUploadComplete,
   onCancel,
+  accept = ".txt,.csv,.pdf,.mp3",
 }: FileUploadDialogProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -63,7 +65,7 @@ export function FileUploadDialog({
               type="file"
               className="upload-dialog__file-input"
               ref={fileRef}
-              accept=".txt,.csv,.pdf,.mp3"
+              accept={accept}
             />
           </div>
           <div className="upload-dialog__field">

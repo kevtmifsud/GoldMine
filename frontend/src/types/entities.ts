@@ -70,6 +70,7 @@ export interface WidgetConfig {
   initial_filters: Record<string, string>;
   initial_sort_by: string | null;
   initial_sort_order: string | null;
+  initial_column_filters: Record<string, unknown> | null;
 }
 
 export interface EntityDetail {
@@ -101,6 +102,7 @@ export interface WidgetStateOverride {
   sort_order: string | null;
   visible_columns: string[] | null;
   page_size: number | null;
+  column_filters: Record<string, unknown> | null;
 }
 
 export interface SavedView {
@@ -111,6 +113,7 @@ export interface SavedView {
   entity_id: string;
   widget_overrides: WidgetStateOverride[];
   is_shared: boolean;
+  is_default: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -121,6 +124,7 @@ export interface SavedViewCreate {
   entity_id: string;
   widget_overrides: WidgetStateOverride[];
   is_shared: boolean;
+  is_default?: boolean;
 }
 
 export interface SavedViewUpdate {

@@ -12,6 +12,7 @@ class WidgetStateOverride(BaseModel):
     sort_order: str | None = None
     visible_columns: list[str] | None = None
     page_size: int | None = None
+    column_filters: dict | None = None
 
 
 class SavedView(BaseModel):
@@ -22,6 +23,7 @@ class SavedView(BaseModel):
     entity_id: str
     widget_overrides: list[WidgetStateOverride] = Field(default_factory=list)
     is_shared: bool = False
+    is_default: bool = False
     created_at: str = ""
     updated_at: str = ""
 
@@ -32,6 +34,7 @@ class SavedViewCreate(BaseModel):
     entity_id: str
     widget_overrides: list[WidgetStateOverride] = Field(default_factory=list)
     is_shared: bool = False
+    is_default: bool = False
 
 
 class SavedViewUpdate(BaseModel):

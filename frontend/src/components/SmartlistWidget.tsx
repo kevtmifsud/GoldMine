@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
-import { AgGridReact } from "ag-grid-react";
-import type { SortChangedEvent } from "ag-grid-community";
+import type { GridApi, FilterChangedEvent, GridReadyEvent, SortChangedEvent } from "ag-grid-community";
 import api from "../config/api";
 import type { WidgetConfig, PaginatedResponse, WidgetStateOverride } from "../types/entities";
 import { buildColumnDefs } from "./ag-grid/columnDefBuilder";
-import { gridTheme } from "./ag-grid/theme";
+import { AppGrid } from "./ag-grid/AppGrid";
 import "../styles/smartlist.css";
 
 interface SmartlistWidgetProps {
@@ -43,6 +42,7 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const columnPickerRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
+  const gridApiRef = useRef<GridApi | null>(null);
 
   // Notify parent when user changes widget state
   useEffect(() => {
@@ -63,6 +63,7 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
         sort_order: sortOrder,
         visible_columns: Array.from(visibleColumns),
         page_size: null,
+        column_filters: gridApiRef.current?.getFilterModel() ?? null,
       };
     },
   }));
@@ -72,18 +73,33 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
       setLoading(true);
       setError(null);
       try {
-        const params: Record<string, string | number> = {
+        const baseParams: Record<string, string | number> = {
           page: 1,
-          page_size: 200,
+          page_size: config.default_page_size ?? 200,
         };
         // Add server-side filters as query params
         for (const [k, v] of Object.entries(filters)) {
-          if (v) params[k] = v;
+          if (v) baseParams[k] = v;
         }
-        const resp = await api.get<PaginatedResponse>(config.endpoint, {
-          params,
+        const firstResp = await api.get<PaginatedResponse>(config.endpoint, {
+          params: baseParams,
         });
-        setData(resp.data.data);
+        let allRows = firstResp.data.data;
+
+        if (firstResp.data.total_pages > 1) {
+          const remaining = Array.from(
+            { length: firstResp.data.total_pages - 1 },
+            (_, i) => api.get<PaginatedResponse>(config.endpoint, {
+              params: { ...baseParams, page: i + 2 },
+            })
+          );
+          const responses = await Promise.all(remaining);
+          for (const resp of responses) {
+            allRows = allRows.concat(resp.data.data);
+          }
+        }
+
+        setData(allRows);
       } catch {
         setError("Failed to load data");
       } finally {
@@ -159,7 +175,18 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
         ? [{ colId: config.initial_sort_by, sort: (config.initial_sort_order ?? "asc") as "asc" | "desc" }]
         : [],
     },
-  }), [config.initial_sort_by, config.initial_sort_order]);
+    filter: {
+      filterModel: config.initial_column_filters ?? undefined,
+    },
+  }), [config.initial_sort_by, config.initial_sort_order, config.initial_column_filters]);
+
+  const handleGridReady = useCallback((event: GridReadyEvent) => {
+    gridApiRef.current = event.api;
+  }, []);
+
+  const handleFilterChanged = useCallback((_event: FilterChangedEvent) => {
+    onStateChange?.();
+  }, [onStateChange]);
 
   const hasFilters = config.filter_definitions.length > 0;
   const hasQuickFilter = config.client_filterable_columns.length > 0;
@@ -246,17 +273,15 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
       )}
       {!error && data.length > 0 && (
           <div className="smartlist__grid" style={{ height: 600 }}>
-            <AgGridReact
-              theme={gridTheme}
+            <AppGrid
               loading={loading}
               rowData={displayData}
               columnDefs={columnDefs}
               initialState={initialState}
-              autoSizeStrategy={{ type: "fitCellContents", skipHeader: true }}
-              defaultColDef={{ wrapHeaderText: true, autoHeaderHeight: true, minWidth: 100 }}
+              onGridReady={handleGridReady}
               onSortChanged={handleSortChanged}
+              onFilterChanged={handleFilterChanged}
               suppressPaginationPanel={true}
-              suppressMovableColumns={false}
             />
           </div>
       )}

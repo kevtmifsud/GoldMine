@@ -6,7 +6,7 @@ async def test_list_datasets(authed_client):
     response = await authed_client.get("/api/data/")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 10
+    assert len(data) == 12
     names = [d["name"] for d in data]
     assert "stocks" in names
     assert "people" in names

@@ -34,6 +34,10 @@ class ViewsProvider(ABC):
         """Delete a view. Returns True if deleted, False if not found."""
 
     @abstractmethod
+    def get_default_view(self, owner: str, entity_type: str, entity_id: str) -> SavedView | None:
+        """Get the user's default view for a given entity, if one exists."""
+
+    @abstractmethod
     def list_packs(self, owner: str | None = None) -> list[AnalystPack]:
         """List packs. If owner is given, return owned + shared packs."""
 

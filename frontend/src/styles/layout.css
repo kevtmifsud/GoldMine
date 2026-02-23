@@ -146,6 +146,21 @@
   margin-bottom: 0.75rem;
 }
 
+.browse-section__group {
+  margin-bottom: 1.5rem;
+}
+
+.browse-section__group-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
 .browse-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));

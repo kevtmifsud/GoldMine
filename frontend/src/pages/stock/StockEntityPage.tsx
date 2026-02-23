@@ -19,15 +19,11 @@ export interface StockEntityContext {
   schedulesRefreshKey: number;
   handleViewSelect: (viewId: string | null) => void;
   handleSaveNewView: (name: string, isShared: boolean) => Promise<void>;
-  handleOverwriteView: () => Promise<void>;
+  handleSaveView: () => Promise<void>;
   handleDeleteView: (viewId: string) => Promise<void>;
   handleWidgetStateChange: () => void;
   getWidgetRef: (widgetId: string) => React.RefObject<SmartlistWidgetHandle>;
   collectOverrides: () => WidgetStateOverride[];
-  setShowSaveDialog: (show: boolean) => void;
-  setShowScheduleDialog: (show: boolean) => void;
-  showSaveDialog: boolean;
-  showScheduleDialog: boolean;
   user: ReturnType<typeof useAuth>["user"];
   bumpSchedulesRefresh: () => void;
 }
@@ -45,8 +41,6 @@ export function StockEntityPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [views, setViews] = useState<SavedView[]>([]);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [schedulesRefreshKey, setSchedulesRefreshKey] = useState(0);
   const [dirty, setDirty] = useState(false);
 
@@ -111,7 +105,6 @@ export function StockEntityPage() {
         is_shared: isShared,
       });
 
-      setShowSaveDialog(false);
       const updated = await viewsApi.listViews("stock", entityId);
       setViews(updated);
       setSearchParams({ view_id: view.view_id });
@@ -119,17 +112,37 @@ export function StockEntityPage() {
     [entityId, setSearchParams, collectOverrides]
   );
 
-  const handleOverwriteView = useCallback(async () => {
-    if (!entityId || !viewId) return;
+  // Silently save over the current view (owned view or default)
+  const handleSaveView = useCallback(async () => {
+    if (!entityId) return;
 
     const overrides = collectOverrides();
-    await viewsApi.updateView(viewId, { widget_overrides: overrides });
+    const activeId = detail?.active_view_id;
 
+    if (activeId) {
+      // Overwrite the currently active view in-place
+      await viewsApi.updateView(activeId, { widget_overrides: overrides });
+    } else {
+      // No active view — create a default view for this entity
+      await viewsApi.createView({
+        name: "Default",
+        entity_type: "stock",
+        entity_id: entityId,
+        widget_overrides: overrides,
+        is_shared: false,
+        is_default: true,
+      });
+      const updated = await viewsApi.listViews("stock", entityId);
+      setViews(updated);
+    }
+
+    // Re-fetch entity detail (backend auto-applies default view when no view_id)
     setDirty(false);
-    const params: Record<string, string> = { view_id: viewId };
+    const params: Record<string, string> = {};
+    if (viewId) params.view_id = viewId;
     const resp = await api.get<EntityDetail>(`/api/entities/stock/${entityId}`, { params });
     setDetail(resp.data);
-  }, [entityId, viewId, collectOverrides]);
+  }, [entityId, viewId, detail?.active_view_id, collectOverrides]);
 
   const handleDeleteView = useCallback(
     async (deleteViewId: string) => {
@@ -196,15 +209,11 @@ export function StockEntityPage() {
     schedulesRefreshKey,
     handleViewSelect,
     handleSaveNewView,
-    handleOverwriteView,
+    handleSaveView,
     handleDeleteView,
     handleWidgetStateChange,
     getWidgetRef,
     collectOverrides,
-    setShowSaveDialog,
-    setShowScheduleDialog,
-    showSaveDialog,
-    showScheduleDialog,
     user,
     bumpSchedulesRefresh,
   };

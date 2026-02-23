@@ -190,8 +190,17 @@ async def get_entity_detail(
     else:
         raise NotFoundError(f"Unknown entity type: {entity_type}")
 
+    username = request.state.user.username
     if view_id:
-        detail = _apply_view_overrides(detail, view_id, request.state.user.username)
+        detail = _apply_view_overrides(detail, view_id, username)
+    else:
+        # Auto-apply user's default view for this entity if one exists
+        from app.views.factory import get_views_provider
+        default_view = get_views_provider().get_default_view(
+            owner=username, entity_type=entity_type, entity_id=entity_id,
+        )
+        if default_view:
+            detail = _apply_view_overrides(detail, default_view.view_id, username)
 
     return detail
 
@@ -396,46 +405,44 @@ def _build_dataset_detail(dataset_name: str) -> EntityDetail:
 
     # Dynamically derive columns from CSV headers
     columns: list[ColumnConfig] = []
-    if ds_meta.record_count > 0:
-        try:
-            result = provider.query(ds_meta.name, FilterParams(page=1, page_size=1))
-            if result.data:
-                for key in result.data[0].keys():
-                    columns.append(ColumnConfig(key=key, label=key.replace("_", " ").title()))
-        except Exception:
-            pass
+    try:
+        result = provider.query(ds_meta.name, FilterParams(page=1, page_size=1))
+        if result.data:
+            for key in result.data[0].keys():
+                columns.append(ColumnConfig(key=key, label=key.replace("_", " ").title()))
+    except Exception:
+        pass
 
     widgets: list[WidgetConfig] = []
-    if columns:
-        filter_defs = _get_dataset_filter_definitions(ds_meta.name)
+    filter_defs = _get_dataset_filter_definitions(ds_meta.name) if columns else []
+    widgets.append(
+        WidgetConfig(
+            widget_id="dataset_contents",
+            title=f"{ds_meta.display_name} Contents",
+            endpoint=f"/api/data/{ds_meta.name}",
+            columns=columns,
+            default_page_size=1000,
+            filter_definitions=filter_defs,
+        ),
+    )
+    # Add distribution chart for stocks dataset
+    if ds_meta.name.lower() == "stocks":
         widgets.append(
             WidgetConfig(
-                widget_id="dataset_contents",
-                title=f"{ds_meta.display_name} Contents",
-                endpoint=f"/api/data/{ds_meta.name}",
-                columns=columns,
-                default_page_size=1000,
-                filter_definitions=filter_defs,
+                widget_id="sector_distribution",
+                title="Sector Distribution",
+                endpoint=f"/api/entities/dataset/{ds_meta.name}/distribution?group_by=sector",
+                widget_type="chart",
+                chart_config=ChartConfig(
+                    chart_type="bar",
+                    x_key="sector",
+                    y_key="count",
+                    x_label="Sector",
+                    y_label="Number of Stocks",
+                ),
+                columns=[],
             ),
         )
-        # Add distribution chart for stocks dataset
-        if ds_meta.name.lower() == "stocks":
-            widgets.append(
-                WidgetConfig(
-                    widget_id="sector_distribution",
-                    title="Sector Distribution",
-                    endpoint=f"/api/entities/dataset/{ds_meta.name}/distribution?group_by=sector",
-                    widget_type="chart",
-                    chart_config=ChartConfig(
-                        chart_type="bar",
-                        x_key="sector",
-                        y_key="count",
-                        x_label="Sector",
-                        y_label="Number of Stocks",
-                    ),
-                    columns=[],
-                ),
-            )
 
     return EntityDetail(
         entity_type="dataset",

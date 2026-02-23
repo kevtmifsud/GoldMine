@@ -76,6 +76,13 @@ class JsonViewsProvider(ViewsProvider):
     def create_view(self, view: SavedViewCreate, owner: str) -> SavedView:
         views = self._read_views()
         now = self._now()
+        # If creating a default view, unset any existing default for the same entity
+        if view.is_default:
+            for v in views:
+                if (v.is_default and v.owner == owner
+                        and v.entity_type == view.entity_type
+                        and v.entity_id == view.entity_id):
+                    v.is_default = False
         saved = SavedView(
             view_id=str(uuid.uuid4()),
             name=view.name,
@@ -84,6 +91,7 @@ class JsonViewsProvider(ViewsProvider):
             entity_id=view.entity_id,
             widget_overrides=view.widget_overrides,
             is_shared=view.is_shared,
+            is_default=view.is_default,
             created_at=now,
             updated_at=now,
         )
@@ -119,6 +127,13 @@ class JsonViewsProvider(ViewsProvider):
         self._write_views(new_views)
         logger.info("view_deleted", view_id=view_id)
         return True
+
+    def get_default_view(self, owner: str, entity_type: str, entity_id: str) -> SavedView | None:
+        for v in self._read_views():
+            if (v.is_default and v.owner == owner
+                    and v.entity_type == entity_type and v.entity_id == entity_id):
+                return v
+        return None
 
     # -- packs ------------------------------------------------------------------
 

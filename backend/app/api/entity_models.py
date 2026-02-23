@@ -75,6 +75,7 @@ class WidgetConfig(BaseModel):
     initial_filters: dict[str, str] = Field(default_factory=dict)
     initial_sort_by: str | None = None
     initial_sort_order: str | None = None
+    initial_column_filters: dict | None = None
 
 
 class EntityDetail(BaseModel):

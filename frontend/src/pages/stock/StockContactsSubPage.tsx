@@ -1,5 +1,6 @@
 import { WidgetContainer } from "../../components/WidgetContainer";
 import { ResearchSearchBar } from "../../components/ResearchSearchBar";
+import { StockViewToolbar } from "../../components/StockViewToolbar";
 import { useStockEntity } from "./StockEntityPage";
 
 export function StockContactsSubPage() {
@@ -10,8 +11,9 @@ export function StockContactsSubPage() {
   );
 
   return (
-    <div style={{ paddingTop: "1rem" }}>
+    <>
       <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
+      <StockViewToolbar pageWidgets={relatedPeople} />
       {relatedPeople.length > 0 ? (
         relatedPeople.map((widget) => (
           <WidgetContainer
@@ -23,15 +25,10 @@ export function StockContactsSubPage() {
           />
         ))
       ) : (
-        <div>
-          <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "0.5rem" }}>
-            Contacts
-          </h2>
-          <p style={{ color: "var(--color-text-secondary)" }}>
-            No contact data available for this entity.
-          </p>
+        <div style={{ padding: "2rem 1.25rem", color: "var(--color-text-secondary)" }}>
+          No contact data available for this entity.
         </div>
       )}
-    </div>
+    </>
   );
 }

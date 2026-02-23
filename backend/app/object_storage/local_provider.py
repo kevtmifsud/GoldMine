@@ -81,6 +81,7 @@ class LocalStorageProvider(ObjectStorageProvider):
             "report": "reports",
             "data_export": "data_exports",
             "audio": "audio",
+            "notes": "notes",
         }
         subdir = type_dirs.get(metadata.type, "uploads")
         target_dir = self._storage_dir / subdir

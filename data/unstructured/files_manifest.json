@@ -175,8 +175,34 @@
       ],
       "date": "2025-01-25",
       "description": "Apple Investor Day 2025 recording (placeholder)"
+    },
+    {
+      "file_id": "FILE-501",
+      "filename": "GOOGL_Q4_2024_earnings_preview.pdf",
+      "path": "notes/GOOGL_Q4_2024_earnings_preview.pdf",
+      "type": "notes",
+      "mime_type": "application/pdf",
+      "size_bytes": 1847,
+      "tickers": [
+        "GOOGL"
+      ],
+      "date": "2025-01-08",
+      "description": "Alphabet Inc. Q4 2024 earnings preview notes"
+    },
+    {
+      "file_id": "FILE-502",
+      "filename": "GOOGL_Q4_2024_earnings_recap.pdf",
+      "path": "notes/GOOGL_Q4_2024_earnings_recap.pdf",
+      "type": "notes",
+      "mime_type": "application/pdf",
+      "size_bytes": 2431,
+      "tickers": [
+        "GOOGL"
+      ],
+      "date": "2025-01-29",
+      "description": "Alphabet Inc. Q4 2024 post-earnings recap notes"
     }
   ],
   "generated_at": "2025-01-30T00:00:00Z",
-  "total_count": 14
+  "total_count": 16
 }

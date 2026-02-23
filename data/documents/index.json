@@ -385,5 +385,81 @@
       }
     ],
     "indexed_at": "2026-02-11T05:04:00.152369+00:00"
+  },
+  {
+    "file_id": "FILE-501",
+    "filename": "GOOGL_Q4_2024_earnings_preview.pdf",
+    "title": "Q4 2024 Earnings Preview",
+    "doc_type": "notes",
+    "mime_type": "application/pdf",
+    "date": "2025-01-08",
+    "description": "Alphabet Inc. Q4 2024 earnings preview notes",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "GOOGL"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "file_id": "FILE-501",
+        "chunk_index": 0,
+        "text": "Alphabet Inc. (GOOGL) \u2014 Q4 2024 Earnings Preview\nPrepared: January 8, 2025\n\nEXECUTIVE SUMMARY\nAlphabet is expected to report Q4 2024 earnings on January 28, 2025. Consensus estimates point to revenue of $86.3B (+12% YoY) and EPS of $1.92.\n\nKEY THEMES TO WATCH\n1. Cloud Revenue Growth: Google Cloud is expected to maintain 25%+ growth, driven by AI workload adoption and Gemini integration. Key question: has the enterprise pipeline converted at the rate management guided in Q3?\n\n2. Search & AI Overview: Impact of AI Overviews on search monetization. Early data suggests ad load within AI Overviews is improving CPCs, but some analysts worry about long-term query cannibalization.\n\n3. YouTube Performance: Shorts monetization gap is narrowing vs. long-form. Management guided for continued improvement in Q4. NFL Sunday Ticket will contribute to subscriber growth.\n\n4. Operating Margins: Expect continued efficiency gains from headcount optimization. Consensus expects operating margin of 30.2%, up from 27.5% in Q4 2023.",
+        "char_start": 0,
+        "char_end": 896
+      },
+      {
+        "chunk_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+        "file_id": "FILE-501",
+        "chunk_index": 1,
+        "text": "5. Capital Expenditure: CapEx expected at $12-13B for Q4, primarily driven by AI infrastructure. Full-year 2024 CapEx guidance of $48-50B. Watch for 2025 CapEx guidance.\n\nRISKS\n- Regulatory headwinds from DOJ antitrust case (remedies phase)\n- FX impact: strong dollar may create ~150bps revenue headwind\n- Waymo cash burn trajectory\n\nFINANCIAL ESTIMATES (Consensus)\nRevenue: $86.3B\nOperating Inc: $26.8B (margin: 31.1%)\nNet Income: $23.4B\nEPS: $1.92 (vs. $1.64 Q4 2023)\n\nVALUATION\nAt current price of ~$192, GOOGL trades at 22x forward P/E, a discount to mega-cap tech peers (MSFT 33x, AAPL 30x). The discount reflects regulatory overhang but may narrow if Cloud growth accelerates.\n\nRECOMMENDATION: Expect a solid quarter. Focus on 2025 guidance and any commentary on AI monetization roadmap.",
+        "char_start": 800,
+        "char_end": 1547
+      }
+    ],
+    "indexed_at": "2026-02-22T00:00:00.000000+00:00"
+  },
+  {
+    "file_id": "FILE-502",
+    "filename": "GOOGL_Q4_2024_earnings_recap.pdf",
+    "title": "Q4 2024 Earnings Recap",
+    "doc_type": "notes",
+    "mime_type": "application/pdf",
+    "date": "2025-01-29",
+    "description": "Alphabet Inc. Q4 2024 post-earnings recap notes",
+    "entities": [
+      {
+        "entity_type": "stock",
+        "entity_id": "GOOGL"
+      }
+    ],
+    "chunks": [
+      {
+        "chunk_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+        "file_id": "FILE-502",
+        "chunk_index": 0,
+        "text": "Alphabet Inc. (GOOGL) \u2014 Q4 2024 Earnings Recap\nPost-Earnings Analysis: January 29, 2025\n\nHEADLINE RESULTS\nAlphabet reported a strong Q4 2024, beating consensus on both revenue and earnings. The stock rose 5.2% in after-hours trading.\n\nFINANCIAL RESULTS vs. ESTIMATES\nRevenue: $88.3B (Actual) vs $86.3B (Estimate) +2.3% beat\nOperating Income: $28.9B vs $26.8B +7.8% beat\nNet Income: $25.1B vs $23.4B +7.3% beat\nEPS: $2.05 vs $1.92 +6.8% beat\n\nSEGMENT BREAKDOWN\nGoogle Search & Other: $54.0B (+14% YoY) \u2014 strongest growth in 6 quarters\nYouTube Ads: $10.5B (+16% YoY) \u2014 Shorts monetization improving rapidly\nGoogle Cloud: $11.4B (+29% YoY) \u2014 accelerating growth, now profitable\nGoogle Other: $10.8B (+8% YoY) \u2014 Pixel, subscriptions\nOther Bets: $1.6B \u2014 Waymo losses narrowing to $1.1B",
+        "char_start": 0,
+        "char_end": 823
+      },
+      {
+        "chunk_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+        "file_id": "FILE-502",
+        "chunk_index": 1,
+        "text": "KEY TAKEAWAYS\n1. Cloud Inflection: Google Cloud operating margin hit 10.8%, up from 5.2% in Q4 2023. Management highlighted 100+ $100M+ ARR customers, up from 70 a year ago. Gemini integration driving higher attach rates.\n\n2. AI Monetization Progress: AI Overviews now generating higher revenue per query than traditional search in several verticals. Management noted \"early but encouraging\" trends.\n\n3. Efficiency Gains: Total headcount declined 3% YoY while revenue grew 14%. Operating margin expanded 380bps to 32.7%.\n\n4. 2025 Guidance: CapEx guided to $52-55B (vs. $50B consensus), reflecting aggressive AI infrastructure buildout. Revenue growth expected to remain \"low teens\" percent.\n\n5. Capital Return: Board authorized $70B buyback (incremental). Q4 buybacks were $15.3B.",
+        "char_start": 750,
+        "char_end": 1528
+      },
+      {
+        "chunk_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+        "file_id": "FILE-502",
+        "chunk_index": 2,
+        "text": "MANAGEMENT COMMENTARY HIGHLIGHTS\nCEO Sundar Pichai: \"Our AI-first strategy is delivering across every product surface. Gemini is now deeply integrated into Search, Cloud, and Workspace.\"\n\nCFO Ruth Porat: \"We're seeing operating leverage improve as AI investments mature. Our cloud business is now a consistent profitability contributor.\"\n\nUPDATED THESIS\nResults confirm GOOGL's position as a key AI beneficiary. Cloud acceleration and Search resilience address the two biggest bear case concerns. Maintaining conviction.\n\nACTION: Maintain overweight position. Raise price target to $215 (from $200).",
+        "char_start": 1450,
+        "char_end": 2063
+      }
+    ],
+    "indexed_at": "2026-02-22T00:00:00.000000+00:00"
   }
 ]

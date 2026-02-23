@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import api from "../config/api";
 import { Layout } from "../components/Layout";
@@ -14,6 +14,24 @@ interface DatasetInfo {
   category: string;
 }
 
+const CATEGORY_ORDER = [
+  "market_data",
+  "research",
+  "contacts",
+  "compliance",
+  "portfolio",
+  "reference",
+];
+
+const CATEGORY_LABELS: Record<string, string> = {
+  market_data: "Market Data",
+  research: "Research",
+  compliance: "Compliance",
+  contacts: "Contacts",
+  portfolio: "Portfolio",
+  reference: "Reference",
+};
+
 export function DatasetsPage() {
   const [datasets, setDatasets] = useState<DatasetInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +43,39 @@ export function DatasetsPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const grouped = useMemo(() => {
+    const groups: { category: string; label: string; items: DatasetInfo[] }[] =
+      [];
+    const byCategory = new Map<string, DatasetInfo[]>();
+    for (const ds of datasets) {
+      const cat = ds.category || "other";
+      if (!byCategory.has(cat)) byCategory.set(cat, []);
+      byCategory.get(cat)!.push(ds);
+    }
+    // Ordered categories first, then any remaining
+    const seen = new Set<string>();
+    for (const cat of CATEGORY_ORDER) {
+      if (byCategory.has(cat)) {
+        groups.push({
+          category: cat,
+          label: CATEGORY_LABELS[cat] || cat,
+          items: byCategory.get(cat)!,
+        });
+        seen.add(cat);
+      }
+    }
+    for (const [cat, items] of byCategory) {
+      if (!seen.has(cat)) {
+        groups.push({
+          category: cat,
+          label: CATEGORY_LABELS[cat] || cat,
+          items,
+        });
+      }
+    }
+    return groups;
+  }, [datasets]);
 
   return (
     <Layout>
@@ -38,26 +89,32 @@ export function DatasetsPage() {
             <div className="spinner" />
           </div>
         )}
-        {!loading && (
-          <div className="browse-cards">
-            {datasets.map((ds) => (
-              <Link
-                key={ds.dataset_id}
-                to={`/entity/dataset/${ds.name}`}
-                className="browse-card"
-              >
-                <span className="browse-card__category">{ds.category}</span>
-                <h3 className="browse-card__name">{ds.display_name}</h3>
-                <p className="browse-card__desc">{ds.description}</p>
-                <span className="browse-card__count">
-                  {ds.record_count > 0
-                    ? `${ds.record_count} records`
-                    : "No data yet"}
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
+        {!loading &&
+          grouped.map((group) => (
+            <div key={group.category} className="browse-section__group">
+              <h3 className="browse-section__group-title">{group.label}</h3>
+              <div className="browse-cards">
+                {group.items.map((ds) => (
+                  <Link
+                    key={ds.dataset_id}
+                    to={`/entity/dataset/${ds.name}`}
+                    className="browse-card"
+                  >
+                    <span className="browse-card__category">
+                      {ds.category}
+                    </span>
+                    <h3 className="browse-card__name">{ds.display_name}</h3>
+                    <p className="browse-card__desc">{ds.description}</p>
+                    <span className="browse-card__count">
+                      {Number(ds.record_count) > 0
+                        ? `${Number(ds.record_count).toLocaleString()} records`
+                        : "No data yet"}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
       </div>
     </Layout>
   );

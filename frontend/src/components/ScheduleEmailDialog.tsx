@@ -159,6 +159,7 @@ export function ScheduleEmailDialog({
             sort_order: live?.sort_order ?? w.initial_sort_order,
             visible_columns: live?.visible_columns ?? null,
             page_size: live?.page_size ?? w.default_page_size,
+            column_filters: live?.column_filters ?? w.initial_column_filters ?? null,
           };
         });
 

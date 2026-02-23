@@ -3,13 +3,13 @@
 
 Runs four phases:
   Phase 1 — Stock Info:     Company profile data for all tickers
-  Phase 2 — Stock Officers: Executive officer data for all tickers
+  Phase 2 — Stock Officers: Executive officer data merged into people.csv
   Phase 3 — SEC Filings:    US domestic filings for whitelist tickers
   Phase 4 — Transcripts:    Earnings call transcripts for whitelist tickers
 
 Output files:
   data/structured/stock_info.csv
-  data/structured/stock_officers.csv
+  data/structured/people.csv (officers merged)
   data/structured/sec_filings.csv
   data/structured/transcripts_list.csv
   data/structured/transcripts/{TICKER}/{YYYY}_Q{N}.txt
@@ -45,7 +45,7 @@ STRUCTURED_DIR = ROOT / "data" / "structured"
 TRANSCRIPTS_DIR = STRUCTURED_DIR / "transcripts"
 
 INFO_CSV = STRUCTURED_DIR / "stock_info.csv"
-OFFICERS_CSV = STRUCTURED_DIR / "stock_officers.csv"
+PEOPLE_CSV = STRUCTURED_DIR / "people.csv"
 FILINGS_CSV = STRUCTURED_DIR / "sec_filings.csv"
 TRANSCRIPTS_LIST_CSV = STRUCTURED_DIR / "transcripts_list.csv"
 
@@ -70,10 +70,12 @@ INFO_COLUMNS = [
     "full_time_employees", "web_site", "report_date",
 ]
 
-OFFICERS_COLUMNS = [
-    "symbol", "name", "title", "age", "born",
-    "pay", "exercised", "unexercised",
+PEOPLE_COLUMNS = [
+    "person_id", "name", "title", "organization", "type", "tickers",
+    "age", "born", "pay", "exercised", "unexercised",
 ]
+
+OFFICERS_API_FIELDS = ["name", "title", "age", "born", "pay", "exercised", "unexercised"]
 
 # Thread-safe checkpoint access
 _checkpoint_lock = threading.Lock()
@@ -237,13 +239,12 @@ def fetch_officers_for_ticker(ticker: str) -> list[dict] | None:
 
     officers: list[dict] = []
     for _, row in df.iterrows():
-        officer: dict = {}
-        for col in OFFICERS_COLUMNS:
+        officer: dict = {"symbol": ticker}
+        for col in OFFICERS_API_FIELDS:
             val = row.get(col, "")
             if val is None:
                 val = ""
             officer[col] = str(val).strip()
-        officer["symbol"] = ticker
         officers.append(officer)
     return officers
 
@@ -265,10 +266,16 @@ def process_officers_ticker(
         return ticker, -1
 
 
+def _normalize_name(name: str) -> str:
+    """Lowercase, collapse whitespace for name matching."""
+    import re
+    return re.sub(r"\s+", " ", name.strip().lower())
+
+
 def run_phase_officers(tickers: list[str], workers: int, fresh: bool) -> None:
-    """Phase 2: Download stock officers for all tickers."""
+    """Phase 2: Download stock officers and merge into people.csv."""
     print("\n" + "=" * 60)
-    print("Phase 2: Stock Officers")
+    print("Phase 2: Stock Officers (merge into people.csv)")
     print("=" * 60)
 
     checkpoint: dict[str, list[dict]] = {} if fresh else load_checkpoint(OFFICERS_CHECKPOINT)
@@ -310,25 +317,87 @@ def run_phase_officers(tickers: list[str], workers: int, fresh: bool) -> None:
             print(f"WARNING: {len(failed)} tickers failed officers fetch: "
                   f"{', '.join(sorted(failed)[:20])}", file=sys.stderr)
 
-    # Write CSV from checkpoint — flatten all officers
-    all_rows: list[dict] = []
+    # Flatten all fetched officers
+    all_officers: list[dict] = []
     for officers_list in checkpoint.values():
-        all_rows.extend(officers_list)
+        all_officers.extend(officers_list)
 
-    if not all_rows:
-        print("No officers data to write")
+    if not all_officers:
+        print("No officers data to merge")
         return
 
-    STRUCTURED_DIR.mkdir(parents=True, exist_ok=True)
-    with open(OFFICERS_CSV, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=OFFICERS_COLUMNS)
-        writer.writeheader()
-        for row in sorted(all_rows, key=lambda r: (r.get("symbol", ""), r.get("name", ""))):
-            writer.writerow({col: row.get(col, "") for col in OFFICERS_COLUMNS})
+    # Read existing people.csv
+    people: list[dict] = []
+    if PEOPLE_CSV.exists():
+        with open(PEOPLE_CSV, newline="") as f:
+            for row in csv.DictReader(f):
+                people.append(row)
 
-    unique_tickers = {r["symbol"] for r in all_rows}
-    print(f"Wrote {len(all_rows)} officer rows ({len(unique_tickers)} tickers) "
-          f"to {OFFICERS_CSV}")
+    # Build name index for matching
+    name_to_person: dict[str, dict] = {}
+    for p in people:
+        name_to_person[_normalize_name(p["name"])] = p
+
+    # Find max person_id for new records
+    max_id = 0
+    for p in people:
+        pid = p.get("person_id", "")
+        if pid.startswith("PER-"):
+            try:
+                max_id = max(max_id, int(pid.split("-")[1]))
+            except ValueError:
+                pass
+    next_id = max_id + 1
+
+    compensation_fields = ["age", "born", "pay", "exercised", "unexercised"]
+    matched = 0
+    new_records = 0
+
+    for officer in all_officers:
+        norm = _normalize_name(officer["name"])
+        symbol = officer.get("symbol", "").strip()
+
+        if norm in name_to_person:
+            person = name_to_person[norm]
+            matched += 1
+            for field in compensation_fields:
+                val = officer.get(field, "").strip()
+                if val:
+                    person[field] = val
+            if symbol:
+                existing = [t.strip() for t in person.get("tickers", "").split(";") if t.strip()]
+                if symbol not in existing:
+                    existing.append(symbol)
+                    person["tickers"] = ";".join(existing)
+        else:
+            new_pid = f"PER-{next_id:04d}"
+            next_id += 1
+            new_records += 1
+            new_person = {
+                "person_id": new_pid,
+                "name": officer["name"].strip(),
+                "title": officer.get("title", "").strip(),
+                "organization": "",
+                "type": "executive",
+                "tickers": symbol,
+            }
+            for field in compensation_fields:
+                new_person[field] = officer.get(field, "").strip()
+            people.append(new_person)
+            name_to_person[norm] = new_person
+
+    # Write merged people.csv
+    people.sort(key=lambda p: p.get("name", "").strip().lower())
+
+    STRUCTURED_DIR.mkdir(parents=True, exist_ok=True)
+    with open(PEOPLE_CSV, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=PEOPLE_COLUMNS)
+        writer.writeheader()
+        for row in people:
+            writer.writerow({col: row.get(col, "") for col in PEOPLE_COLUMNS})
+
+    print(f"Merged {matched} matched + {new_records} new officer records "
+          f"into {len(people)} total people rows -> {PEOPLE_CSV}")
 
     # Clean up checkpoint if all tickers done
     if len(checkpoint) >= len(tickers) and OFFICERS_CHECKPOINT.exists():

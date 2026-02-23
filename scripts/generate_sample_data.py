@@ -23,6 +23,7 @@ def ensure_dirs():
         UNSTRUCTURED_DIR / "transcripts",
         UNSTRUCTURED_DIR / "data_exports",
         UNSTRUCTURED_DIR / "audio",
+        UNSTRUCTURED_DIR / "notes",
     ]:
         d.mkdir(parents=True, exist_ok=True)
 
@@ -615,6 +616,12 @@ ORGS_ANALYST = ["GoldMine Capital", "Apex Research", "Summit Advisors", "Pinnacl
 TICKERS = [c[0] for c in COMPANIES]
 
 
+PEOPLE_FIELDS = [
+    "person_id", "name", "title", "organization", "type", "tickers",
+    "age", "born", "pay", "exercised", "unexercised",
+]
+
+
 def generate_people():
     rows = []
     used_names = set()
@@ -627,6 +634,7 @@ def generate_people():
                 used_names.add(name)
                 break
         covered = random.sample(TICKERS, random.randint(1, 3))
+        age = random.randint(40, 68)
         rows.append({
             "person_id": f"PER-{pid:03d}",
             "name": name,
@@ -634,6 +642,11 @@ def generate_people():
             "organization": random.choice(ORGS_EXEC),
             "type": "executive",
             "tickers": ";".join(covered),
+            "age": age,
+            "born": 2025 - age,
+            "pay": random.randint(200000, 5000000) if random.random() > 0.3 else "",
+            "exercised": random.randint(0, 1000000) if random.random() > 0.5 else 0,
+            "unexercised": random.randint(0, 500000) if random.random() > 0.5 else 0,
         })
         pid += 1
     # 15 analysts
@@ -651,11 +664,16 @@ def generate_people():
             "organization": random.choice(ORGS_ANALYST),
             "type": "analyst",
             "tickers": ";".join(covered),
+            "age": "",
+            "born": "",
+            "pay": "",
+            "exercised": "",
+            "unexercised": "",
         })
         pid += 1
     path = STRUCTURED_DIR / "people.csv"
     with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+        writer = csv.DictWriter(f, fieldnames=PEOPLE_FIELDS)
         writer.writeheader()
         writer.writerows(rows)
     print(f"  Created {path} ({len(rows)} rows)")
@@ -817,6 +835,36 @@ def generate_audio():
     return files
 
 
+def generate_notes():
+    """Generate sample analyst notes as placeholder PDFs."""
+    files = []
+    notes = [
+        ("GOOGL_Q4_2024_earnings_preview.pdf", "GOOGL", "Alphabet Inc. (Class A)",
+         "Q4 2024 Earnings Preview", "2025-01-08",
+         "Alphabet Inc. Q4 2024 earnings preview notes"),
+        ("GOOGL_Q4_2024_earnings_recap.pdf", "GOOGL", "Alphabet Inc. (Class A)",
+         "Q4 2024 Earnings Recap", "2025-01-29",
+         "Alphabet Inc. Q4 2024 post-earnings recap notes"),
+    ]
+    for i, (filename, ticker, company, title, date, desc) in enumerate(notes, 1):
+        path = UNSTRUCTURED_DIR / "notes" / filename
+        content = f"[PDF Placeholder] {title}: {company} ({ticker}) - {date}\n"
+        path.write_text(content)
+        files.append({
+            "file_id": f"FILE-{500 + i:03d}",
+            "filename": filename,
+            "path": f"notes/{filename}",
+            "type": "notes",
+            "mime_type": "application/pdf",
+            "size_bytes": len(content.encode()),
+            "tickers": [ticker],
+            "date": date,
+            "description": desc,
+        })
+    print(f"  Created {len(files)} notes")
+    return files
+
+
 def generate_manifest(all_files):
     manifest = {"files": all_files, "generated_at": "2025-01-30T00:00:00Z", "total_count": len(all_files)}
     path = UNSTRUCTURED_DIR / "files_manifest.json"
@@ -840,6 +888,7 @@ def main():
     all_files.extend(generate_reports())
     all_files.extend(generate_data_exports())
     all_files.extend(generate_audio())
+    all_files.extend(generate_notes())
     generate_manifest(all_files)
 
     print("\nDone! All sample data generated.")

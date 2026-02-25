@@ -178,10 +178,25 @@ async def search_documents(
     q: str = Query(..., min_length=1),
     entity_type: str | None = Query(default=None),
     entity_id: str | None = Query(default=None),
+    mode: str = Query(default="hybrid", pattern="^(keyword|semantic|hybrid)$"),
 ) -> list[DocumentSearchResult]:
     _ensure_existing_files_indexed()
     provider = get_document_provider()
-    return provider.search(q, entity_type=entity_type, entity_id=entity_id)
+    if mode == "semantic":
+        return provider.semantic_search(q, entity_type=entity_type, entity_id=entity_id)
+    elif mode == "hybrid":
+        return provider.hybrid_search(q, entity_type=entity_type, entity_id=entity_id)
+    else:
+        return provider.search(q, entity_type=entity_type, entity_id=entity_id)
+
+
+@router.delete("/{file_id}")
+async def delete_document(file_id: str, request: Request) -> dict:
+    provider = get_document_provider()
+    removed = provider.remove_document(file_id)
+    if not removed:
+        raise NotFoundError(f"Document {file_id} not found")
+    return {"deleted": True}
 
 
 @router.post("/query")
@@ -242,6 +257,18 @@ async def llm_query(request: Request, body: LLMQueryRequest) -> LLMQueryResponse
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _derive_fiscal_period(date_str: str) -> tuple[str, str]:
+    """Derive fiscal year and quarter from a date string (YYYY-MM-DD)."""
+    try:
+        parts = date_str.split("-")
+        year = parts[0]
+        month = int(parts[1])
+        quarter = str((month - 1) // 3 + 1)
+        return year, quarter
+    except (IndexError, ValueError):
+        return "", ""
+
+
 def _synthesize_dataset_docs(symbol: str) -> list[DocumentListItem]:
     """Synthesize DocumentListItem records from transcripts_list and sec_filings datasets."""
     data_provider = get_data_provider()
@@ -287,6 +314,8 @@ def _synthesize_dataset_docs(symbol: str) -> list[DocumentListItem]:
             form_type = str(row.get("form_type", row.get("formType", "")))
             description = str(row.get("form_type_description", row.get("description", form_type)))
             filing_url = str(row.get("filing_url", row.get("filingUrl", "")))
+            report_date = str(row.get("report_date", ""))
+            fiscal_year, fiscal_quarter = _derive_fiscal_period(report_date)
             items.append(DocumentListItem(
                 file_id=f"sec-{accession}",
                 filename="",
@@ -299,6 +328,8 @@ def _synthesize_dataset_docs(symbol: str) -> list[DocumentListItem]:
                     "source": "dataset",
                     "filing_url": filing_url,
                     "form_type": form_type,
+                    "fiscal_year": fiscal_year,
+                    "fiscal_quarter": fiscal_quarter,
                 },
             ))
     except Exception:

@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ColDef, ICellRendererParams } from "ag-grid-community";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ColDef, GridApi, ICellRendererParams } from "ag-grid-community";
 import api from "../../config/api";
 import { AppGrid } from "../ag-grid/AppGrid";
 import { SetFilter } from "../ag-grid/SetFilter";
 import { dateFilterParams } from "../ag-grid/filters";
+import {
+  saveGridView,
+  restoreGridView,
+  clearGridView,
+  hasGridView,
+} from "../ag-grid/gridViewPersistence";
 import "../../styles/research.css";
+
+const VIEW_KEY = "research-sec-filings";
 
 interface SecFiling {
   symbol: string;
@@ -34,7 +42,7 @@ const FORM_TYPE_COLORS: Record<string, { bg: string; fg: string }> = {
 
 const DEFAULT_FORM_COLOR = { bg: "#f1f5f9", fg: "#475569" };
 
-function FormTypeBadgeRenderer(params: ICellRendererParams<SecFiling>) {
+export function FormTypeBadgeRenderer(params: ICellRendererParams) {
   const formType = params.value as string;
   if (!formType) return <span>{"\u2014"}</span>;
 
@@ -70,6 +78,11 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
   const [filings, setFilings] = useState<SecFiling[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [savedViewExists, setSavedViewExists] = useState(() => hasGridView(VIEW_KEY));
+  const gridApiRef = useRef<GridApi<SecFiling> | null>(null);
+  const restoringRef = useRef(false);
+
   const fetchFilings = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -94,9 +107,51 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
     fetchFilings();
   }, [fetchFilings]);
 
+  const markDirty = useCallback(() => {
+    if (!restoringRef.current) setDirty(true);
+  }, []);
+
+  const handleSaveView = useCallback(() => {
+    if (gridApiRef.current) {
+      saveGridView(VIEW_KEY, gridApiRef.current);
+      setSavedViewExists(true);
+      setDirty(false);
+    }
+  }, []);
+
+  const handleResetView = useCallback(() => {
+    clearGridView(VIEW_KEY);
+    gridApiRef.current?.resetColumnState();
+    gridApiRef.current?.setFilterModel(null);
+    setSavedViewExists(false);
+    setDirty(false);
+  }, []);
+
+  const getRowId = useCallback(
+    (params: { data: SecFiling }) => params.data.accession_number,
+    []
+  );
+
+  const onGridReady = useCallback(
+    (e: { api: import("ag-grid-community").GridApi<SecFiling> }) => {
+      gridApiRef.current = e.api;
+    },
+    []
+  );
+
+  const onFirstDataRendered = useCallback(
+    (e: { api: import("ag-grid-community").GridApi<SecFiling> }) => {
+      restoringRef.current = true;
+      restoreGridView(VIEW_KEY, e.api);
+      restoringRef.current = false;
+    },
+    []
+  );
+
   const columnDefs = useMemo<ColDef<SecFiling>[]>(
     () => [
       {
+        colId: "filing_date",
         headerName: "Filing Date",
         field: "filing_date",
         width: 120,
@@ -106,6 +161,7 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
         filterParams: dateFilterParams,
       },
       {
+        colId: "form_type",
         headerName: "Form Type",
         field: "form_type",
         width: 120,
@@ -114,6 +170,7 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
         cellRenderer: FormTypeBadgeRenderer,
       },
       {
+        colId: "description",
         headerName: "Description",
         field: "form_type_description",
         flex: 1,
@@ -122,6 +179,7 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
         filter: "agTextColumnFilter",
       },
       {
+        colId: "report_date",
         headerName: "Report Date",
         field: "report_date",
         width: 120,
@@ -131,6 +189,35 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
         valueFormatter: (params) => params.value || "\u2014",
       },
       {
+        colId: "report_year",
+        headerName: "Report Year",
+        width: 120,
+        sortable: true,
+        filter: "agNumberColumnFilter",
+        valueGetter: (params) => {
+          const d = params.data?.report_date;
+          if (!d) return null;
+          const y = parseInt(d.split("-")[0], 10);
+          return isNaN(y) ? null : y;
+        },
+        valueFormatter: (params) => params.value ?? "\u2014",
+      },
+      {
+        colId: "report_qtr",
+        headerName: "Report Qtr",
+        width: 115,
+        sortable: true,
+        filter: SetFilter,
+        valueGetter: (params) => {
+          const d = params.data?.report_date;
+          if (!d) return null;
+          const m = parseInt(d.split("-")[1], 10);
+          return isNaN(m) ? null : `Q${Math.ceil(m / 3)}`;
+        },
+        valueFormatter: (params) => params.value ?? "\u2014",
+      },
+      {
+        colId: "edgar",
         headerName: "EDGAR",
         field: "filing_url",
         width: 140,
@@ -151,6 +238,30 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
           SEC Filings
           <span className="research-grid__count">({filings.length})</span>
         </h3>
+        <div className="research-grid__header-actions">
+          <button
+            className={dirty ? "research-grid__save-view-btn research-grid__save-view-btn--dirty" : "research-grid__save-view-btn"}
+            onClick={handleSaveView}
+          >
+            Save Default View
+          </button>
+          {savedViewExists && (
+            <button
+              className="research-grid__download-btn"
+              onClick={handleResetView}
+            >
+              Reset View
+            </button>
+          )}
+          {filings.length > 0 && (
+            <button
+              className="research-grid__download-btn"
+              onClick={() => gridApiRef.current?.exportDataAsCsv()}
+            >
+              Download CSV
+            </button>
+          )}
+        </div>
       </div>
 
       {loading && (
@@ -167,7 +278,13 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
             rowData={filings}
             columnDefs={columnDefs}
             domLayout="autoHeight"
-            getRowId={(params) => params.data.accession_number}
+            getRowId={getRowId}
+            onGridReady={onGridReady}
+            onFirstDataRendered={onFirstDataRendered}
+            onSortChanged={markDirty}
+            onColumnMoved={markDirty}
+            onColumnResized={markDirty}
+            onFilterChanged={markDirty}
           />
         </div>
       )}

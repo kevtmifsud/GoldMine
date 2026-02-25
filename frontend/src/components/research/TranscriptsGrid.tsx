@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ColDef, ICellRendererParams } from "ag-grid-community";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ColDef, GridApi, ICellRendererParams } from "ag-grid-community";
 import api from "../../config/api";
 import { AppGrid } from "../ag-grid/AppGrid";
 import { SetFilter } from "../ag-grid/SetFilter";
 import { dateFilterParams } from "../ag-grid/filters";
+import {
+  saveGridView,
+  restoreGridView,
+  clearGridView,
+  hasGridView,
+} from "../ag-grid/gridViewPersistence";
 import { TranscriptViewerDialog } from "./TranscriptViewerDialog";
 import "../../styles/research.css";
+
+const VIEW_KEY = "research-transcripts";
 
 interface TranscriptRecord {
   symbol: string;
@@ -50,6 +58,11 @@ export function TranscriptsGrid({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<ViewingTranscript | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [savedViewExists, setSavedViewExists] = useState(() => hasGridView(VIEW_KEY));
+  const gridApiRef = useRef<GridApi<TranscriptRecord> | null>(null);
+  const restoringRef = useRef(false);
+
   const fetchTranscripts = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -78,9 +91,51 @@ export function TranscriptsGrid({
     setViewing({ year, quarter });
   }, []);
 
+  const markDirty = useCallback(() => {
+    if (!restoringRef.current) setDirty(true);
+  }, []);
+
+  const handleSaveView = useCallback(() => {
+    if (gridApiRef.current) {
+      saveGridView(VIEW_KEY, gridApiRef.current);
+      setSavedViewExists(true);
+      setDirty(false);
+    }
+  }, []);
+
+  const handleResetView = useCallback(() => {
+    clearGridView(VIEW_KEY);
+    gridApiRef.current?.resetColumnState();
+    gridApiRef.current?.setFilterModel(null);
+    setSavedViewExists(false);
+    setDirty(false);
+  }, []);
+
+  const getRowId = useCallback(
+    (params: { data: TranscriptRecord }) => params.data.transcripts_id,
+    []
+  );
+
+  const onGridReady = useCallback(
+    (e: { api: import("ag-grid-community").GridApi<TranscriptRecord> }) => {
+      gridApiRef.current = e.api;
+    },
+    []
+  );
+
+  const onFirstDataRendered = useCallback(
+    (e: { api: import("ag-grid-community").GridApi<TranscriptRecord> }) => {
+      restoringRef.current = true;
+      restoreGridView(VIEW_KEY, e.api);
+      restoringRef.current = false;
+    },
+    []
+  );
+
   const columnDefs = useMemo<ColDef<TranscriptRecord>[]>(
     () => [
       {
+        colId: "fiscal_year",
         headerName: "Year",
         field: "fiscal_year",
         width: 100,
@@ -89,6 +144,7 @@ export function TranscriptsGrid({
         filter: "agNumberColumnFilter",
       },
       {
+        colId: "fiscal_quarter",
         headerName: "Quarter",
         field: "fiscal_quarter",
         width: 100,
@@ -98,6 +154,7 @@ export function TranscriptsGrid({
           params.value ? `Q${params.value}` : "\u2014",
       },
       {
+        colId: "report_date",
         headerName: "Report Date",
         field: "report_date",
         width: 130,
@@ -107,6 +164,7 @@ export function TranscriptsGrid({
         valueFormatter: (params) => params.value || "\u2014",
       },
       {
+        colId: "actions",
         headerName: "",
         width: 150,
         sortable: false,
@@ -128,6 +186,30 @@ export function TranscriptsGrid({
           Transcripts
           <span className="research-grid__count">({transcripts.length})</span>
         </h3>
+        <div className="research-grid__header-actions">
+          <button
+            className={dirty ? "research-grid__save-view-btn research-grid__save-view-btn--dirty" : "research-grid__save-view-btn"}
+            onClick={handleSaveView}
+          >
+            Save Default View
+          </button>
+          {savedViewExists && (
+            <button
+              className="research-grid__download-btn"
+              onClick={handleResetView}
+            >
+              Reset View
+            </button>
+          )}
+          {transcripts.length > 0 && (
+            <button
+              className="research-grid__download-btn"
+              onClick={() => gridApiRef.current?.exportDataAsCsv()}
+            >
+              Download CSV
+            </button>
+          )}
+        </div>
       </div>
 
       {loading && (
@@ -149,7 +231,13 @@ export function TranscriptsGrid({
             columnDefs={columnDefs}
             context={context}
             domLayout="autoHeight"
-            getRowId={(params) => params.data.transcripts_id}
+            getRowId={getRowId}
+            onGridReady={onGridReady}
+            onFirstDataRendered={onFirstDataRendered}
+            onSortChanged={markDirty}
+            onColumnMoved={markDirty}
+            onColumnResized={markDirty}
+            onFilterChanged={markDirty}
           />
         </div>
       )}

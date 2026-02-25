@@ -15,6 +15,7 @@ class DocumentChunk(BaseModel):
     text: str
     char_start: int
     char_end: int
+    embedding: list[float] | None = None
 
 
 class DocumentRecord(BaseModel):

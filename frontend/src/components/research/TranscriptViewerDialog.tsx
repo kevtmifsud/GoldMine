@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "../../config/api";
 import "../../styles/research.css";
 
@@ -9,13 +9,49 @@ interface TranscriptViewerDialogProps {
   onClose: () => void;
 }
 
+interface TranscriptParagraph {
+  paragraph_number: number;
+  speaker: string;
+  content: string;
+}
+
+/** Assign a stable color to each unique speaker. */
+const SPEAKER_COLORS = [
+  { bg: "#dbeafe", fg: "#1e40af" }, // blue
+  { bg: "#d1fae5", fg: "#065f46" }, // green
+  { bg: "#ede9fe", fg: "#5b21b6" }, // purple
+  { bg: "#fef3c7", fg: "#92400e" }, // amber
+  { bg: "#fce7f3", fg: "#9d174d" }, // pink
+  { bg: "#ffedd5", fg: "#9a3412" }, // orange
+  { bg: "#ccfbf1", fg: "#115e59" }, // teal
+  { bg: "#e0e7ff", fg: "#3730a3" }, // indigo
+];
+
+const OPERATOR_COLOR = { bg: "#f1f5f9", fg: "#475569" }; // grey for Operator
+
+function getSpeakerColor(
+  speaker: string,
+  colorMap: Map<string, { bg: string; fg: string }>
+) {
+  if (speaker === "Operator") return OPERATOR_COLOR;
+  const existing = colorMap.get(speaker);
+  if (existing) return existing;
+  const idx = colorMap.size % SPEAKER_COLORS.length;
+  const color = SPEAKER_COLORS[idx];
+  colorMap.set(speaker, color);
+  return color;
+}
+
 export function TranscriptViewerDialog({
   symbol,
   year,
   quarter,
   onClose,
 }: TranscriptViewerDialogProps) {
-  const [text, setText] = useState<string | null>(null);
+  const [paragraphs, setParagraphs] = useState<TranscriptParagraph[] | null>(
+    null
+  );
+  const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,16 +64,25 @@ export function TranscriptViewerDialog({
 
   useEffect(() => {
     setLoading(true);
+    setError(false);
     api
-      .get<string>(`/api/transcripts/${symbol}/${year}/${quarter}`, {
-        responseType: "text",
-      })
-      .then((resp) =>
-        setText(typeof resp.data === "string" ? resp.data : String(resp.data))
+      .get<TranscriptParagraph[]>(
+        `/api/transcripts/${symbol}/${year}/${quarter}`
       )
-      .catch(() => setText("Failed to load transcript."))
+      .then((resp) => setParagraphs(resp.data))
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [symbol, year, quarter]);
+
+  // Build a stable color map from speaker order of appearance
+  const speakerColorMap = useMemo(() => {
+    const map = new Map<string, { bg: string; fg: string }>();
+    if (!paragraphs) return map;
+    for (const p of paragraphs) {
+      getSpeakerColor(p.speaker, map);
+    }
+    return map;
+  }, [paragraphs]);
 
   return (
     <div className="doc-inspector__overlay" onClick={onClose}>
@@ -51,6 +96,11 @@ export function TranscriptViewerDialog({
               <span className="doc-type-badge doc-type-badge--transcript">
                 transcript
               </span>
+              {paragraphs && (
+                <span className="doc-inspector__date">
+                  {paragraphs.length} paragraphs
+                </span>
+              )}
             </div>
           </div>
           <button
@@ -63,12 +113,50 @@ export function TranscriptViewerDialog({
         </div>
 
         <div className="doc-inspector__body">
-          {loading ? (
+          {loading && (
             <div className="doc-inspector__transcript-loading">
               Loading transcript...
             </div>
-          ) : (
-            <pre className="doc-inspector__transcript">{text}</pre>
+          )}
+          {error && (
+            <div className="doc-inspector__transcript-loading">
+              Failed to load transcript.
+            </div>
+          )}
+          {!loading && !error && paragraphs && (
+            <div className="transcript-viewer">
+              {paragraphs.map((p, i) => {
+                const color = getSpeakerColor(p.speaker, speakerColorMap);
+                const prevSpeaker = i > 0 ? paragraphs[i - 1].speaker : null;
+                const showSpeaker = p.speaker !== prevSpeaker;
+
+                return (
+                  <div
+                    key={p.paragraph_number}
+                    className={
+                      showSpeaker
+                        ? "transcript-para transcript-para--new-speaker"
+                        : "transcript-para"
+                    }
+                  >
+                    {showSpeaker && (
+                      <div className="transcript-speaker">
+                        <span
+                          className="transcript-speaker__badge"
+                          style={{
+                            backgroundColor: color.bg,
+                            color: color.fg,
+                          }}
+                        >
+                          {p.speaker}
+                        </span>
+                      </div>
+                    )}
+                    <div className="transcript-content">{p.content}</div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 

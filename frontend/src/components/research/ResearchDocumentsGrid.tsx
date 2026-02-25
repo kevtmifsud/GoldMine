@@ -1,17 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ColDef } from "ag-grid-community";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ColDef, GridApi } from "ag-grid-community";
 import * as docsApi from "../../config/documentsApi";
 import type { DocumentListItem } from "../../types/entities";
 import { AppGrid } from "../ag-grid/AppGrid";
 import { SetFilter } from "../ag-grid/SetFilter";
 import { dateFilterParams } from "../ag-grid/filters";
+import {
+  saveGridView,
+  restoreGridView,
+  clearGridView,
+  hasGridView,
+} from "../ag-grid/gridViewPersistence";
 import { DocTypeBadgeRenderer } from "./DocTypeBadgeRenderer";
 import { EntityLinksRenderer } from "./EntityLinksRenderer";
 import { DocumentActionRenderer } from "./DocumentActionRenderer";
 import type { DocumentActionContext } from "./DocumentActionRenderer";
+import { FormTypeBadgeRenderer } from "./SecFilingsGrid";
 import { DocumentInspectorDialog } from "./DocumentInspectorDialog";
 import { TranscriptViewerDialog } from "./TranscriptViewerDialog";
 import "../../styles/research.css";
+
+const VIEW_KEY = "research-documents";
 
 interface ResearchDocumentsGridProps {
   entityType: string;
@@ -41,6 +50,10 @@ export function ResearchDocumentsGrid({
   const [error, setError] = useState<string | null>(null);
   const [inspectedDoc, setInspectedDoc] = useState<DocumentListItem | null>(null);
   const [viewingTranscript, setViewingTranscript] = useState<TranscriptViewerState | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [savedViewExists, setSavedViewExists] = useState(() => hasGridView(VIEW_KEY));
+  const gridApiRef = useRef<GridApi<DocumentListItem> | null>(null);
+  const restoringRef = useRef(false);
 
   const fetchDocs = useCallback(async () => {
     setLoading(true);
@@ -89,9 +102,51 @@ export function ResearchDocumentsGrid({
     }
   }, [entityId]);
 
+  const markDirty = useCallback(() => {
+    if (!restoringRef.current) setDirty(true);
+  }, []);
+
+  const handleSaveView = useCallback(() => {
+    if (gridApiRef.current) {
+      saveGridView(VIEW_KEY, gridApiRef.current);
+      setSavedViewExists(true);
+      setDirty(false);
+    }
+  }, []);
+
+  const handleResetView = useCallback(() => {
+    clearGridView(VIEW_KEY);
+    gridApiRef.current?.resetColumnState();
+    gridApiRef.current?.setFilterModel(null);
+    setSavedViewExists(false);
+    setDirty(false);
+  }, []);
+
+  const getRowId = useCallback(
+    (params: { data: DocumentListItem }) => params.data.file_id,
+    []
+  );
+
+  const onGridReady = useCallback(
+    (e: { api: import("ag-grid-community").GridApi<DocumentListItem> }) => {
+      gridApiRef.current = e.api;
+    },
+    []
+  );
+
+  const onFirstDataRendered = useCallback(
+    (e: { api: import("ag-grid-community").GridApi<DocumentListItem> }) => {
+      restoringRef.current = true;
+      restoreGridView(VIEW_KEY, e.api);
+      restoringRef.current = false;
+    },
+    []
+  );
+
   const columnDefs = useMemo<ColDef<DocumentListItem>[]>(
     () => [
       {
+        colId: "title",
         headerName: "Title",
         field: "title",
         flex: 1,
@@ -100,6 +155,7 @@ export function ResearchDocumentsGrid({
         filter: "agTextColumnFilter",
       },
       {
+        colId: "doc_type",
         headerName: "Type",
         field: "doc_type",
         width: 130,
@@ -108,6 +164,7 @@ export function ResearchDocumentsGrid({
         cellRenderer: DocTypeBadgeRenderer,
       },
       {
+        colId: "date",
         headerName: "Date",
         field: "date",
         width: 120,
@@ -121,6 +178,40 @@ export function ResearchDocumentsGrid({
         },
       },
       {
+        colId: "form_type",
+        headerName: "Form Type",
+        width: 120,
+        sortable: true,
+        filter: SetFilter,
+        valueGetter: (params) => params.data?.metadata?.form_type ?? null,
+        cellRenderer: FormTypeBadgeRenderer,
+      },
+      {
+        colId: "report_year",
+        headerName: "Report Year",
+        width: 120,
+        sortable: true,
+        filter: "agNumberColumnFilter",
+        valueGetter: (params) => {
+          const v = params.data?.metadata?.fiscal_year;
+          return v ? Number(v) : null;
+        },
+        valueFormatter: (params) => params.value ?? "\u2014",
+      },
+      {
+        colId: "report_qtr",
+        headerName: "Report Qtr",
+        width: 115,
+        sortable: true,
+        filter: SetFilter,
+        valueGetter: (params) => {
+          const v = params.data?.metadata?.fiscal_quarter;
+          return v ? `Q${v}` : null;
+        },
+        valueFormatter: (params) => params.value ?? "\u2014",
+      },
+      {
+        colId: "entities",
         headerName: "Entities",
         field: "entities",
         width: 160,
@@ -130,6 +221,7 @@ export function ResearchDocumentsGrid({
         cellRenderer: EntityLinksRenderer,
       },
       {
+        colId: "actions",
         headerName: "Actions",
         width: 150,
         sortable: false,
@@ -158,14 +250,38 @@ export function ResearchDocumentsGrid({
           {title}
           <span className="research-grid__count">({filteredDocs.length})</span>
         </h3>
-        {onUploadClick && (
+        <div className="research-grid__header-actions">
+          {onUploadClick && (
+            <button
+              className="research-grid__upload-btn"
+              onClick={onUploadClick}
+            >
+              Upload Document
+            </button>
+          )}
           <button
-            className="research-grid__upload-btn"
-            onClick={onUploadClick}
+            className={dirty ? "research-grid__save-view-btn research-grid__save-view-btn--dirty" : "research-grid__save-view-btn"}
+            onClick={handleSaveView}
           >
-            Upload Document
+            Save Default View
           </button>
-        )}
+          {savedViewExists && (
+            <button
+              className="research-grid__download-btn"
+              onClick={handleResetView}
+            >
+              Reset View
+            </button>
+          )}
+          {filteredDocs.length > 0 && (
+            <button
+              className="research-grid__download-btn"
+              onClick={() => gridApiRef.current?.exportDataAsCsv()}
+            >
+              Download CSV
+            </button>
+          )}
+        </div>
       </div>
 
       {loading && (
@@ -183,7 +299,13 @@ export function ResearchDocumentsGrid({
             columnDefs={columnDefs}
             context={context}
             domLayout="autoHeight"
-            getRowId={(params) => params.data.file_id}
+            getRowId={getRowId}
+            onGridReady={onGridReady}
+            onFirstDataRendered={onFirstDataRendered}
+            onSortChanged={markDirty}
+            onColumnMoved={markDirty}
+            onColumnResized={markDirty}
+            onFilterChanged={markDirty}
           />
         </div>
       )}

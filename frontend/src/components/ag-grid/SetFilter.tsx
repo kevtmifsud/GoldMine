@@ -60,11 +60,9 @@ export const SetFilter = forwardRef(function SetFilter(
     return () => props.api.removeEventListener("rowDataUpdated", onData);
   }, [props.api, computeUniqueValues]);
 
-  // Tell AG Grid when the filter state changes
-  useEffect(() => {
-    props.filterChangedCallback();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected]);
+  // AG Grid v35's React wrapper automatically calls filterChangedCallback
+  // when the imperative methods (exposed via useImperativeHandle) change,
+  // so no manual filterChangedCallback() call is needed here.
 
   const displayed = useMemo(() => {
     if (!search) return allValues;

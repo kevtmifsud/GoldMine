@@ -52,5 +52,23 @@ class DocumentIndexProvider(ABC):
         """Remove a document from the index. Returns True if found."""
 
     @abstractmethod
+    def semantic_search(
+        self,
+        query: str,
+        entity_type: str | None = None,
+        entity_id: str | None = None,
+    ) -> list[DocumentSearchResult]:
+        """Search documents using semantic similarity."""
+
+    @abstractmethod
+    def hybrid_search(
+        self,
+        query: str,
+        entity_type: str | None = None,
+        entity_id: str | None = None,
+    ) -> list[DocumentSearchResult]:
+        """Search using combined keyword + semantic with RRF merging."""
+
+    @abstractmethod
     def is_indexed(self, file_id: str) -> bool:
         """Check if a file_id is already indexed."""

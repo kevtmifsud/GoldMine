@@ -1,0 +1,61 @@
+.app-grid-wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-grid-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ---- Save bar ---- */
+.app-grid-save-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.75rem;
+  background: var(--color-warning-bg, #fffbeb);
+  border-bottom: 1px solid var(--color-warning-border, #f59e0b);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.app-grid-save-bar__label {
+  color: var(--color-warning-text, #92400e);
+  font-weight: 600;
+}
+
+.app-grid-save-bar__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.app-grid-save-bar__btn {
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.app-grid-save-bar__btn--discard {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+
+.app-grid-save-bar__btn--discard:hover {
+  background: var(--color-bg);
+}
+
+.app-grid-save-bar__btn--save {
+  background: var(--color-primary, #3182ce);
+  color: #fff;
+  border-color: var(--color-primary, #3182ce);
+}
+
+.app-grid-save-bar__btn--save:hover {
+  opacity: 0.9;
+}

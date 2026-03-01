@@ -1,0 +1,313 @@
+/* Portfolio page — summary cards, position cards, PnL helpers */
+
+/* ---- Portfolio filter bar ---- */
+.portfolio-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.portfolio-filter-bar__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.portfolio-filter-bar__select {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+  min-width: 160px;
+}
+
+.portfolio-filter-bar__select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* ---- Summary cards row ---- */
+.portfolio-summary-cards {
+  display: flex;
+  gap: 0;
+  padding: 1rem 1.25rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.portfolio-summary-card {
+  flex: 1;
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.portfolio-summary-card + .portfolio-summary-card {
+  border-left: 1px solid var(--color-border);
+}
+
+.portfolio-summary-card__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.portfolio-summary-card__value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.portfolio-summary-card__value--positive {
+  color: var(--color-success);
+}
+
+.portfolio-summary-card__value--negative {
+  color: var(--color-error);
+}
+
+.portfolio-summary-card__pct {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.portfolio-summary-card__detail {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+/* ---- Charts row (side-by-side) ---- */
+.portfolio-charts-row {
+  display: flex;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.portfolio-charts-row > .portfolio-chart {
+  flex: 1;
+  min-width: 0;
+  border-bottom: none;
+}
+
+.portfolio-charts-row > .portfolio-chart + .portfolio-chart {
+  border-left: 1px solid var(--color-border);
+}
+
+/* ---- PnL chart section ---- */
+.portfolio-chart {
+  padding: 1.25rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.portfolio-chart__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.portfolio-chart__title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.portfolio-chart__toggle {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.portfolio-chart__toggle-btn {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: none;
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.portfolio-chart__toggle-btn + .portfolio-chart__toggle-btn {
+  border-left: 1px solid var(--color-border);
+}
+
+.portfolio-chart__toggle-btn--active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.portfolio-chart__toggle-btn:hover:not(.portfolio-chart__toggle-btn--active) {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+/* ---- Position cards ---- */
+.portfolio-positions {
+  padding: 1.25rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.portfolio-positions__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.portfolio-positions__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.portfolio-position-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  background: var(--color-bg);
+}
+
+.portfolio-position-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.portfolio-position-card__portfolio {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.portfolio-position-card__badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.portfolio-position-card__badge--long {
+  background: #c6f6d5;
+  color: #276749;
+}
+
+.portfolio-position-card__badge--short {
+  background: #fed7d7;
+  color: #9b2c2c;
+}
+
+.portfolio-position-card__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.portfolio-position-card__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.portfolio-position-card__row-label {
+  color: var(--color-text-secondary);
+}
+
+.portfolio-position-card__row-value {
+  font-weight: 500;
+}
+
+/* ---- Trades section ---- */
+.portfolio-trades {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.portfolio-trades__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.portfolio-trades__title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.portfolio-trades__download-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.portfolio-trades__download-btn:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.portfolio-trades__grid {
+  height: 500px;
+}
+
+/* ---- PnL color helpers ---- */
+.pnl--positive {
+  color: var(--color-success);
+}
+
+.pnl--negative {
+  color: var(--color-error);
+}
+
+/* ---- Empty state ---- */
+.portfolio-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+  gap: 0.5rem;
+}
+
+.portfolio-empty__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.portfolio-empty__message {
+  font-size: 0.875rem;
+}
+
+/* ---- Loading ---- */
+.portfolio-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+}

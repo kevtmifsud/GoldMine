@@ -4,6 +4,7 @@ import pytest
 
 import app.llm.factory as llmf
 from app.config.settings import settings
+from app.exceptions import GoldMineError
 from app.llm.models import LLMQueryResponse
 
 
@@ -98,6 +99,81 @@ async def test_llm_query_includes_sources(authed_client):
             assert "file_id" in source
             assert "filename" in source
             assert "excerpt" in source
+    finally:
+        settings.ANTHROPIC_API_KEY = original_key
+        llmf._provider = None
+
+
+@pytest.mark.asyncio
+async def test_llm_query_timeout(authed_client):
+    await authed_client.get("/api/documents/")
+
+    mock_provider = MagicMock()
+    mock_provider.query.side_effect = GoldMineError("LLM request timed out", status_code=504)
+    llmf._provider = mock_provider
+    original_key = settings.ANTHROPIC_API_KEY
+    settings.ANTHROPIC_API_KEY = "test-key"
+
+    try:
+        response = await authed_client.post(
+            "/api/documents/query",
+            json={
+                "query": "Test query",
+                "entity_type": "stock",
+                "entity_id": "AAPL",
+            },
+        )
+        assert response.status_code == 504
+    finally:
+        settings.ANTHROPIC_API_KEY = original_key
+        llmf._provider = None
+
+
+@pytest.mark.asyncio
+async def test_llm_query_rate_limited(authed_client):
+    await authed_client.get("/api/documents/")
+
+    mock_provider = MagicMock()
+    mock_provider.query.side_effect = GoldMineError("Rate limited", status_code=429)
+    llmf._provider = mock_provider
+    original_key = settings.ANTHROPIC_API_KEY
+    settings.ANTHROPIC_API_KEY = "test-key"
+
+    try:
+        response = await authed_client.post(
+            "/api/documents/query",
+            json={
+                "query": "Test query",
+                "entity_type": "stock",
+                "entity_id": "AAPL",
+            },
+        )
+        assert response.status_code == 429
+    finally:
+        settings.ANTHROPIC_API_KEY = original_key
+        llmf._provider = None
+
+
+@pytest.mark.asyncio
+async def test_llm_query_api_error(authed_client):
+    await authed_client.get("/api/documents/")
+
+    mock_provider = MagicMock()
+    mock_provider.query.side_effect = GoldMineError("LLM service error: Internal Server Error", status_code=502)
+    llmf._provider = mock_provider
+    original_key = settings.ANTHROPIC_API_KEY
+    settings.ANTHROPIC_API_KEY = "test-key"
+
+    try:
+        response = await authed_client.post(
+            "/api/documents/query",
+            json={
+                "query": "Test query",
+                "entity_type": "stock",
+                "entity_id": "AAPL",
+            },
+        )
+        assert response.status_code == 502
     finally:
         settings.ANTHROPIC_API_KEY = original_key
         llmf._provider = None

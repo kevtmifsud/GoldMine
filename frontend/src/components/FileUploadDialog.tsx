@@ -33,6 +33,10 @@ export function FileUploadDialog({
     }
 
     const file = files[0];
+    if (file.size > 10 * 1024 * 1024) {
+      setError("File exceeds 10MB limit");
+      return;
+    }
     setUploading(true);
     setError(null);
 

@@ -113,6 +113,80 @@ async def test_upload_no_filename(authed_client):
 
 
 @pytest.mark.asyncio
+async def test_search_keyword_mode(authed_client):
+    await authed_client.get("/api/documents/")
+    response = await authed_client.get("/api/documents/search?q=earnings&mode=keyword")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    for result in data:
+        assert result["score"] > 0
+
+
+@pytest.mark.asyncio
+async def test_search_semantic_mode(authed_client):
+    await authed_client.get("/api/documents/")
+    response = await authed_client.get("/api/documents/search?q=earnings&mode=semantic")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+
+
+@pytest.mark.asyncio
+async def test_search_hybrid_mode(authed_client):
+    await authed_client.get("/api/documents/")
+    response = await authed_client.get("/api/documents/search?q=earnings&mode=hybrid")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+
+
+@pytest.mark.asyncio
+async def test_search_invalid_mode(authed_client):
+    await authed_client.get("/api/documents/")
+    response = await authed_client.get("/api/documents/search?q=earnings&mode=invalid")
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_delete_document(authed_client):
+    # Trigger auto-index first so it won't re-index after delete
+    await authed_client.get("/api/documents/")
+
+    # Upload a document
+    content = b"This is a test document for deletion testing."
+    upload_resp = await authed_client.post(
+        "/api/documents/upload",
+        files={"file": ("delete_test.txt", content, "text/plain")},
+        data={
+            "entity_type": "stock",
+            "entity_id": "AAPL",
+            "title": "Delete Test",
+            "description": "Will be deleted",
+            "date": "2025-01-01",
+        },
+    )
+    assert upload_resp.status_code == 201
+    file_id = upload_resp.json()["file_id"]
+
+    # Delete it
+    delete_resp = await authed_client.delete(f"/api/documents/{file_id}")
+    assert delete_resp.status_code == 200
+    assert delete_resp.json()["deleted"] is True
+
+    # Verify it's gone from the list
+    list_resp = await authed_client.get("/api/documents/")
+    file_ids = [d["file_id"] for d in list_resp.json()]
+    assert file_id not in file_ids
+
+
+@pytest.mark.asyncio
+async def test_delete_document_not_found(authed_client):
+    response = await authed_client.delete("/api/documents/nonexistent-id")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_documents_require_auth(client):
     response = await client.get("/api/documents/")
     assert response.status_code == 401

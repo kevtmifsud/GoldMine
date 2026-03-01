@@ -14,6 +14,15 @@ interface DatasetInfo {
   category: string;
 }
 
+interface PortfolioRecord {
+  portfolio_id: string;
+  name: string;
+  strategy: string;
+  aum: string;
+  num_positions: string;
+  status: string;
+}
+
 const CATEGORY_ORDER = [
   "market_data",
   "research",
@@ -34,14 +43,25 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function DatasetsPage() {
   const [datasets, setDatasets] = useState<DatasetInfo[]>([]);
+  const [portfolios, setPortfolios] = useState<PortfolioRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api
-      .get<DatasetInfo[]>("/api/data/")
-      .then((resp) => setDatasets(resp.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const fetchAll = async () => {
+      try {
+        const [dsResp, pfResp] = await Promise.all([
+          api.get<DatasetInfo[]>("/api/data/"),
+          api.get<{ data: PortfolioRecord[] }>("/api/data/portfolios"),
+        ]);
+        setDatasets(dsResp.data);
+        setPortfolios(pfResp.data.data);
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAll();
   }, []);
 
   const grouped = useMemo(() => {
@@ -49,6 +69,7 @@ export function DatasetsPage() {
       [];
     const byCategory = new Map<string, DatasetInfo[]>();
     for (const ds of datasets) {
+      if (Number(ds.record_count) <= 0) continue;
       const cat = ds.category || "other";
       if (!byCategory.has(cat)) byCategory.set(cat, []);
       byCategory.get(cat)!.push(ds);
@@ -94,6 +115,23 @@ export function DatasetsPage() {
             <div key={group.category} className="browse-section__group">
               <h3 className="browse-section__group-title">{group.label}</h3>
               <div className="browse-cards">
+                {group.category === "portfolio" &&
+                  portfolios.map((pf) => (
+                    <Link
+                      key={pf.portfolio_id}
+                      to={`/entity/portfolio/${encodeURIComponent(pf.name)}`}
+                      className="browse-card"
+                    >
+                      <span className="browse-card__category">
+                        portfolio
+                      </span>
+                      <h3 className="browse-card__name">{pf.name} Portfolio</h3>
+                      <p className="browse-card__desc">{pf.strategy}</p>
+                      <span className="browse-card__count">
+                        {pf.num_positions} positions
+                      </span>
+                    </Link>
+                  ))}
                 {group.items.map((ds) => (
                   <Link
                     key={ds.dataset_id}

@@ -33,6 +33,15 @@ export interface FilterDefinition {
 
 export interface SecondaryLine {
   y_key: string;
+  y_key_alt: string | null;
+  label: string;
+  label_alt: string | null;
+  color: string;
+}
+
+export interface BarConfig {
+  y_key: string;
+  y_key_alt: string | null;
   label: string;
   color: string;
 }
@@ -44,7 +53,15 @@ export interface ChartConfig {
   x_label: string;
   y_label: string;
   color: string;
+  y_format: string | null; // "currency" | "number" | null
+  y_key_alt: string | null;
+  y_label_alt: string | null;
+  y_format_alt: string | null;
+  color_key: string | null;
+  bars: BarConfig[];
+  stacked: boolean;
   secondary_y_label: string | null;
+  secondary_y_label_alt: string | null;
   secondary_lines: SecondaryLine[];
 }
 
@@ -54,6 +71,8 @@ export interface ColumnConfig {
   format: string;
   sortable: boolean;
   visible: boolean;
+  entity_type?: string;      // e.g. "stock", "person", "portfolio"
+  entity_id_field?: string;  // when display value != entity ID (e.g. name → person_id)
 }
 
 export interface WidgetConfig {
@@ -66,6 +85,7 @@ export interface WidgetConfig {
   chart_config: ChartConfig | null;
   filter_definitions: FilterDefinition[];
   client_filterable_columns: string[];
+  full_width: boolean;
   has_overrides: boolean;
   initial_filters: Record<string, string>;
   initial_sort_by: string | null;
@@ -176,6 +196,11 @@ export interface AnalystPackUpdate {
 }
 
 // --- Documents & LLM ---
+
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
 
 export interface EntityAssociation {
   entity_type: string;

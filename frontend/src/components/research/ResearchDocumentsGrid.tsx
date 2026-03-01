@@ -3,14 +3,9 @@ import type { ColDef, GridApi } from "ag-grid-community";
 import * as docsApi from "../../config/documentsApi";
 import type { DocumentListItem } from "../../types/entities";
 import { AppGrid } from "../ag-grid/AppGrid";
+import { useGridColumnManager } from "../../hooks/useGridColumnManager";
 import { SetFilter } from "../ag-grid/SetFilter";
 import { dateFilterParams } from "../ag-grid/filters";
-import {
-  saveGridView,
-  restoreGridView,
-  clearGridView,
-  hasGridView,
-} from "../ag-grid/gridViewPersistence";
 import { DocTypeBadgeRenderer } from "./DocTypeBadgeRenderer";
 import { EntityLinksRenderer } from "./EntityLinksRenderer";
 import { DocumentActionRenderer } from "./DocumentActionRenderer";
@@ -19,8 +14,6 @@ import { FormTypeBadgeRenderer } from "./SecFilingsGrid";
 import { DocumentInspectorDialog } from "./DocumentInspectorDialog";
 import { TranscriptViewerDialog } from "./TranscriptViewerDialog";
 import "../../styles/research.css";
-
-const VIEW_KEY = "research-documents";
 
 interface ResearchDocumentsGridProps {
   entityType: string;
@@ -50,10 +43,7 @@ export function ResearchDocumentsGrid({
   const [error, setError] = useState<string | null>(null);
   const [inspectedDoc, setInspectedDoc] = useState<DocumentListItem | null>(null);
   const [viewingTranscript, setViewingTranscript] = useState<TranscriptViewerState | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const [savedViewExists, setSavedViewExists] = useState(() => hasGridView(VIEW_KEY));
   const gridApiRef = useRef<GridApi<DocumentListItem> | null>(null);
-  const restoringRef = useRef(false);
 
   const fetchDocs = useCallback(async () => {
     setLoading(true);
@@ -102,26 +92,6 @@ export function ResearchDocumentsGrid({
     }
   }, [entityId]);
 
-  const markDirty = useCallback(() => {
-    if (!restoringRef.current) setDirty(true);
-  }, []);
-
-  const handleSaveView = useCallback(() => {
-    if (gridApiRef.current) {
-      saveGridView(VIEW_KEY, gridApiRef.current);
-      setSavedViewExists(true);
-      setDirty(false);
-    }
-  }, []);
-
-  const handleResetView = useCallback(() => {
-    clearGridView(VIEW_KEY);
-    gridApiRef.current?.resetColumnState();
-    gridApiRef.current?.setFilterModel(null);
-    setSavedViewExists(false);
-    setDirty(false);
-  }, []);
-
   const getRowId = useCallback(
     (params: { data: DocumentListItem }) => params.data.file_id,
     []
@@ -134,16 +104,7 @@ export function ResearchDocumentsGrid({
     []
   );
 
-  const onFirstDataRendered = useCallback(
-    (e: { api: import("ag-grid-community").GridApi<DocumentListItem> }) => {
-      restoringRef.current = true;
-      restoreGridView(VIEW_KEY, e.api);
-      restoringRef.current = false;
-    },
-    []
-  );
-
-  const columnDefs = useMemo<ColDef<DocumentListItem>[]>(
+  const allColumns = useMemo<ColDef<DocumentListItem>[]>(
     () => [
       {
         colId: "title",
@@ -234,6 +195,17 @@ export function ResearchDocumentsGrid({
     []
   );
 
+  const defaultDocFields = useMemo(
+    () => ["title", "doc_type", "date", "form_type", "report_year", "report_qtr", "entities", "actions"],
+    []
+  );
+
+  const { columnDefs, contextMenuConfig: docContextMenu } = useGridColumnManager<DocumentListItem>({
+    gridId: "research-documents",
+    allColumns,
+    defaultVisibleFields: defaultDocFields,
+  });
+
   const context = useMemo<DocumentActionContext>(
     () => ({
       onInspect: (doc: DocumentListItem) => setInspectedDoc(doc),
@@ -257,20 +229,6 @@ export function ResearchDocumentsGrid({
               onClick={onUploadClick}
             >
               Upload Document
-            </button>
-          )}
-          <button
-            className={dirty ? "research-grid__save-view-btn research-grid__save-view-btn--dirty" : "research-grid__save-view-btn"}
-            onClick={handleSaveView}
-          >
-            Save Default View
-          </button>
-          {savedViewExists && (
-            <button
-              className="research-grid__download-btn"
-              onClick={handleResetView}
-            >
-              Reset View
             </button>
           )}
           {filteredDocs.length > 0 && (
@@ -301,11 +259,8 @@ export function ResearchDocumentsGrid({
             domLayout="autoHeight"
             getRowId={getRowId}
             onGridReady={onGridReady}
-            onFirstDataRendered={onFirstDataRendered}
-            onSortChanged={markDirty}
-            onColumnMoved={markDirty}
-            onColumnResized={markDirty}
-            onFilterChanged={markDirty}
+            contextMenu={docContextMenu}
+            viewKey="research-documents"
           />
         </div>
       )}

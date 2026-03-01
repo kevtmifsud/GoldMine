@@ -3,10 +3,17 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class ConversationMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
 class LLMQueryRequest(BaseModel):
     query: str
     entity_type: str
     entity_id: str
+    conversation_history: list[ConversationMessage] = Field(default_factory=list)
+    is_first_message: bool = True
 
 
 class LLMSource(BaseModel):

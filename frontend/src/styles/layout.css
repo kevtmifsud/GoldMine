@@ -88,9 +88,7 @@
 
 .main-content {
   flex: 1;
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  padding: 0;
   width: 100%;
 }
 
@@ -135,6 +133,7 @@
 .browse-section {
   max-width: 600px;
   margin: 2.5rem auto 0;
+  padding: 0 1.5rem;
 }
 
 .browse-section__title {

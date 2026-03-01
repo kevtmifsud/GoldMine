@@ -81,6 +81,13 @@ export function HomePage() {
               Browse shared analyst packs from your team
             </p>
           </Link>
+          <Link to="/portfolios" className="browse-card">
+            <span className="browse-card__category">portfolio</span>
+            <h3 className="browse-card__name">Portfolios</h3>
+            <p className="browse-card__desc">
+              Portfolio positions, PnL, and exposure
+            </p>
+          </Link>
         </div>
       </div>
     </Layout>

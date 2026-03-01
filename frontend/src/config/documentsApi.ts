@@ -1,5 +1,6 @@
 import api from "./api";
 import type {
+  ConversationMessage,
   DocumentListItem,
   DocumentSearchResult,
   LLMQueryResponse,
@@ -19,15 +20,21 @@ export async function listDocuments(
 export async function searchDocuments(
   query: string,
   entityType?: string,
-  entityId?: string
+  entityId?: string,
+  mode?: string
 ): Promise<DocumentSearchResult[]> {
   const params: Record<string, string> = { q: query };
   if (entityType) params.entity_type = entityType;
   if (entityId) params.entity_id = entityId;
+  if (mode) params.mode = mode;
   const resp = await api.get<DocumentSearchResult[]>("/api/documents/search", {
     params,
   });
   return resp.data;
+}
+
+export async function deleteDocument(fileId: string): Promise<void> {
+  await api.delete(`/api/documents/${fileId}`);
 }
 
 export async function uploadDocument(
@@ -54,12 +61,21 @@ export async function uploadDocument(
 export async function queryLLM(
   query: string,
   entityType: string,
-  entityId: string
+  entityId: string,
+  signal?: AbortSignal,
+  conversationHistory: ConversationMessage[] = [],
+  isFirstMessage: boolean = true
 ): Promise<LLMQueryResponse> {
-  const resp = await api.post<LLMQueryResponse>("/api/documents/query", {
-    query,
-    entity_type: entityType,
-    entity_id: entityId,
-  });
+  const resp = await api.post<LLMQueryResponse>(
+    "/api/documents/query",
+    {
+      query,
+      entity_type: entityType,
+      entity_id: entityId,
+      conversation_history: conversationHistory,
+      is_first_message: isFirstMessage,
+    },
+    { signal }
+  );
   return resp.data;
 }

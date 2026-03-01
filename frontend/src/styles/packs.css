@@ -1,4 +1,16 @@
 /* Packs List Page */
+.packs-list {
+  padding: 1.5rem;
+}
+
+.pack-page {
+  padding: 1.5rem;
+}
+
+.pack-builder {
+  padding: 1.5rem;
+}
+
 .packs-list__header {
   display: flex;
   align-items: center;

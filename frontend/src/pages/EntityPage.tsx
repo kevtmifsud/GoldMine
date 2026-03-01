@@ -6,9 +6,8 @@ import type { SmartlistWidgetHandle } from "../components/SmartlistWidget";
 import { Layout } from "../components/Layout";
 import { EntityHeader } from "../components/EntityHeader";
 import { WidgetContainer } from "../components/WidgetContainer";
-import { SaveViewDialog } from "../components/SaveViewDialog";
 import { DocumentsPanel } from "../components/DocumentsPanel";
-import { LLMQueryPanel } from "../components/LLMQueryPanel";
+import { ResearchSearchBar } from "../components/ResearchSearchBar";
 import { ScheduleEmailDialog } from "../components/ScheduleEmailDialog";
 import { SchedulesList } from "../components/SchedulesList";
 import { useAuth } from "../auth/useAuth";
@@ -27,10 +26,8 @@ export function EntityPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [views, setViews] = useState<SavedView[]>([]);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [schedulesRefreshKey, setSchedulesRefreshKey] = useState(0);
-  const [dirty, setDirty] = useState(false);
 
   const widgetRefs = useRef<Map<string, React.RefObject<SmartlistWidgetHandle>>>(new Map());
 
@@ -43,7 +40,6 @@ export function EntityPage() {
     setLoading(true);
     setError(null);
     setDetail(null);
-    setDirty(false);
 
     const params: Record<string, string> = {};
     if (viewId) params.view_id = viewId;
@@ -78,7 +74,7 @@ export function EntityPage() {
     [setSearchParams]
   );
 
-  // Collect current widget state from all refs
+  // Collect current widget state from all refs (used by email scheduling)
   const collectOverrides = useCallback((): WidgetStateOverride[] => {
     const overrides: WidgetStateOverride[] = [];
     for (const [, ref] of widgetRefs.current) {
@@ -88,63 +84,6 @@ export function EntityPage() {
     }
     return overrides;
   }, []);
-
-  // Save as a new view (opens dialog)
-  const handleSaveNewView = useCallback(
-    async (name: string, isShared: boolean) => {
-      if (!entityType || !entityId) return;
-
-      const overrides = collectOverrides();
-      const view = await viewsApi.createView({
-        name,
-        entity_type: entityType,
-        entity_id: entityId,
-        widget_overrides: overrides,
-        is_shared: isShared,
-      });
-
-      setShowSaveDialog(false);
-      const updated = await viewsApi.listViews(entityType, entityId);
-      setViews(updated);
-      setSearchParams({ view_id: view.view_id });
-    },
-    [entityType, entityId, setSearchParams, collectOverrides]
-  );
-
-  // Silently save over the current view (owned view or default)
-  const handleSaveView = useCallback(async () => {
-    if (!entityType || !entityId) return;
-
-    const overrides = collectOverrides();
-    const activeId = detail?.active_view_id;
-
-    if (activeId) {
-      // Overwrite the currently active view in-place
-      await viewsApi.updateView(activeId, { widget_overrides: overrides });
-    } else {
-      // No active view — create a default view for this entity
-      await viewsApi.createView({
-        name: "Default",
-        entity_type: entityType,
-        entity_id: entityId,
-        widget_overrides: overrides,
-        is_shared: false,
-        is_default: true,
-      });
-      const updated = await viewsApi.listViews(entityType, entityId);
-      setViews(updated);
-    }
-
-    // Re-fetch entity detail (backend auto-applies default view when no view_id)
-    setDirty(false);
-    const params: Record<string, string> = {};
-    if (viewId) params.view_id = viewId;
-    const resp = await api.get<EntityDetail>(
-      `/api/entities/${entityType}/${entityId}`,
-      { params }
-    );
-    setDetail(resp.data);
-  }, [entityType, entityId, viewId, detail?.active_view_id, collectOverrides]);
 
   const handleDeleteView = useCallback(
     async (deleteViewId: string) => {
@@ -156,10 +95,6 @@ export function EntityPage() {
     },
     [entityType, entityId, setSearchParams]
   );
-
-  const handleWidgetStateChange = useCallback(() => {
-    setDirty(true);
-  }, []);
 
   // Build refs map for widgets
   const getWidgetRef = (widgetId: string) => {
@@ -178,8 +113,8 @@ export function EntityPage() {
     <Layout>
       <div className="entity-page">
         <div className="entity-page__top-bar">
-          <Link to="/" className="entity-page__back">
-            &larr; Back to Search
+          <Link to={entityType === "dataset" || entityType === "portfolio" ? "/datasets" : "/"} className="entity-page__back">
+            &larr; {entityType === "dataset" || entityType === "portfolio" ? "Back to Datasets" : "Back to Search"}
           </Link>
           {detail && (
             <div className="entity-page__actions">
@@ -205,22 +140,6 @@ export function EntityPage() {
                   Delete
                 </button>
               )}
-              {dirty && (isViewOwner || !detail.active_view_id) && (
-                <button
-                  className="entity-page__action-btn"
-                  onClick={handleSaveView}
-                >
-                  Save
-                </button>
-              )}
-              {dirty && (
-                <button
-                  className="entity-page__action-btn"
-                  onClick={() => setShowSaveDialog(true)}
-                >
-                  Save As New
-                </button>
-              )}
               <button
                 className="entity-page__action-btn entity-page__action-btn--primary"
                 onClick={() => setShowScheduleDialog(true)}
@@ -238,6 +157,7 @@ export function EntityPage() {
         {error && <div className="entity-page__error">{error}</div>}
         {detail && (
           <>
+            <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
             <EntityHeader
               displayName={detail.display_name}
               entityType={detail.entity_type}
@@ -245,28 +165,26 @@ export function EntityPage() {
             />
             <div className="entity-page__widgets">
               {detail.widgets
-                .filter((w) => w.widget_type === "chart" && w.widget_id === "price_history")
+                .filter((w) => w.widget_type === "chart" && w.full_width)
                 .map((widget) => (
                   <div key={widget.widget_id} className="entity-page__chart-full">
                     <WidgetContainer
                       ref={getWidgetRef(widget.widget_id)}
                       config={widget}
                       entityId={detail.entity_id}
-                      onStateChange={handleWidgetStateChange}
                     />
                   </div>
                 ))}
-              {detail.widgets.some((w) => w.widget_type === "chart" && w.widget_id !== "price_history") && (
+              {detail.widgets.some((w) => w.widget_type === "chart" && !w.full_width) && (
                 <div className="entity-page__charts">
                   {detail.widgets
-                    .filter((w) => w.widget_type === "chart" && w.widget_id !== "price_history")
+                    .filter((w) => w.widget_type === "chart" && !w.full_width)
                     .map((widget) => (
                       <WidgetContainer
                         key={widget.widget_id}
                         ref={getWidgetRef(widget.widget_id)}
                         config={widget}
                         entityId={detail.entity_id}
-                        onStateChange={handleWidgetStateChange}
                       />
                     ))}
                 </div>
@@ -279,17 +197,13 @@ export function EntityPage() {
                     ref={getWidgetRef(widget.widget_id)}
                     config={widget}
                     entityId={detail.entity_id}
-                    onStateChange={handleWidgetStateChange}
                   />
                 ))}
             </div>
-            {detail.entity_type !== "dataset" && (
+            {detail.entity_type !== "dataset" && detail.entity_type !== "portfolio" && (
               <>
                 <div className="entity-page__documents">
                   <DocumentsPanel entityType={detail.entity_type} entityId={detail.entity_id} />
-                </div>
-                <div className="entity-page__llm">
-                  <LLMQueryPanel entityType={detail.entity_type} entityId={detail.entity_id} />
                 </div>
                 <div className="entity-page__schedules">
                   <SchedulesList
@@ -301,12 +215,6 @@ export function EntityPage() {
               </>
             )}
           </>
-        )}
-        {showSaveDialog && (
-          <SaveViewDialog
-            onSave={handleSaveNewView}
-            onCancel={() => setShowSaveDialog(false)}
-          />
         )}
         {showScheduleDialog && detail && (
           <ScheduleEmailDialog

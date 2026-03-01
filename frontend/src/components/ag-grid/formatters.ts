@@ -41,6 +41,13 @@ export function dateFormatter(params: ValueFormatterParams): string {
   });
 }
 
+export function titlecaseFormatter(params: ValueFormatterParams): string {
+  const value = params.value;
+  if (value === null || value === undefined || value === "") return "\u2014";
+  const str = String(value);
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
 export function getValueFormatter(format: string) {
   switch (format) {
     case "currency":
@@ -51,6 +58,8 @@ export function getValueFormatter(format: string) {
       return numberFormatter;
     case "date":
       return dateFormatter;
+    case "titlecase":
+      return titlecaseFormatter;
     default:
       return textFormatter;
   }

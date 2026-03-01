@@ -32,8 +32,10 @@ import json
 import logging
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 from tabulate import tabulate
 
@@ -457,6 +459,92 @@ def fetch_filings_for_ticker(ticker: str) -> list[dict]:
     return filings
 
 
+_EDGAR_UA = "GoldMine admin@goldmine.dev"
+
+
+def _fetch_edgar_submissions(cik: str) -> dict[str, str]:
+    """Fetch primaryDocument for all filings of a CIK from data.sec.gov.
+
+    Returns {accession_number: primary_document_filename}.
+    SEC rate-limits to 10 req/sec; callers should pace requests.
+    """
+    cik_padded = cik.lstrip("0").zfill(10)
+    base_url = f"https://data.sec.gov/submissions/CIK{cik_padded}.json"
+    req = Request(base_url, headers={"User-Agent": _EDGAR_UA})
+
+    try:
+        with urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read())
+    except Exception:
+        return {}
+
+    result: dict[str, str] = {}
+    filings_obj = data.get("filings", {})
+
+    # Process the "recent" filings block
+    recent = filings_obj.get("recent", {})
+    accessions = recent.get("accessionNumber", [])
+    primary_docs = recent.get("primaryDocument", [])
+    for acc, pdoc in zip(accessions, primary_docs):
+        if acc and pdoc:
+            result[acc] = pdoc
+
+    # Process overflow files (older filings)
+    for overflow in filings_obj.get("files", []):
+        fname = overflow.get("name", "")
+        if not fname:
+            continue
+        overflow_url = f"https://data.sec.gov/submissions/{fname}"
+        overflow_req = Request(overflow_url, headers={"User-Agent": _EDGAR_UA})
+        time.sleep(0.15)  # respect rate limit
+        try:
+            with urlopen(overflow_req, timeout=30) as resp:
+                odata = json.loads(resp.read())
+            o_acc = odata.get("accessionNumber", [])
+            o_pdoc = odata.get("primaryDocument", [])
+            for acc, pdoc in zip(o_acc, o_pdoc):
+                if acc and pdoc:
+                    result[acc] = pdoc
+        except Exception:
+            pass
+
+    return result
+
+
+def _enrich_filings_with_primary_doc(
+    all_filings: list[dict],
+) -> None:
+    """Add primary_document field to filings by querying EDGAR submissions API."""
+    # Group filings by CIK
+    cik_set: dict[str, str] = {}  # cik -> first symbol (for logging)
+    for f in all_filings:
+        cik = f.get("cik", "")
+        if cik and cik not in cik_set:
+            cik_set[cik] = f.get("symbol", "?")
+
+    print(f"  Fetching primary documents from EDGAR for {len(cik_set)} CIKs...")
+
+    # Fetch submissions for each CIK
+    all_lookups: dict[str, str] = {}
+    for i, (cik, sym) in enumerate(cik_set.items(), 1):
+        time.sleep(0.15)  # respect SEC rate limit (10 req/sec)
+        lookup = _fetch_edgar_submissions(cik)
+        all_lookups.update(lookup)
+        print(f"    [{i}/{len(cik_set)}] {sym} (CIK {cik}) -> "
+              f"{len(lookup)} filings indexed", flush=True)
+
+    # Enrich filings
+    matched = 0
+    for f in all_filings:
+        acc = f.get("accession_number", "")
+        pdoc = all_lookups.get(acc, "")
+        f["primary_document"] = pdoc
+        if pdoc:
+            matched += 1
+
+    print(f"  Matched primary documents for {matched}/{len(all_filings)} filings")
+
+
 def run_phase_filings(whitelist: list[str], workers: int) -> None:
     """Phase 3: Download SEC filings for whitelist tickers."""
     print("\n" + "=" * 60)
@@ -498,10 +586,15 @@ def run_phase_filings(whitelist: list[str], workers: int) -> None:
         print("No filings data to write")
         return
 
-    # Ensure symbol is the first column
+    # Enrich with primary document URLs from EDGAR submissions API
+    _enrich_filings_with_primary_doc(all_filings)
+
+    # Ensure symbol is the first column, primary_document is last
     if "symbol" in filing_columns:
         filing_columns.remove("symbol")
     filing_columns.insert(0, "symbol")
+    if "primary_document" not in filing_columns:
+        filing_columns.append("primary_document")
 
     STRUCTURED_DIR.mkdir(parents=True, exist_ok=True)
     with open(FILINGS_CSV, "w", newline="") as f:

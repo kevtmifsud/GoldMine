@@ -1,153 +1,2259 @@
-date,ticker,action,shares,price
-2015-01-02,AAPL,buy,50,24.21
-2015-01-02,AMZN,buy,100,15.43
-2015-01-02,BA,buy,100,113.66
-2015-01-02,BLK,buy,200,271.22
-2015-01-02,DIS,buy,100,85.37
-2015-01-02,FCX,buy,100,20.68
-2015-01-02,GOOGL,buy,50,26.28
-2015-01-02,HD,buy,150,79.9
-2015-01-02,JNJ,buy,50,76.96
-2015-01-02,JPM,buy,100,46.51
-2015-01-02,KO,buy,200,29.78
-2015-01-02,MSFT,buy,50,39.86
-2015-01-02,NEE,buy,150,20.03
-2015-01-02,PG,buy,100,66.05
-2015-01-02,PLD,buy,100,31.39
-2015-01-02,UNH,buy,200,84.48
-2015-01-02,V,buy,200,61.21
-2015-01-02,XOM,buy,150,57.53
-2015-02-05,JNJ,sell,21,75.44
-2015-02-25,MSFT,sell,15,37.76
-2015-03-16,KO,buy,20,28.71
-2015-08-18,KO,buy,25,29.67
-2015-08-31,FCX,sell,12,9.59
-2015-09-09,BA,buy,25,118.23
-2015-10-14,GOOGL,buy,25,33.77
-2015-12-24,XOM,sell,39,50.85
-2016-03-01,NEE,buy,25,21.96
-2016-03-04,GOOGL,sell,19,36.24
-2016-04-08,KO,sell,7,34.5
-2016-04-08,UNH,buy,10,107.52
-2016-04-28,XOM,sell,13,56.94
-2016-05-17,BA,sell,18,120.96
-2016-06-08,XOM,sell,40,59.22
-2016-07-29,V,buy,10,72.89
-2016-08-15,V,sell,46,75.56
-2016-09-15,AAPL,sell,39,26.48
-2016-10-20,FCX,buy,20,9.24
-2016-11-07,JNJ,sell,29,90.32
-2016-11-09,KO,sell,18,31.61
-2016-12-28,BA,sell,25,144.73
-2017-01-04,PG,buy,25,65.83
-2017-04-25,AAPL,buy,10,33.43
-2017-04-25,JPM,buy,50,69.8
-2017-05-15,JPM,sell,30,69.07
-2017-06-20,KO,sell,47,34.98
-2017-07-25,HD,buy,10,119.7
-2017-08-10,NEE,sell,46,29.88
-2017-08-11,JNJ,buy,20,105.13
-2017-12-14,BLK,buy,10,414.85
-2018-02-16,HD,sell,39,153.95
-2018-03-05,GOOGL,sell,29,54.33
-2018-03-09,PLD,sell,22,51.01
-2018-04-12,MSFT,sell,15,86.47
-2018-05-09,DIS,buy,25,94.98
-2018-06-20,DIS,sell,8,101.81
-2018-08-13,AMZN,sell,8,94.81
-2018-08-16,MSFT,buy,25,100.28
-2018-09-04,AAPL,sell,6,54.04
-2018-12-17,XOM,buy,50,53.12
-2019-01-08,NEE,buy,25,36.52
-2019-01-11,AAPL,buy,10,36.17
-2019-01-18,BA,buy,50,354.41
-2019-01-23,JPM,buy,20,84.69
-2019-01-30,PG,buy,20,79.23
-2019-01-31,BLK,buy,10,348.39
-2019-02-11,UNH,sell,20,229.3
-2019-05-06,DIS,buy,50,130.3
-2019-05-09,JPM,buy,10,93.52
-2019-05-14,FCX,buy,50,10.0
-2019-05-21,JNJ,buy,10,114.21
-2019-06-10,AMZN,buy,10,93.03
-2019-07-10,AAPL,buy,20,48.66
-2019-07-29,MSFT,buy,25,133.01
-2019-07-30,UNH,buy,50,229.21
-2019-07-31,PLD,buy,50,67.45
-2019-08-19,DIS,sell,7,131.39
-2019-09-06,NEE,sell,11,47.2
-2019-09-09,HD,buy,25,200.14
-2019-10-23,GOOGL,buy,25,62.41
-2019-10-25,JNJ,sell,14,107.66
-2019-11-13,HD,buy,50,201.79
-2020-02-12,PG,sell,5,106.19
-2020-02-25,FCX,buy,20,10.02
-2020-05-20,PLD,sell,39,74.41
-2020-06-12,BLK,sell,19,462.34
-2020-07-30,JNJ,buy,20,125.68
-2020-08-14,DIS,buy,20,127.53
-2020-08-31,FCX,buy,10,14.57
-2020-09-21,NEE,sell,13,60.48
-2020-10-21,V,buy,50,190.68
-2020-12-03,GOOGL,buy,25,90.41
-2021-01-20,KO,buy,50,41.88
-2021-01-21,NEE,buy,10,73.66
-2021-02-12,PG,buy,10,112.49
-2021-03-22,AMZN,sell,30,155.54
-2021-06-24,JPM,sell,12,135.1
-2021-07-13,PLD,buy,10,110.42
-2021-07-15,PG,buy,10,123.45
-2021-09-28,BLK,buy,50,774.79
-2021-11-11,MSFT,buy,50,321.07
-2021-12-02,HD,buy,20,368.55
-2021-12-06,V,sell,11,196.26
-2022-01-20,V,buy,20,207.56
-2022-02-09,FCX,sell,26,41.07
-2022-02-10,JNJ,buy,20,150.69
-2022-02-22,FCX,sell,47,39.93
-2022-03-03,PG,sell,9,139.4
-2022-04-01,UNH,buy,50,480.53
-2022-05-06,MSFT,buy,25,266.37
-2022-05-20,PG,buy,25,128.77
-2022-06-03,JNJ,buy,10,158.94
-2022-07-06,JPM,buy,20,102.53
-2022-07-26,AMZN,buy,20,114.81
-2022-07-27,UNH,sell,15,502.96
-2022-12-12,XOM,sell,39,95.06
-2022-12-15,HD,buy,10,303.54
-2023-03-02,JPM,sell,32,131.39
-2023-06-20,PG,sell,18,138.1
-2023-10-12,JNJ,sell,36,145.86
-2023-10-24,JPM,sell,29,134.41
-2023-11-29,MSFT,sell,7,373.28
-2023-12-01,KO,sell,14,55.27
-2024-01-02,UNH,buy,50,518.26
-2024-01-16,KO,sell,20,56.54
-2024-02-02,HD,sell,9,340.21
-2024-02-09,AMZN,sell,41,174.45
-2024-03-07,JPM,buy,50,179.98
-2024-04-11,XOM,sell,49,113.9
-2024-04-25,BA,buy,25,166.81
-2024-06-10,GOOGL,buy,25,173.9
-2024-06-20,BA,buy,10,176.3
-2024-07-11,KO,sell,16,60.42
-2024-08-20,MSFT,sell,39,420.85
-2024-09-20,BA,buy,10,153.29
-2024-10-02,FCX,sell,24,49.78
-2024-11-19,DIS,sell,21,110.7
-2024-11-27,FCX,buy,50,43.0
-2025-02-12,GOOGL,sell,48,182.89
-2025-02-18,BA,buy,20,184.97
-2025-04-11,GOOGL,sell,43,156.71
-2025-05-15,DIS,buy,50,110.99
-2025-06-20,AMZN,sell,25,209.69
-2025-06-26,JNJ,buy,25,149.95
-2025-07-09,JPM,buy,10,280.52
-2025-08-18,MSFT,buy,50,515.29
-2025-08-18,PG,buy,50,153.55
-2025-10-10,V,buy,20,342.26
-2025-10-16,PLD,buy,25,120.23
-2025-10-23,GOOGL,buy,20,252.91
-2025-10-28,HD,sell,48,383.27
-2025-12-12,BLK,buy,20,1089.09
-2025-12-24,PG,buy,50,143.47
+date,ticker,action,shares,price,portfolio,side
+2022-01-03,AAPL,buy,32965,182.01,Flagship,long
+2022-01-03,ADI,sell,33870,177.15,Flagship,short
+2022-01-03,AEE,sell,67735,88.58,Flagship,short
+2022-01-03,AEP,buy,67712,88.61,Flagship,long
+2022-01-03,ALL,buy,50731,118.27,Flagship,long
+2022-01-03,ALLE,sell,46382,129.36,Flagship,short
+2022-01-03,AMZN,buy,35211,170.4,Flagship,long
+2022-01-03,APH,buy,138728,43.25,Flagship,long
+2022-01-03,ARE,buy,27294,219.83,Flagship,long
+2022-01-03,AXP,sell,35670,168.21,Flagship,short
+2022-01-03,BEN,sell,179587,33.41,Flagship,short
+2022-01-03,BLDR,sell,71865,83.49,Flagship,short
+2022-01-03,BSX,sell,139147,43.12,Flagship,short
+2022-01-03,CB,buy,31341,191.44,Flagship,long
+2022-01-03,CDNS,sell,32758,183.16,Flagship,short
+2022-01-03,CI,buy,25619,234.2,Flagship,long
+2022-01-03,CME,buy,26612,225.46,Flagship,long
+2022-01-03,COIN,sell,23900,251.05,Flagship,short
+2022-01-03,CRH,buy,112782,53.2,Flagship,long
+2022-01-03,CTSH,buy,66987,89.57,Flagship,long
+2022-01-03,CTVA,sell,127932,46.9,Flagship,short
+2022-01-03,CVS,buy,57604,104.16,Flagship,long
+2022-01-03,DE,sell,17137,350.11,Flagship,short
+2022-01-03,DECK,buy,97847,61.32,Flagship,long
+2022-01-03,DIS,sell,38275,156.76,Flagship,short
+2022-01-03,DLR,buy,34268,175.09,Flagship,long
+2022-01-03,DLTR,sell,42502,141.17,Flagship,short
+2022-01-03,DOC,sell,166067,36.13,Flagship,short
+2022-01-03,DOW,buy,105504,56.87,Flagship,long
+2022-01-03,DVA,sell,51980,115.43,Flagship,short
+2022-01-03,DXCM,buy,46083,130.2,Flagship,long
+2022-01-03,EBAY,buy,89820,66.8,Flagship,long
+2022-01-03,EG,buy,21995,272.79,Flagship,long
+2022-01-03,EL,buy,16204,370.29,Flagship,long
+2022-01-03,ENPH,sell,32529,184.45,Flagship,short
+2022-01-03,ES,sell,67317,89.13,Flagship,short
+2022-01-03,ESS,sell,16956,353.86,Flagship,short
+2022-01-03,ETR,sell,107720,55.7,Flagship,short
+2022-01-03,EXC,buy,147384,40.71,Flagship,long
+2022-01-03,EXE,buy,90158,66.55,Flagship,long
+2022-01-03,EXPD,buy,45875,130.79,Flagship,long
+2022-01-03,FE,buy,145490,41.24,Flagship,long
+2022-01-03,FFIV,sell,24717,242.75,Flagship,short
+2022-01-03,FITB,sell,134318,44.67,Flagship,short
+2022-01-03,FRT,sell,43885,136.72,Flagship,short
+2022-01-03,GDDY,buy,71006,84.5,Flagship,long
+2022-01-03,GE,buy,100067,59.96,Flagship,long
+2022-01-03,GILD,buy,82667,72.58,Flagship,long
+2022-01-03,GM,sell,98087,61.17,Flagship,short
+2022-01-03,GNRC,sell,17246,347.91,Flagship,short
+2022-01-03,IBM,sell,44105,136.04,Flagship,short
+2022-01-03,IEX,sell,26009,230.69,Flagship,short
+2022-01-03,IT,buy,18636,321.96,Flagship,long
+2022-01-03,KIM,buy,244101,24.58,Flagship,long
+2022-01-03,KO,buy,101180,59.3,Flagship,long
+2022-01-03,LEN,sell,55432,108.24,Flagship,short
+2022-01-03,LH,sell,23422,256.17,Flagship,short
+2022-01-03,LHX,buy,28359,211.57,Flagship,long
+2022-01-03,LULU,sell,15481,387.56,Flagship,short
+2022-01-03,LUV,buy,136364,44.0,Flagship,long
+2022-01-03,META,buy,17723,338.54,Flagship,long
+2022-01-03,MKC,sell,62617,95.82,Flagship,short
+2022-01-03,MNST,buy,124301,48.27,Flagship,long
+2022-01-03,MPC,sell,91380,65.66,Flagship,short
+2022-01-03,MSCI,buy,10074,595.58,Flagship,long
+2022-01-03,MTB,sell,37915,158.25,Flagship,short
+2022-01-03,NDAQ,buy,88902,67.49,Flagship,long
+2022-01-03,NEM,sell,98393,60.98,Flagship,short
+2022-01-03,NVR,buy,1042,5757.01,Flagship,long
+2022-01-03,ODFL,sell,34646,173.18,Flagship,short
+2022-01-03,OMC,buy,81202,73.89,Flagship,long
+2022-01-03,ON,sell,85507,70.17,Flagship,short
+2022-01-03,ORCL,buy,68259,87.9,Flagship,long
+2022-01-03,PAYC,buy,14817,404.94,Flagship,long
+2022-01-03,PEP,buy,34686,172.98,Flagship,long
+2022-01-03,PRU,sell,54585,109.92,Flagship,short
+2022-01-03,PYPL,buy,30779,194.94,Flagship,long
+2022-01-03,RF,sell,264667,22.67,Flagship,short
+2022-01-03,RMD,buy,23120,259.51,Flagship,long
+2022-01-03,ROK,buy,17665,339.66,Flagship,long
+2022-01-03,SBUX,sell,51423,116.68,Flagship,short
+2022-01-03,SHW,buy,17693,339.12,Flagship,long
+2022-01-03,SNA,sell,28127,213.32,Flagship,short
+2022-01-03,STE,sell,24735,242.57,Flagship,short
+2022-01-03,STLD,sell,97308,61.66,Flagship,short
+2022-01-03,SYY,sell,75997,78.95,Flagship,short
+2022-01-03,TER,buy,36121,166.11,Flagship,long
+2022-01-03,TJX,buy,79418,75.55,Flagship,long
+2022-01-03,TRGP,sell,112697,53.24,Flagship,short
+2022-01-03,TSN,sell,68337,87.8,Flagship,short
+2022-01-03,TT,sell,30793,194.85,Flagship,short
+2022-01-03,UAL,buy,131897,45.49,Flagship,long
+2022-01-03,UBER,buy,136519,43.95,Flagship,long
+2022-01-03,VLO,buy,77781,77.14,Flagship,long
+2022-01-03,VRTX,buy,26963,222.53,Flagship,long
+2022-01-03,VTRS,sell,422238,14.21,Flagship,short
+2022-01-03,WBD,sell,236873,25.33,Flagship,short
+2022-01-03,WYNN,sell,68360,87.77,Flagship,short
+2022-01-03,ZBH,sell,47858,125.37,Flagship,short
+2022-01-03,ZBRA,sell,10276,583.9,Flagship,short
+2022-01-03,ADSK,buy,16562,283.72,Long Only,long
+2022-01-03,AFL,buy,97977,58.27,Long Only,long
+2022-01-03,ALB,buy,19714,236.67,Long Only,long
+2022-01-03,ALLE,buy,20393,129.36,Long Only,long
+2022-01-03,AME,buy,31209,143.67,Long Only,long
+2022-01-03,ARE,buy,34715,219.83,Long Only,long
+2022-01-03,ATO,buy,59642,105.01,Long Only,long
+2022-01-03,AZO,buy,2916,2045.11,Long Only,long
+2022-01-03,BG,buy,102767,93.71,Long Only,long
+2022-01-03,BK,buy,157734,58.51,Long Only,long
+2022-01-03,BMY,buy,91155,61.88,Long Only,long
+2022-01-03,BR,buy,12036,180.95,Long Only,long
+2022-01-03,C,buy,90931,63.1,Long Only,long
+2022-01-03,CBOE,buy,38550,128.46,Long Only,long
+2022-01-03,CBRE,buy,44748,108.67,Long Only,long
+2022-01-03,CDNS,buy,12484,183.16,Long Only,long
+2022-01-03,CFG,buy,220053,49.14,Long Only,long
+2022-01-03,CMCSA,buy,119001,47.55,Long Only,long
+2022-01-03,CME,buy,13639,225.46,Long Only,long
+2022-01-03,CMG,buy,202622,33.81,Long Only,long
+2022-01-03,COST,buy,14144,566.71,Long Only,long
+2022-01-03,CRWD,buy,28770,198.33,Long Only,long
+2022-01-03,CTRA,buy,340745,19.57,Long Only,long
+2022-01-03,DHI,buy,81111,105.26,Long Only,long
+2022-01-03,DVN,buy,80913,45.57,Long Only,long
+2022-01-03,EPAM,buy,16164,642.2,Long Only,long
+2022-01-03,EQT,buy,328375,21.82,Long Only,long
+2022-01-03,ES,buy,38397,89.13,Long Only,long
+2022-01-03,EXC,buy,141760,40.71,Long Only,long
+2022-01-03,FCX,buy,79655,41.48,Long Only,long
+2022-01-03,GLW,buy,209326,37.19,Long Only,long
+2022-01-03,HAL,buy,366218,23.99,Long Only,long
+2022-01-03,HOLX,buy,121306,73.1,Long Only,long
+2022-01-03,HST,buy,515263,17.66,Long Only,long
+2022-01-03,ICE,buy,44815,133.95,Long Only,long
+2022-01-03,INCY,buy,58899,73.97,Long Only,long
+2022-01-03,IPG,buy,120289,37.65,Long Only,long
+2022-01-03,JBHT,buy,30590,201.84,Long Only,long
+2022-01-03,JNJ,buy,51084,171.54,Long Only,long
+2022-01-03,KEY,buy,448326,23.58,Long Only,long
+2022-01-03,KIM,buy,98386,24.58,Long Only,long
+2022-01-03,KLAC,buy,21753,435.09,Long Only,long
+2022-01-03,LIN,buy,28959,338.64,Long Only,long
+2022-01-03,LMT,buy,7381,354.36,Long Only,long
+2022-01-03,LNT,buy,100726,60.85,Long Only,long
+2022-01-03,LOW,buy,38672,255.51,Long Only,long
+2022-01-03,LW,buy,145358,63.92,Long Only,long
+2022-01-03,MAS,buy,93501,69.42,Long Only,long
+2022-01-03,MDLZ,buy,35590,65.97,Long Only,long
+2022-01-03,MDT,buy,60930,106.1,Long Only,long
+2022-01-03,META,buy,18410,338.54,Long Only,long
+2022-01-03,MGM,buy,161699,45.48,Long Only,long
+2022-01-03,MMM,buy,44841,148.61,Long Only,long
+2022-01-03,NDSN,buy,37134,251.03,Long Only,long
+2022-01-03,NTAP,buy,89677,92.39,Long Only,long
+2022-01-03,NVR,buy,721,5757.01,Long Only,long
+2022-01-03,NXPI,buy,44355,231.22,Long Only,long
+2022-01-03,PTC,buy,25629,122.98,Long Only,long
+2022-01-03,PWR,buy,67404,112.27,Long Only,long
+2022-01-03,RL,buy,61225,120.92,Long Only,long
+2022-01-03,SNA,buy,28133,213.32,Long Only,long
+2022-01-03,SPG,buy,51922,160.3,Long Only,long
+2022-01-03,SRE,buy,96245,66.0,Long Only,long
+2022-01-03,STLD,buy,103330,61.66,Long Only,long
+2022-01-03,TMO,buy,12271,644.92,Long Only,long
+2022-01-03,TROW,buy,30568,194.58,Long Only,long
+2022-01-03,TRV,buy,22874,155.75,Long Only,long
+2022-01-03,TSN,buy,82682,87.8,Long Only,long
+2022-01-03,TXN,buy,18380,190.6,Long Only,long
+2022-01-03,TXT,buy,127155,76.34,Long Only,long
+2022-01-03,TYL,buy,7858,523.85,Long Only,long
+2022-01-03,UHS,buy,24036,132.02,Long Only,long
+2022-01-03,ULTA,buy,5789,413.23,Long Only,long
+2022-01-03,UNH,buy,4950,502.28,Long Only,long
+2022-01-03,USB,buy,109025,57.27,Long Only,long
+2022-01-03,VZ,buy,91629,52.44,Long Only,long
+2022-01-03,WM,buy,59410,162.74,Long Only,long
+2022-01-03,WMT,buy,182495,48.22,Long Only,long
+2022-01-03,WRB,buy,126803,36.12,Long Only,long
+2022-01-03,WST,buy,6574,445.92,Long Only,long
+2022-02-01,BLDR,sell,13727,70.1,Flagship,short
+2022-02-01,CAH,buy,116891,51.33,Flagship,long
+2022-02-01,CDNS,sell,6817,151.61,Flagship,short
+2022-02-01,COIN,sell,6444,197.73,Flagship,short
+2022-02-01,DLR,buy,6344,147.74,Flagship,long
+2022-02-01,DXCM,buy,9084,108.76,Flagship,long
+2022-02-01,ENPH,buy,32529,142.67,Flagship,short
+2022-02-01,EPAM,buy,12387,484.36,Flagship,long
+2022-02-01,FFIV,sell,4415,205.96,Flagship,short
+2022-02-01,GDDY,sell,71006,77.25,Flagship,long
+2022-02-01,GM,buy,98087,54.07,Flagship,short
+2022-02-01,GNRC,sell,3586,288.02,Flagship,short
+2022-02-01,NOW,sell,51147,117.31,Flagship,short
+2022-02-01,PAYC,buy,2932,338.05,Flagship,long
+2022-02-01,SBUX,sell,9330,98.76,Flagship,short
+2022-02-01,TER,buy,15214,116.88,Flagship,long
+2022-02-01,TSLA,sell,19329,310.42,Flagship,short
+2022-02-01,VRTX,sell,26963,245.66,Flagship,long
+2022-02-01,ALGN,buy,5765,508.56,Long Only,long
+2022-02-01,BR,sell,12036,153.33,Long Only,long
+2022-02-01,CDNS,buy,2598,151.61,Long Only,long
+2022-02-01,DHI,buy,14337,89.45,Long Only,long
+2022-02-01,DVN,sell,10761,52.56,Long Only,long
+2022-02-01,EPAM,buy,5268,484.36,Long Only,long
+2022-02-01,GWW,buy,4400,494.98,Long Only,long
+2022-02-01,HAL,sell,86155,31.37,Long Only,long
+2022-02-01,NRG,buy,163927,38.75,Long Only,long
+2022-02-01,SRE,sell,96245,68.06,Long Only,long
+2022-02-01,TROW,buy,7621,155.75,Long Only,long
+2022-02-01,WST,sell,6574,397.24,Long Only,long
+2022-03-01,AXP,buy,35670,178.06,Flagship,short
+2022-03-01,BEN,sell,34088,28.08,Flagship,short
+2022-03-01,CRH,buy,25786,43.3,Flagship,long
+2022-03-01,DECK,buy,34779,45.24,Flagship,long
+2022-03-01,EBAY,buy,20576,54.35,Flagship,long
+2022-03-01,EL,buy,4805,285.59,Flagship,long
+2022-03-01,EPAM,buy,16021,211.21,Flagship,long
+2022-03-01,EXE,sell,14467,79.27,Flagship,long
+2022-03-01,EXPD,buy,13232,101.51,Flagship,long
+2022-03-01,GILD,buy,16902,60.26,Flagship,long
+2022-03-01,HPE,sell,389358,15.41,Flagship,short
+2022-03-01,HST,buy,344432,17.42,Flagship,long
+2022-03-01,IEX,sell,5784,188.72,Flagship,short
+2022-03-01,KIM,sell,244101,22.92,Flagship,long
+2022-03-01,KMB,sell,46631,128.67,Flagship,short
+2022-03-01,LEN,sell,13179,87.45,Flagship,short
+2022-03-01,LHX,sell,4837,255.08,Flagship,long
+2022-03-01,LULU,sell,3556,315.18,Flagship,short
+2022-03-01,META,buy,11762,203.49,Flagship,long
+2022-03-01,MSCI,buy,1917,500.38,Flagship,long
+2022-03-01,NDAQ,buy,16993,56.66,Flagship,long
+2022-03-01,PGR,sell,58117,103.24,Flagship,short
+2022-03-01,PYPL,buy,25554,106.51,Flagship,long
+2022-03-01,ROK,buy,5225,262.12,Flagship,long
+2022-03-01,SHW,buy,5788,255.53,Flagship,long
+2022-03-01,STLD,buy,14171,72.17,Flagship,short
+2022-03-01,TJX,buy,14479,63.9,Flagship,long
+2022-03-01,TRGP,buy,21164,65.55,Flagship,short
+2022-03-01,TSN,buy,68337,93.83,Flagship,short
+2022-03-01,TT,sell,8665,152.06,Flagship,short
+2022-03-01,UBER,buy,40524,33.89,Flagship,long
+2022-03-01,VTRS,sell,168895,10.15,Flagship,short
+2022-03-01,ZBRA,buy,10276,405.58,Flagship,short
+2022-03-01,ADSK,sell,16562,214.0,Long Only,long
+2022-03-01,ALB,buy,5311,186.44,Long Only,long
+2022-03-01,BG,sell,102767,105.87,Long Only,long
+2022-03-01,CTRA,sell,67002,24.36,Long Only,long
+2022-03-01,EG,buy,21978,284.09,Long Only,long
+2022-03-01,EPAM,buy,27717,211.21,Long Only,long
+2022-03-01,FCX,sell,10690,47.91,Long Only,long
+2022-03-01,KLAC,buy,6349,336.79,Long Only,long
+2022-03-01,LIN,buy,5747,282.56,Long Only,long
+2022-03-01,LMT,sell,1653,456.61,Long Only,long
+2022-03-01,MAS,buy,25423,54.58,Long Only,long
+2022-03-01,META,buy,12218,203.49,Long Only,long
+2022-03-01,MKC,buy,100055,96.25,Long Only,long
+2022-03-01,MMM,buy,10218,121.03,Long Only,long
+2022-03-01,MSI,buy,21733,216.21,Long Only,long
+2022-03-01,NTAP,buy,17464,77.33,Long Only,long
+2022-03-01,NXPI,buy,12251,181.18,Long Only,long
+2022-03-01,SPG,buy,9914,134.6,Long Only,long
+2022-03-01,STLD,sell,15047,72.17,Long Only,long
+2022-03-01,TMO,buy,2301,543.07,Long Only,long
+2022-03-01,TXT,sell,127155,71.07,Long Only,long
+2022-03-01,TYL,buy,1889,422.33,Long Only,long
+2022-03-01,URI,buy,31009,313.04,Long Only,long
+2022-03-01,USB,sell,109025,53.86,Long Only,long
+2022-04-01,AJG,sell,34014,176.4,Flagship,short
+2022-04-01,ALL,sell,7733,139.54,Flagship,long
+2022-04-01,CHD,buy,59195,101.36,Flagship,long
+2022-04-01,CTVA,buy,24998,58.29,Flagship,short
+2022-04-01,DE,buy,2742,416.8,Flagship,short
+2022-04-01,DXCM,sell,10017,132.89,Flagship,long
+2022-04-01,EL,sell,21009,274.41,Flagship,long
+2022-04-01,EPAM,sell,28408,287.04,Flagship,long
+2022-04-01,EQR,sell,65104,92.16,Flagship,short
+2022-04-01,ESS,buy,16956,353.49,Flagship,short
+2022-04-01,EXC,sell,21492,47.66,Flagship,long
+2022-04-01,LULU,buy,2708,367.44,Flagship,short
+2022-04-01,MCHP,buy,81114,73.97,Flagship,long
+2022-04-01,MPC,buy,20634,84.81,Flagship,short
+2022-04-01,MTB,buy,37915,164.66,Flagship,short
+2022-04-01,NEM,buy,25912,82.78,Flagship,short
+2022-04-01,NVR,buy,282,4531.41,Flagship,long
+2022-04-01,ODFL,sell,8442,139.25,Flagship,short
+2022-04-01,ON,sell,15113,59.63,Flagship,short
+2022-04-01,STLD,buy,12540,84.99,Flagship,short
+2022-04-01,TRGP,buy,13953,77.34,Flagship,short
+2022-04-01,TSLA,buy,2733,361.53,Flagship,short
+2022-04-01,VLO,sell,18533,101.27,Flagship,long
+2022-04-01,ALB,sell,4281,224.92,Long Only,long
+2022-04-01,APH,buy,124377,37.78,Long Only,long
+2022-04-01,ATO,sell,8056,121.41,Long Only,long
+2022-04-01,BK,buy,28900,49.45,Long Only,long
+2022-04-01,BMY,sell,14744,73.82,Long Only,long
+2022-04-01,C,buy,18714,52.33,Long Only,long
+2022-04-01,CBRE,buy,8264,91.73,Long Only,long
+2022-04-01,EFX,buy,41460,234.13,Long Only,long
+2022-04-01,EIX,buy,86278,71.04,Long Only,long
+2022-04-01,EPAM,sell,12984,287.04,Long Only,long
+2022-04-01,EQT,sell,129509,36.03,Long Only,long
+2022-04-01,EXC,sell,20672,47.66,Long Only,long
+2022-04-01,HAL,sell,52339,38.58,Long Only,long
+2022-04-01,IPG,sell,120289,35.46,Long Only,long
+2022-04-01,LNT,sell,100726,63.29,Long Only,long
+2022-04-01,LOW,buy,10147,202.4,Long Only,long
+2022-04-01,MSI,sell,21733,238.14,Long Only,long
+2022-04-01,NVR,buy,196,4531.41,Long Only,long
+2022-04-01,PSKY,buy,121093,37.4,Long Only,long
+2022-04-01,PWR,sell,9910,131.62,Long Only,long
+2022-04-01,STLD,sell,13317,84.99,Long Only,long
+2022-04-01,TRV,sell,3643,185.25,Long Only,long
+2022-04-01,URI,sell,31009,354.0,Long Only,long
+2022-04-01,WRB,sell,24728,44.87,Long Only,long
+2022-05-02,AMZN,buy,12982,124.5,Flagship,long
+2022-05-02,APH,buy,28917,35.79,Flagship,long
+2022-05-02,ARE,buy,6385,178.15,Flagship,long
+2022-05-02,BEN,buy,213675,25.33,Flagship,short
+2022-05-02,COIN,sell,19104,121.34,Flagship,short
+2022-05-02,DIS,sell,14588,113.5,Flagship,short
+2022-05-02,DLTR,buy,5778,163.38,Flagship,short
+2022-05-02,DOW,sell,16032,67.06,Flagship,long
+2022-05-02,DXCM,buy,13795,101.79,Flagship,long
+2022-05-02,EG,sell,21995,277.43,Flagship,long
+2022-05-02,FE,sell,145490,42.94,Flagship,long
+2022-05-02,FFIV,sell,5703,172.24,Flagship,short
+2022-05-02,FIS,sell,61538,97.5,Flagship,short
+2022-05-02,FITB,sell,24665,37.74,Flagship,short
+2022-05-02,FRT,sell,8189,115.22,Flagship,short
+2022-05-02,GE,buy,27403,47.07,Flagship,long
+2022-05-02,GNRC,sell,5636,226.69,Flagship,short
+2022-05-02,HST,sell,46369,20.13,Flagship,long
+2022-05-02,L,buy,97450,61.57,Flagship,long
+2022-05-02,LH,sell,5318,208.77,Flagship,short
+2022-05-02,MSCI,buy,2168,423.75,Flagship,long
+2022-05-02,NOW,sell,10773,96.9,Flagship,short
+2022-05-02,ORCL,buy,12822,74.0,Flagship,long
+2022-05-02,RMD,buy,6915,199.77,Flagship,long
+2022-05-02,SBUX,sell,18854,75.37,Flagship,short
+2022-05-02,SO,buy,81956,73.21,Flagship,long
+2022-05-02,TER,sell,51335,108.57,Flagship,long
+2022-05-02,TSLA,sell,3339,300.98,Flagship,short
+2022-05-02,VLO,sell,7790,116.6,Flagship,long
+2022-05-02,WBD,sell,74815,19.25,Flagship,short
+2022-05-02,WDC,buy,147203,40.76,Flagship,long
+2022-05-02,WYNN,sell,15310,71.71,Flagship,short
+2022-05-02,ALGN,buy,3726,308.88,Long Only,long
+2022-05-02,ARE,buy,8122,178.15,Long Only,long
+2022-05-02,CFG,buy,54398,39.4,Long Only,long
+2022-05-02,CMCSA,buy,30260,37.91,Long Only,long
+2022-05-02,CTRA,sell,43163,28.92,Long Only,long
+2022-05-02,DHI,buy,25210,70.76,Long Only,long
+2022-05-02,FCX,buy,13268,40.18,Long Only,long
+2022-05-02,FIX,buy,90077,84.01,Long Only,long
+2022-05-02,GE,buy,205405,47.07,Long Only,long
+2022-05-02,ICE,buy,8084,113.48,Long Only,long
+2022-05-02,J,buy,58450,114.01,Long Only,long
+2022-05-02,JBHT,buy,5701,170.13,Long Only,long
+2022-05-02,KEY,buy,94639,19.47,Long Only,long
+2022-05-02,MMM,sell,55059,122.0,Long Only,long
+2022-05-02,PSKY,buy,28523,30.27,Long Only,long
+2022-05-02,PWR,sell,57494,116.23,Long Only,long
+2022-05-02,TROW,buy,9288,125.28,Long Only,long
+2022-05-02,WM,sell,59410,159.04,Long Only,long
+2022-06-01,AAPL,buy,7382,148.71,Flagship,long
+2022-06-01,AEP,sell,8912,102.04,Flagship,long
+2022-06-01,CDNS,buy,39575,153.22,Flagship,short
+2022-06-01,COIN,sell,37977,68.63,Flagship,short
+2022-06-01,CTSH,buy,13897,74.18,Flagship,long
+2022-06-01,DE,sell,2643,352.15,Flagship,short
+2022-06-01,DOC,sell,38502,29.33,Flagship,short
+2022-06-01,DVA,sell,10913,95.4,Flagship,short
+2022-06-01,DXCM,buy,25610,70.96,Flagship,long
+2022-06-01,EQR,sell,12879,76.94,Flagship,short
+2022-06-01,EXE,sell,75691,100.0,Flagship,long
+2022-06-01,IT,buy,4365,260.86,Flagship,long
+2022-06-01,KMI,buy,299700,20.02,Flagship,long
+2022-06-01,LULU,sell,4364,289.96,Flagship,short
+2022-06-01,MPC,buy,13004,103.91,Flagship,short
+2022-06-01,MU,sell,81577,73.55,Flagship,short
+2022-06-01,NEM,sell,16712,67.27,Flagship,short
+2022-06-01,PAYC,buy,3514,282.18,Flagship,long
+2022-06-01,PYPL,buy,16412,82.48,Flagship,long
+2022-06-01,ROK,buy,4758,217.01,Flagship,long
+2022-06-01,TSLA,sell,4377,246.79,Flagship,short
+2022-06-01,UBER,buy,84509,22.94,Flagship,long
+2022-06-01,VTRS,buy,94033,12.07,Flagship,short
+2022-06-01,AME,buy,6023,120.43,Long Only,long
+2022-06-01,CMG,sell,202622,27.49,Long Only,long
+2022-06-01,COST,sell,14144,456.99,Long Only,long
+2022-06-01,CPB,buy,170541,47.0,Long Only,long
+2022-06-01,CRWD,buy,6572,161.45,Long Only,long
+2022-06-01,CTRA,sell,41084,35.19,Long Only,long
+2022-06-01,DVN,sell,70152,76.48,Long Only,long
+2022-06-01,EFX,buy,7422,198.58,Long Only,long
+2022-06-01,EQT,sell,54988,49.8,Long Only,long
+2022-06-01,HST,sell,69862,20.43,Long Only,long
+2022-06-01,MGM,buy,53396,34.19,Long Only,long
+2022-06-01,NRG,sell,24288,45.49,Long Only,long
+2022-06-01,PHM,buy,164811,44.92,Long Only,long
+2022-06-01,PSX,buy,35736,103.18,Long Only,long
+2022-06-01,RL,sell,61225,101.19,Long Only,long
+2022-06-01,SPG,buy,13033,111.17,Long Only,long
+2022-06-01,TSLA,buy,27759,246.79,Long Only,long
+2022-06-01,TYL,buy,2155,345.87,Long Only,long
+2022-07-01,ADI,sell,8114,142.91,Flagship,short
+2022-07-01,ALLE,sell,13853,99.61,Flagship,short
+2022-07-01,ARE,sell,33679,148.13,Flagship,long
+2022-07-01,BK,buy,141443,42.42,Flagship,long
+2022-07-01,BLDR,sell,18828,57.46,Flagship,short
+2022-07-01,CBRE,buy,79271,75.69,Flagship,long
+2022-07-01,COIN,sell,34924,49.04,Flagship,short
+2022-07-01,CRH,buy,32910,34.99,Flagship,long
+2022-07-01,CTVA,buy,102934,54.12,Flagship,short
+2022-07-01,DIS,sell,9546,96.14,Flagship,short
+2022-07-01,DOW,buy,26605,51.69,Flagship,long
+2022-07-01,EBAY,buy,29497,42.89,Flagship,long
+2022-07-01,FRT,sell,9427,97.56,Flagship,short
+2022-07-01,GE,buy,24083,39.59,Flagship,long
+2022-07-01,HPE,sell,73605,12.96,Flagship,short
+2022-07-01,HST,buy,83859,15.71,Flagship,long
+2022-07-01,KMI,buy,53657,16.98,Flagship,long
+2022-07-01,LEN,sell,14468,72.22,Flagship,short
+2022-07-01,LIN,sell,21020,285.44,Flagship,short
+2022-07-01,LUV,buy,26990,36.73,Flagship,long
+2022-07-01,MCHP,buy,25724,56.16,Flagship,long
+2022-07-01,META,buy,8008,160.03,Flagship,long
+2022-07-01,MPC,sell,13281,84.48,Flagship,short
+2022-07-01,MU,sell,30259,53.65,Flagship,short
+2022-07-01,ODFL,buy,43088,130.51,Flagship,short
+2022-07-01,ON,sell,27476,46.84,Flagship,short
+2022-07-01,PH,buy,24091,249.06,Flagship,long
+2022-07-01,PYPL,sell,72745,71.4,Flagship,long
+2022-07-01,RF,sell,50625,19.03,Flagship,short
+2022-07-01,RSG,sell,45099,133.04,Flagship,short
+2022-07-01,STLD,sell,19996,66.23,Flagship,short
+2022-07-01,TRGP,sell,20781,61.0,Flagship,short
+2022-07-01,UAL,buy,32757,36.44,Flagship,long
+2022-07-01,UBER,sell,261552,21.34,Flagship,long
+2022-07-01,WBD,sell,109365,14.25,Flagship,short
+2022-07-01,WDC,buy,35612,32.82,Flagship,long
+2022-07-01,WYNN,sell,19458,58.18,Flagship,short
+2022-07-01,ALGN,buy,2362,247.34,Long Only,long
+2022-07-01,ALLE,buy,6091,99.61,Long Only,long
+2022-07-01,APH,buy,23019,31.88,Long Only,long
+2022-07-01,ARE,sell,42837,148.13,Long Only,long
+2022-07-01,AVB,buy,38886,196.25,Long Only,long
+2022-07-01,CBRE,buy,11234,75.69,Long Only,long
+2022-07-01,CTRA,buy,63766,26.33,Long Only,long
+2022-07-01,EQT,buy,65201,34.27,Long Only,long
+2022-07-01,FCX,buy,30921,29.2,Long Only,long
+2022-07-01,GE,buy,38808,39.59,Long Only,long
+2022-07-01,HAL,buy,51805,31.43,Long Only,long
+2022-07-01,HST,buy,133819,15.71,Long Only,long
+2022-07-01,ICE,buy,10137,95.23,Long Only,long
+2022-07-01,KIM,buy,21274,20.21,Long Only,long
+2022-07-01,META,buy,8318,160.03,Long Only,long
+2022-07-01,NDSN,buy,8867,202.64,Long Only,long
+2022-07-01,NTAP,buy,24832,62.78,Long Only,long
+2022-07-01,NXPI,buy,13596,146.09,Long Only,long
+2022-07-01,PSKY,buy,30030,25.21,Long Only,long
+2022-07-01,PSX,buy,7967,84.37,Long Only,long
+2022-07-01,SNA,sell,28133,198.24,Long Only,long
+2022-07-01,STLD,buy,21234,66.23,Long Only,long
+2022-07-01,TXN,buy,5204,148.54,Long Only,long
+2022-07-01,UHS,buy,5909,105.97,Long Only,long
+2022-07-01,WMT,buy,32767,40.88,Long Only,long
+2022-07-01,XYL,buy,76207,78.75,Long Only,long
+2022-08-01,ADI,buy,6990,171.46,Flagship,short
+2022-08-01,ALL,buy,8655,116.16,Flagship,long
+2022-08-01,APTV,sell,56402,106.38,Flagship,short
+2022-08-01,BDX,buy,31180,192.43,Flagship,long
+2022-08-01,BLDR,buy,22609,73.34,Flagship,short
+2022-08-01,CAH,sell,17422,60.32,Flagship,long
+2022-08-01,CDW,buy,33056,181.51,Flagship,long
+2022-08-01,CI,sell,3674,273.41,Flagship,long
+2022-08-01,COIN,buy,26655,62.7,Flagship,short
+2022-08-01,CTSH,sell,80884,67.62,Flagship,long
+2022-08-01,DECK,sell,17969,52.33,Flagship,long
+2022-08-01,DXCM,sell,84555,83.83,Flagship,long
+2022-08-01,GE,sell,24488,47.22,Flagship,long
+2022-08-01,GNRC,buy,3826,264.99,Flagship,short
+2022-08-01,LULU,buy,20693,310.01,Flagship,short
+2022-08-01,MCHP,sell,20083,69.16,Flagship,long
+2022-08-01,MU,buy,15897,62.54,Flagship,short
+2022-08-01,NEM,sell,44318,44.94,Flagship,short
+2022-08-01,ON,buy,33845,63.66,Flagship,short
+2022-08-01,ORLY,sell,126930,47.27,Flagship,short
+2022-08-01,PAYC,sell,3194,332.06,Flagship,long
+2022-08-01,PH,sell,24091,287.3,Flagship,long
+2022-08-01,RMD,sell,4951,239.2,Flagship,long
+2022-08-01,ROK,sell,3892,252.57,Flagship,long
+2022-08-01,SBUX,buy,79607,84.91,Flagship,short
+2022-08-01,STLD,buy,13054,77.38,Flagship,short
+2022-08-01,TPL,sell,29638,202.44,Flagship,short
+2022-08-01,TRGP,buy,98361,68.42,Flagship,short
+2022-08-01,TSLA,buy,4129,297.28,Flagship,short
+2022-08-01,VTRS,sell,124018,9.66,Flagship,short
+2022-08-01,XYL,buy,65789,91.2,Flagship,long
+2022-08-01,APH,sell,24579,38.26,Long Only,long
+2022-08-01,CDNS,sell,2725,185.04,Long Only,long
+2022-08-01,CSX,buy,184089,32.6,Long Only,long
+2022-08-01,DHI,sell,120658,78.23,Long Only,long
+2022-08-01,DPZ,buy,21885,390.12,Long Only,long
+2022-08-01,EPAM,sell,7835,366.42,Long Only,long
+2022-08-01,EQT,sell,39731,42.31,Long Only,long
+2022-08-01,FIX,sell,18301,105.43,Long Only,long
+2022-08-01,GE,sell,39461,47.22,Long Only,long
+2022-08-01,LW,sell,30082,80.6,Long Only,long
+2022-08-01,NRG,buy,29212,37.62,Long Only,long
+2022-08-01,NXPI,sell,14615,184.5,Long Only,long
+2022-08-01,STLD,sell,13862,77.38,Long Only,long
+2022-08-01,TRV,buy,3567,156.27,Long Only,long
+2022-08-01,TSLA,sell,4715,297.28,Long Only,long
+2022-08-01,TXN,sell,3991,178.8,Long Only,long
+2022-08-01,TYL,sell,1643,401.28,Long Only,long
+2022-08-01,XYL,sell,76207,91.2,Long Only,long
+2022-09-01,AON,sell,21369,280.78,Flagship,short
+2022-09-01,BLDR,sell,20299,58.76,Flagship,short
+2022-09-01,BXP,sell,75075,79.92,Flagship,short
+2022-09-01,CAH,sell,15341,71.32,Flagship,long
+2022-09-01,CHD,buy,11510,84.86,Flagship,long
+2022-09-01,DECK,sell,114657,53.31,Flagship,long
+2022-09-01,DIS,buy,9090,112.53,Flagship,short
+2022-09-01,DLR,buy,8568,122.0,Flagship,long
+2022-09-01,DLTR,sell,6950,137.38,Flagship,short
+2022-09-01,DOC,buy,204569,26.29,Flagship,short
+2022-09-01,FFIV,buy,34835,155.3,Flagship,short
+2022-09-01,GILD,sell,99569,64.95,Flagship,long
+2022-09-01,HLT,buy,46996,127.67,Flagship,long
+2022-09-01,PFE,buy,128673,46.63,Flagship,long
+2022-09-01,PGR,buy,58117,123.7,Flagship,short
+2022-09-01,SHW,sell,23481,232.33,Flagship,long
+2022-09-01,STE,sell,5232,200.22,Flagship,short
+2022-09-01,TYL,sell,16349,366.99,Flagship,short
+2022-09-01,VMC,buy,36097,166.22,Flagship,long
+2022-09-01,BK,buy,36505,41.36,Long Only,long
+2022-09-01,CL,buy,120680,79.8,Long Only,long
+2022-09-01,CVS,buy,79194,99.93,Long Only,long
+2022-09-01,EPAM,sell,28330,412.21,Long Only,long
+2022-09-01,IEX,buy,46008,202.61,Long Only,long
+2022-09-01,MDT,buy,12092,88.53,Long Only,long
+2022-09-01,MKC,sell,100055,84.79,Long Only,long
+2022-09-01,NDSN,sell,46001,226.18,Long Only,long
+2022-09-01,NOW,buy,120553,86.11,Long Only,long
+2022-09-01,TMO,sell,14572,550.75,Long Only,long
+2022-09-01,VZ,buy,23296,41.81,Long Only,long
+2022-10-03,ADI,sell,6348,145.13,Flagship,short
+2022-10-03,APTV,sell,15852,83.04,Flagship,short
+2022-10-03,BA,sell,47600,126.05,Flagship,short
+2022-10-03,CME,buy,7062,178.18,Flagship,long
+2022-10-03,CTRA,sell,219298,27.36,Flagship,short
+2022-10-03,DE,buy,17038,344.05,Flagship,short
+2022-10-03,DLR,buy,10551,100.45,Flagship,long
+2022-10-03,EXC,buy,30033,38.48,Flagship,long
+2022-10-03,FIS,sell,17058,76.34,Flagship,short
+2022-10-03,GE,buy,24374,39.62,Flagship,long
+2022-10-03,GNRC,sell,11184,177.38,Flagship,short
+2022-10-03,L,buy,19010,51.52,Flagship,long
+2022-10-03,LUV,buy,28830,31.22,Flagship,long
+2022-10-03,MKC,sell,20244,72.41,Flagship,short
+2022-10-03,MPC,buy,71023,102.79,Flagship,short
+2022-10-03,MU,sell,20070,51.72,Flagship,short
+2022-10-03,NOW,sell,14669,78.34,Flagship,short
+2022-10-03,NSC,buy,27675,216.8,Flagship,long
+2022-10-03,PRU,sell,12687,89.19,Flagship,short
+2022-10-03,STE,sell,5313,170.07,Flagship,short
+2022-10-03,TSLA,sell,4569,242.4,Flagship,short
+2022-10-03,UAL,sell,164654,32.81,Flagship,long
+2022-10-03,WBD,sell,81039,11.95,Flagship,short
+2022-10-03,WDC,buy,50285,25.74,Flagship,long
+2022-10-03,ALB,sell,20744,273.73,Long Only,long
+2022-10-03,C,buy,25170,42.56,Long Only,long
+2022-10-03,CMCSA,buy,47830,28.71,Long Only,long
+2022-10-03,CME,buy,3619,178.18,Long Only,long
+2022-10-03,CSX,buy,34777,27.42,Long Only,long
+2022-10-03,DPZ,buy,5096,316.44,Long Only,long
+2022-10-03,EIX,buy,16907,59.4,Long Only,long
+2022-10-03,EXC,buy,28888,38.48,Long Only,long
+2022-10-03,EXPD,buy,73301,90.91,Long Only,long
+2022-10-03,GE,buy,39276,39.62,Long Only,long
+2022-10-03,GLW,buy,51298,29.87,Long Only,long
+2022-10-03,HAL,buy,53510,26.38,Long Only,long
+2022-10-03,IP,buy,143385,32.54,Long Only,long
+2022-10-03,J,sell,58450,92.78,Long Only,long
+2022-10-03,JNJ,sell,51084,163.2,Long Only,long
+2022-10-03,KEY,buy,98901,16.47,Long Only,long
+2022-10-03,LEN,buy,130597,75.66,Long Only,long
+2022-10-03,LOW,sell,48819,193.92,Long Only,long
+2022-10-03,NXPI,buy,11903,151.96,Long Only,long
+2022-10-03,PSKY,buy,51183,19.62,Long Only,long
+2022-10-03,SPG,buy,16614,90.98,Long Only,long
+2022-10-03,TSLA,buy,5218,242.4,Long Only,long
+2022-10-03,TSN,buy,26123,66.72,Long Only,long
+2022-10-03,VTRS,buy,1004926,8.72,Long Only,long
+2022-11-01,AMZN,buy,13797,96.79,Flagship,long
+2022-11-01,CCL,buy,662983,9.05,Flagship,long
+2022-11-01,CI,sell,3490,325.12,Flagship,long
+2022-11-01,COR,sell,38383,156.32,Flagship,short
+2022-11-01,DLTR,buy,5728,158.12,Flagship,short
+2022-11-01,DVA,sell,22981,69.87,Flagship,short
+2022-11-01,EQR,sell,16879,63.25,Flagship,short
+2022-11-01,GE,sell,28312,48.73,Flagship,long
+2022-11-01,GNRC,sell,18484,114.7,Flagship,short
+2022-11-01,HST,sell,63788,18.86,Flagship,long
+2022-11-01,IEX,buy,4932,223.37,Flagship,short
+2022-11-01,IT,sell,4539,325.0,Flagship,long
+2022-11-01,LH,buy,28740,191.2,Flagship,short
+2022-11-01,LUV,sell,29758,36.94,Flagship,long
+2022-11-01,META,buy,25532,95.2,Flagship,long
+2022-11-01,ORLY,buy,19016,55.6,Flagship,short
+2022-11-01,PRU,buy,10668,106.0,Flagship,short
+2022-11-01,RF,buy,46234,22.3,Flagship,short
+2022-11-01,SO,sell,81956,65.53,Flagship,long
+2022-11-01,SRE,buy,79239,75.72,Flagship,long
+2022-11-01,STLD,buy,15498,96.71,Flagship,short
+2022-11-01,TJX,sell,93897,71.76,Flagship,long
+2022-11-01,TPL,buy,6583,260.25,Flagship,short
+2022-11-01,WYNN,buy,14711,67.86,Flagship,short
+2022-11-01,XYL,sell,8939,105.54,Flagship,long
+2022-11-01,ALGN,buy,3332,193.06,Long Only,long
+2022-11-01,ALLE,sell,26484,106.56,Long Only,long
+2022-11-01,AZO,sell,563,2535.0,Long Only,long
+2022-11-01,CDNS,buy,2793,150.93,Long Only,long
+2022-11-01,CTRA,sell,36404,30.75,Long Only,long
+2022-11-01,GE,sell,45621,48.73,Long Only,long
+2022-11-01,GPN,buy,52326,113.67,Long Only,long
+2022-11-01,GWW,sell,725,592.7,Long Only,long
+2022-11-01,HAL,sell,92338,36.5,Long Only,long
+2022-11-01,HST,sell,96741,18.86,Long Only,long
+2022-11-01,MAS,buy,23232,45.66,Long Only,long
+2022-11-01,META,buy,26521,95.2,Long Only,long
+2022-11-01,MRNA,buy,16079,154.62,Long Only,long
+2022-11-01,NRG,sell,24582,44.03,Long Only,long
+2022-11-01,PAYC,buy,7698,342.71,Long Only,long
+2022-11-01,PSX,sell,9365,107.38,Long Only,long
+2022-11-01,SPG,sell,18370,113.84,Long Only,long
+2022-11-01,STLD,sell,16457,96.71,Long Only,long
+2022-11-01,TROW,sell,47477,106.69,Long Only,long
+2022-11-01,TRV,sell,3307,182.78,Long Only,long
+2022-11-01,TYL,buy,2841,314.24,Long Only,long
+2022-11-01,UNH,sell,4950,547.31,Long Only,long
+2022-11-01,VTRS,sell,150004,10.25,Long Only,long
+2022-11-01,WMT,sell,28942,47.23,Long Only,long
+2022-12-01,ADI,buy,6352,171.48,Flagship,short
+2022-12-01,AMD,sell,77439,77.48,Flagship,short
+2022-12-01,APTV,buy,15214,105.19,Flagship,short
+2022-12-01,BA,buy,13466,175.78,Flagship,short
+2022-12-01,COIN,sell,36844,45.27,Flagship,short
+2022-12-01,CRH,sell,23147,40.45,Flagship,long
+2022-12-01,HPE,buy,106245,16.82,Flagship,short
+2022-12-01,KO,sell,101180,63.79,Flagship,long
+2022-12-01,LEN,buy,12772,85.34,Flagship,short
+2022-12-01,LIN,buy,3230,337.26,Flagship,short
+2022-12-01,META,sell,13208,120.44,Flagship,long
+2022-12-01,MKC,buy,12874,85.73,Flagship,short
+2022-12-01,MSCI,sell,2651,521.39,Flagship,long
+2022-12-01,NDAQ,sell,18291,68.49,Flagship,long
+2022-12-01,NOW,buy,76589,85.12,Flagship,short
+2022-12-01,NSC,sell,4270,256.36,Flagship,long
+2022-12-01,ON,buy,13159,73.99,Flagship,short
+2022-12-01,PM,buy,58559,102.46,Flagship,long
+2022-12-01,ROK,sell,23756,266.75,Flagship,long
+2022-12-01,TSLA,sell,6065,194.7,Flagship,short
+2022-12-01,TT,buy,5784,178.18,Flagship,short
+2022-12-01,VTRS,buy,87310,11.24,Flagship,short
+2022-12-01,WAB,buy,58230,103.04,Flagship,long
+2022-12-01,WYNN,buy,17022,84.04,Flagship,short
+2022-12-01,AFL,sell,18584,71.91,Long Only,long
+2022-12-01,AME,sell,5940,143.29,Long Only,long
+2022-12-01,CDNS,sell,2216,176.78,Long Only,long
+2022-12-01,CFG,sell,274451,41.98,Long Only,long
+2022-12-01,CMCSA,sell,30665,34.0,Long Only,long
+2022-12-01,CRWD,buy,10648,124.07,Long Only,long
+2022-12-01,CSX,sell,35227,32.68,Long Only,long
+2022-12-01,DPZ,sell,26981,385.58,Long Only,long
+2022-12-01,EG,sell,3077,330.34,Long Only,long
+2022-12-01,EXPD,sell,15480,115.25,Long Only,long
+2022-12-01,FCX,sell,29654,39.57,Long Only,long
+2022-12-01,FIX,sell,11612,125.78,Long Only,long
+2022-12-01,HIG,buy,142978,75.63,Long Only,long
+2022-12-01,ICE,sell,8230,109.53,Long Only,long
+2022-12-01,IEX,sell,7287,240.74,Long Only,long
+2022-12-01,KLAC,sell,3879,390.73,Long Only,long
+2022-12-01,LIN,sell,5629,337.26,Long Only,long
+2022-12-01,META,sell,13719,120.44,Long Only,long
+2022-12-01,MRNA,sell,2379,181.48,Long Only,long
+2022-12-01,NTAP,sell,131973,68.07,Long Only,long
+2022-12-01,SMCI,buy,915496,9.05,Long Only,long
+2022-12-01,SYF,buy,99127,35.94,Long Only,long
+2022-12-01,TRV,sell,19491,189.14,Long Only,long
+2022-12-01,TSLA,buy,6924,194.7,Long Only,long
+2022-12-01,UHS,sell,5573,130.2,Long Only,long
+2022-12-01,WSM,buy,146295,58.36,Long Only,long
+2023-01-03,A,buy,39989,150.04,Flagship,long
+2023-01-03,AAPL,buy,7626,125.07,Flagship,long
+2023-01-03,ALL,sell,7748,136.66,Flagship,long
+2023-01-03,AMD,sell,16282,64.02,Flagship,short
+2023-01-03,BF.B,sell,92322,64.99,Flagship,short
+2023-01-03,BXP,sell,14988,66.62,Flagship,short
+2023-01-03,CB,sell,4163,220.77,Flagship,long
+2023-01-03,CHD,sell,70705,82.02,Flagship,long
+2023-01-03,CI,sell,18455,321.48,Flagship,long
+2023-01-03,COF,buy,64537,92.97,Flagship,long
+2023-01-03,COIN,sell,46033,33.6,Flagship,short
+2023-01-03,CTRA,sell,39211,23.21,Flagship,short
+2023-01-03,DIS,sell,14119,88.97,Flagship,short
+2023-01-03,HST,buy,58514,15.93,Flagship,long
+2023-01-03,L,sell,116460,58.59,Flagship,long
+2023-01-03,LHX,buy,5473,206.93,Flagship,long
+2023-01-03,NTAP,sell,98700,60.79,Flagship,short
+2023-01-03,NUE,sell,45781,131.06,Flagship,short
+2023-01-03,ON,buy,81092,61.61,Flagship,short
+2023-01-03,STLD,buy,62041,95.17,Flagship,short
+2023-01-03,SYY,buy,75997,75.99,Flagship,short
+2023-01-03,TSLA,sell,24687,108.1,Flagship,short
+2023-01-03,WBD,sell,126839,9.54,Flagship,short
+2023-01-03,WMT,buy,125339,47.87,Flagship,long
+2023-01-03,AVB,buy,8368,161.5,Long Only,long
+2023-01-03,CPB,sell,27918,56.2,Long Only,long
+2023-01-03,CRWD,buy,9258,103.28,Long Only,long
+2023-01-03,CTRA,buy,70448,23.21,Long Only,long
+2023-01-03,EFX,sell,48882,198.31,Long Only,long
+2023-01-03,EQT,buy,55829,31.82,Long Only,long
+2023-01-03,ETN,buy,61534,157.75,Long Only,long
+2023-01-03,HST,buy,88742,15.93,Long Only,long
+2023-01-03,LEN,sell,19625,89.04,Long Only,long
+2023-01-03,NRG,buy,54671,31.93,Long Only,long
+2023-01-03,TSLA,buy,28187,108.1,Long Only,long
+2023-02-01,AAPL,sell,6716,145.43,Flagship,long
+2023-02-01,ALLE,buy,10256,120.05,Flagship,short
+2023-02-01,AMD,buy,22833,84.64,Flagship,short
+2023-02-01,BA,buy,6195,214.75,Flagship,short
+2023-02-01,BK,sell,23333,50.8,Flagship,long
+2023-02-01,BLDR,buy,102110,81.54,Flagship,short
+2023-02-01,CAH,sell,84128,75.72,Flagship,long
+2023-02-01,CCL,sell,133882,11.34,Flagship,long
+2023-02-01,COF,sell,12960,116.33,Flagship,long
+2023-02-01,COIN,buy,87247,65.7,Flagship,short
+2023-02-01,CRH,sell,23461,48.05,Flagship,long
+2023-02-01,CVS,buy,10975,87.49,Flagship,long
+2023-02-01,DIS,buy,12588,109.39,Flagship,short
+2023-02-01,DLR,sell,8074,116.15,Flagship,long
+2023-02-01,DOW,sell,16442,60.22,Flagship,long
+2023-02-01,DVA,buy,15128,84.81,Flagship,short
+2023-02-01,EBAY,sell,20845,50.4,Flagship,long
+2023-02-01,GE,sell,31803,65.7,Flagship,long
+2023-02-01,HCA,buy,22948,261.46,Flagship,long
+2023-02-01,HLT,sell,6285,147.38,Flagship,long
+2023-02-01,HST,sell,57499,18.8,Flagship,long
+2023-02-01,LDOS,sell,61331,97.83,Flagship,short
+2023-02-01,LEN,buy,11106,101.35,Flagship,short
+2023-02-01,MCHP,sell,12827,81.16,Flagship,long
+2023-02-01,META,sell,10632,153.12,Flagship,long
+2023-02-01,MU,buy,20162,62.6,Flagship,short
+2023-02-01,NEM,buy,22789,54.19,Flagship,short
+2023-02-01,NUE,buy,11491,174.98,Flagship,short
+2023-02-01,NVR,sell,204,5357.92,Flagship,long
+2023-02-01,OMC,sell,12732,87.63,Flagship,long
+2023-02-01,ORCL,sell,14451,90.05,Flagship,long
+2023-02-01,SNA,buy,4162,250.37,Flagship,short
+2023-02-01,STE,buy,7307,214.49,Flagship,short
+2023-02-01,TPL,sell,4628,216.74,Flagship,short
+2023-02-01,TSLA,buy,22430,181.41,Flagship,short
+2023-02-01,VLO,sell,7415,136.23,Flagship,long
+2023-02-01,WBD,buy,238306,15.36,Flagship,short
+2023-02-01,WDC,sell,49838,32.74,Flagship,long
+2023-02-01,WYNN,buy,13880,104.32,Flagship,short
+2023-02-01,ALGN,sell,4809,282.53,Long Only,long
+2023-02-01,BK,sell,41465,50.8,Long Only,long
+2023-02-01,C,sell,24792,52.15,Long Only,long
+2023-02-01,CBRE,sell,64246,85.17,Long Only,long
+2023-02-01,D,buy,97134,63.1,Long Only,long
+2023-02-01,EIX,sell,103185,67.87,Long Only,long
+2023-02-01,GE,sell,51247,65.7,Long Only,long
+2023-02-01,GLW,sell,39965,35.28,Long Only,long
+2023-02-01,GPN,sell,52326,115.48,Long Only,long
+2023-02-01,GWW,sell,3675,598.05,Long Only,long
+2023-02-01,HST,sell,87203,18.8,Long Only,long
+2023-02-01,INCY,sell,8002,85.6,Long Only,long
+2023-02-01,IP,sell,29169,40.85,Long Only,long
+2023-02-01,JBHT,sell,4784,195.96,Long Only,long
+2023-02-01,KEY,sell,107950,19.8,Long Only,long
+2023-02-01,LUV,buy,61127,35.63,Long Only,long
+2023-02-01,LW,sell,21990,99.6,Long Only,long
+2023-02-01,MAS,sell,22729,54.35,Long Only,long
+2023-02-01,META,sell,11045,153.12,Long Only,long
+2023-02-01,MGM,sell,39622,41.91,Long Only,long
+2023-02-01,NVR,sell,142,5357.92,Long Only,long
+2023-02-01,NXPI,sell,14608,193.94,Long Only,long
+2023-02-01,O,buy,71617,67.9,Long Only,long
+2023-02-01,PHM,sell,38129,58.44,Long Only,long
+2023-02-01,PSKY,sell,45220,24.4,Long Only,long
+2023-02-01,RF,buy,250123,23.78,Long Only,long
+2023-02-01,STLD,sell,15040,125.32,Long Only,long
+2023-02-01,TSLA,sell,25610,181.41,Long Only,long
+2023-02-01,UHS,sell,3587,152.67,Long Only,long
+2023-02-01,ULTA,sell,1220,523.59,Long Only,long
+2023-02-01,VTRS,sell,140162,12.26,Long Only,long
+2023-02-01,WSM,sell,23854,69.73,Long Only,long
+2023-03-01,AEP,buy,10677,86.36,Flagship,long
+2023-03-01,ES,sell,14684,73.17,Flagship,short
+2023-03-01,FIS,sell,16869,62.85,Flagship,short
+2023-03-01,IT,sell,18462,325.42,Flagship,long
+2023-03-01,MSFT,buy,24364,246.27,Flagship,long
+2023-03-01,NDAQ,buy,20407,55.55,Flagship,long
+2023-03-01,NEM,buy,110722,44.1,Flagship,short
+2023-03-01,PKG,sell,43259,138.7,Flagship,short
+2023-03-01,AMT,buy,24951,194.89,Long Only,long
+2023-03-01,CPB,sell,142623,51.91,Long Only,long
+2023-03-01,CRWD,sell,7781,120.21,Long Only,long
+2023-03-01,CVS,buy,16766,82.47,Long Only,long
+2023-03-01,EG,sell,2926,390.84,Long Only,long
+2023-03-01,ES,buy,8375,73.17,Long Only,long
+2023-03-01,FIX,sell,8664,146.94,Long Only,long
+2023-03-01,MRNA,buy,4627,135.66,Long Only,long
+2023-03-01,O,sell,71617,63.52,Long Only,long
+2023-03-01,PAYC,buy,1574,284.51,Long Only,long
+2023-03-01,STZ,buy,36483,219.7,Long Only,long
+2023-04-03,AEP,sell,69477,90.9,Flagship,long
+2023-04-03,ALL,buy,8611,114.25,Flagship,long
+2023-04-03,ALLE,buy,49979,106.06,Flagship,short
+2023-04-03,APH,sell,167645,40.61,Flagship,long
+2023-04-03,BSX,buy,18471,49.72,Flagship,short
+2023-04-03,BXP,sell,21815,53.63,Flagship,short
+2023-04-03,COF,buy,10715,96.32,Flagship,long
+2023-04-03,DLR,buy,12638,93.32,Flagship,long
+2023-04-03,FITB,sell,68290,26.4,Flagship,short
+2023-04-03,GE,sell,13755,77.35,Flagship,long
+2023-04-03,GWW,sell,8783,683.17,Flagship,short
+2023-04-03,META,sell,11025,213.07,Flagship,long
+2023-04-03,MSFT,sell,3475,287.23,Flagship,long
+2023-04-03,NEE,buy,78257,76.67,Flagship,long
+2023-04-03,NSC,buy,5333,208.78,Flagship,long
+2023-04-03,PEP,sell,34686,182.5,Flagship,long
+2023-04-03,PRU,sell,16185,82.43,Flagship,short
+2023-04-03,RF,sell,53870,18.58,Flagship,short
+2023-04-03,TGT,buy,36132,166.06,Flagship,long
+2023-04-03,WDAY,buy,29359,204.37,Flagship,long
+2023-04-03,ALGN,sell,1420,327.35,Long Only,long
+2023-04-03,APH,sell,122817,40.61,Long Only,long
+2023-04-03,BAX,buy,219183,39.98,Long Only,long
+2023-04-03,CDNS,sell,2117,211.39,Long Only,long
+2023-04-03,FICO,buy,6812,689.84,Long Only,long
+2023-04-03,GE,sell,22165,77.35,Long Only,long
+2023-04-03,GIS,buy,108138,85.92,Long Only,long
+2023-04-03,GL,buy,54334,109.47,Long Only,long
+2023-04-03,INCY,buy,9064,72.66,Long Only,long
+2023-04-03,KEY,buy,320694,12.37,Long Only,long
+2023-04-03,LW,sell,93286,104.22,Long Only,long
+2023-04-03,META,sell,11452,213.07,Long Only,long
+2023-04-03,MRNA,sell,2738,159.48,Long Only,long
+2023-04-03,RF,sell,250123,18.58,Long Only,long
+2023-04-03,SMCI,sell,180338,11.27,Long Only,long
+2023-04-03,SYF,buy,22133,29.38,Long Only,long
+2023-04-03,UHS,buy,4066,127.69,Long Only,long
+2023-04-03,VTRS,sell,714760,9.61,Long Only,long
+2023-05-01,AAPL,sell,5878,169.59,Flagship,long
+2023-05-01,ABT,sell,54001,111.11,Flagship,short
+2023-05-01,AJG,buy,5513,210.52,Flagship,short
+2023-05-01,AON,buy,2818,323.43,Flagship,short
+2023-05-01,BK,buy,24273,42.14,Flagship,long
+2023-05-01,CCL,buy,103143,9.49,Flagship,long
+2023-05-01,COIN,sell,28341,50.14,Flagship,short
+2023-05-01,CRH,sell,124870,48.29,Flagship,long
+2023-05-01,CVS,buy,12623,73.89,Flagship,long
+2023-05-01,IBM,buy,44105,126.09,Flagship,short
+2023-05-01,IP,buy,180505,33.24,Flagship,long
+2023-05-01,LUV,buy,33717,30.59,Flagship,long
+2023-05-01,MNST,sell,18742,56.84,Flagship,long
+2023-05-01,MSI,buy,20369,294.57,Flagship,long
+2023-05-01,NUE,sell,6248,148.01,Flagship,short
+2023-05-01,NVDA,sell,207541,28.91,Flagship,short
+2023-05-01,PFE,buy,24349,39.21,Flagship,long
+2023-05-01,STE,buy,27973,192.11,Flagship,short
+2023-05-01,TPL,sell,8873,164.13,Flagship,short
+2023-05-01,VLO,buy,7946,115.41,Flagship,long
+2023-05-01,VTRS,sell,107218,9.36,Flagship,short
+2023-05-01,WDAY,sell,29359,186.34,Flagship,long
+2023-05-01,WDC,buy,49838,25.74,Flagship,long
+2023-05-01,BAX,sell,34232,47.38,Long Only,long
+2023-05-01,BK,buy,37335,42.14,Long Only,long
+2023-05-01,CAG,buy,230243,38.22,Long Only,long
+2023-05-01,HOLX,sell,20160,87.67,Long Only,long
+2023-05-01,IP,buy,26149,33.24,Long Only,long
+2023-05-01,LEN,sell,20154,108.8,Long Only,long
+2023-05-01,MDLZ,sell,5185,77.22,Long Only,long
+2023-05-01,MRNA,sell,15589,133.4,Long Only,long
+2023-05-01,STLD,buy,10170,104.43,Long Only,long
+2023-05-01,TYL,sell,2319,381.82,Long Only,long
+2023-05-01,UHS,sell,3438,148.19,Long Only,long
+2023-05-01,VRTX,buy,7206,345.0,Long Only,long
+2023-05-01,WMT,sell,186320,50.53,Long Only,long
+2023-06-01,A,buy,11619,116.26,Flagship,long
+2023-06-01,ACN,buy,19659,305.2,Flagship,long
+2023-06-01,AMD,buy,20666,119.47,Flagship,short
+2023-06-01,AMZN,sell,13118,122.77,Flagship,long
+2023-06-01,CCL,sell,125915,11.85,Flagship,long
+2023-06-01,CDW,sell,33056,173.28,Flagship,long
+2023-06-01,CME,sell,33674,180.02,Flagship,long
+2023-06-01,COIN,buy,25281,63.57,Flagship,short
+2023-06-01,DIS,sell,12878,88.59,Flagship,short
+2023-06-01,DLTR,sell,8365,129.56,Flagship,short
+2023-06-01,DOW,buy,22814,49.0,Flagship,long
+2023-06-01,FDS,buy,15373,390.29,Flagship,long
+2023-06-01,GRMN,buy,57765,103.87,Flagship,long
+2023-06-01,HLT,sell,40711,137.67,Flagship,long
+2023-06-01,LDOS,sell,15131,78.47,Flagship,short
+2023-06-01,META,sell,6151,272.61,Flagship,long
+2023-06-01,MSFT,sell,2848,332.58,Flagship,long
+2023-06-01,NTAP,buy,15320,71.96,Flagship,short
+2023-06-01,NVDA,buy,207541,39.77,Flagship,short
+2023-06-01,ORCL,sell,10021,105.99,Flagship,long
+2023-06-01,PAYC,buy,3275,281.11,Flagship,long
+2023-06-01,SNPS,sell,13200,454.55,Flagship,short
+2023-06-01,TGT,buy,9614,131.16,Flagship,long
+2023-06-01,VMC,sell,5916,198.8,Flagship,long
+2023-06-01,WBD,sell,138009,11.35,Flagship,short
+2023-06-01,ATO,sell,51586,112.07,Long Only,long
+2023-06-01,CB,buy,16383,187.7,Long Only,long
+2023-06-01,CME,sell,17258,180.02,Long Only,long
+2023-06-01,CRWD,sell,11250,157.55,Long Only,long
+2023-06-01,CVS,buy,18933,68.88,Long Only,long
+2023-06-01,D,buy,27900,49.02,Long Only,long
+2023-06-01,ETR,buy,128630,48.69,Long Only,long
+2023-06-01,HAL,buy,52152,30.0,Long Only,long
+2023-06-01,IEX,buy,7582,201.32,Long Only,long
+2023-06-01,INCY,buy,10869,61.51,Long Only,long
+2023-06-01,KEY,buy,244301,9.62,Long Only,long
+2023-06-01,KLAC,sell,3308,452.53,Long Only,long
+2023-06-01,LIN,sell,29077,355.49,Long Only,long
+2023-06-01,LUV,buy,13691,29.11,Long Only,long
+2023-06-01,META,sell,6389,272.61,Long Only,long
+2023-06-01,NOW,sell,24957,108.59,Long Only,long
+2023-06-01,PHM,sell,16677,67.3,Long Only,long
+2023-06-01,PSKY,buy,108664,15.39,Long Only,long
+2023-06-01,SMCI,sell,376490,23.1,Long Only,long
+2023-06-01,TSN,buy,34634,50.61,Long Only,long
+2023-06-01,ULTA,buy,1355,403.83,Long Only,long
+2023-06-01,VMC,buy,49329,198.8,Long Only,long
+2023-06-01,WRB,buy,18645,37.94,Long Only,long
+2023-06-01,WSM,buy,27424,56.97,Long Only,long
+2023-07-03,ALL,sell,52516,110.51,Flagship,long
+2023-07-03,CCL,sell,189873,18.96,Flagship,long
+2023-07-03,CNC,sell,89060,67.37,Flagship,short
+2023-07-03,COF,sell,8262,111.05,Flagship,long
+2023-07-03,COIN,buy,19318,79.93,Flagship,short
+2023-07-03,COR,buy,6956,190.92,Flagship,short
+2023-07-03,CPAY,buy,23671,253.47,Flagship,long
+2023-07-03,DLR,sell,12225,115.23,Flagship,long
+2023-07-03,DVA,buy,70746,100.77,Flagship,short
+2023-07-03,EXPD,sell,9801,121.69,Flagship,long
+2023-07-03,GNRC,buy,12469,150.6,Flagship,short
+2023-07-03,LEN,buy,9729,121.28,Flagship,short
+2023-07-03,LUV,sell,34156,37.04,Flagship,long
+2023-07-03,MRK,sell,52480,114.33,Flagship,short
+2023-07-03,NVR,sell,166,6286.48,Flagship,long
+2023-07-03,TSLA,buy,11632,279.82,Flagship,short
+2023-07-03,ZBH,buy,47858,142.51,Flagship,short
+2023-07-03,APA,buy,210368,34.06,Long Only,long
+2023-07-03,AVB,sell,7194,190.5,Long Only,long
+2023-07-03,CMCSA,sell,21855,39.14,Long Only,long
+2023-07-03,DGX,buy,22804,139.15,Long Only,long
+2023-07-03,EQT,sell,225177,40.68,Long Only,long
+2023-07-03,ETN,sell,13151,200.63,Long Only,long
+2023-07-03,FICO,sell,901,795.0,Long Only,long
+2023-07-03,LUV,sell,16018,37.04,Long Only,long
+2023-07-03,NRG,sell,30089,37.62,Long Only,long
+2023-07-03,NVR,sell,114,6286.48,Long Only,long
+2023-07-03,SYF,sell,17635,34.38,Long Only,long
+2023-07-03,TSLA,sell,13281,279.82,Long Only,long
+2023-07-03,UHS,sell,21413,155.41,Long Only,long
+2023-07-03,ULTA,sell,912,477.35,Long Only,long
+2023-08-01,AAPL,sell,4706,195.61,Flagship,long
+2023-08-01,ACN,sell,19659,320.97,Flagship,long
+2023-08-01,ADI,buy,4912,199.48,Flagship,short
+2023-08-01,BA,buy,27939,238.01,Flagship,short
+2023-08-01,BALL,buy,103306,58.08,Flagship,long
+2023-08-01,BXP,buy,19157,64.71,Flagship,short
+2023-08-01,COIN,buy,11338,94.15,Flagship,short
+2023-08-01,CTRA,buy,41118,27.6,Flagship,short
+2023-08-01,DLTR,buy,7103,153.03,Flagship,short
+2023-08-01,GE,sell,11168,90.36,Flagship,long
+2023-08-01,IFF,sell,71157,84.32,Flagship,short
+2023-08-01,JBHT,buy,29431,203.87,Flagship,long
+2023-08-01,LDOS,buy,16450,99.98,Flagship,short
+2023-08-01,LIN,buy,17790,388.64,Flagship,short
+2023-08-01,MCHP,sell,9654,93.35,Flagship,long
+2023-08-01,META,sell,3416,322.71,Flagship,long
+2023-08-01,MRK,buy,52480,105.28,Flagship,short
+2023-08-01,NDSN,sell,23937,250.66,Flagship,short
+2023-08-01,NUE,buy,5856,173.0,Flagship,short
+2023-08-01,PAYC,sell,5162,370.78,Flagship,long
+2023-08-01,PRU,buy,10510,96.34,Flagship,short
+2023-08-01,TMO,sell,10992,545.84,Flagship,short
+2023-08-01,VMC,sell,30181,223.97,Flagship,long
+2023-08-01,VRSN,buy,28382,211.4,Flagship,long
+2023-08-01,WAB,sell,7890,119.19,Flagship,long
+2023-08-01,WDC,sell,47915,32.4,Flagship,long
+2023-08-01,XYL,sell,56850,111.93,Flagship,long
+2023-08-01,AEP,buy,40727,84.03,Long Only,long
+2023-08-01,ALGN,sell,1172,376.62,Long Only,long
+2023-08-01,APA,sell,32308,40.24,Long Only,long
+2023-08-01,BMY,sell,76411,61.53,Long Only,long
+2023-08-01,CARR,buy,111435,59.8,Long Only,long
+2023-08-01,CTRA,sell,45698,27.6,Long Only,long
+2023-08-01,ES,sell,46772,70.35,Long Only,long
+2023-08-01,EXPD,sell,57821,125.47,Long Only,long
+2023-08-01,FIX,sell,7924,173.66,Long Only,long
+2023-08-01,GE,sell,17996,90.36,Long Only,long
+2023-08-01,HAL,sell,69131,39.27,Long Only,long
+2023-08-01,KEY,sell,217216,11.99,Long Only,long
+2023-08-01,META,sell,3549,322.71,Long Only,long
+2023-08-01,MGM,sell,28479,50.03,Long Only,long
+2023-08-01,NXPI,sell,6990,223.48,Long Only,long
+2023-08-01,PAYC,sell,2157,370.78,Long Only,long
+2023-08-01,PHM,sell,22516,84.62,Long Only,long
+2023-08-01,PTC,sell,4116,146.51,Long Only,long
+2023-08-01,SMCI,sell,113252,33.76,Long Only,long
+2023-08-01,STZ,sell,6800,270.03,Long Only,long
+2023-08-01,VZ,buy,28809,33.43,Long Only,long
+2023-08-01,WSM,sell,26540,69.23,Long Only,long
+2023-08-01,ZBH,buy,42645,132.27,Long Only,long
+2023-09-01,ADSK,sell,27270,220.02,Flagship,short
+2023-09-01,AOS,buy,81555,73.57,Flagship,long
+2023-09-01,CCL,buy,64981,15.73,Flagship,long
+2023-09-01,COIN,sell,13205,77.99,Flagship,short
+2023-09-01,DLTR,sell,11323,118.74,Flagship,short
+2023-09-01,DTE,sell,58720,102.18,Flagship,short
+2023-09-01,ETR,buy,107720,47.17,Flagship,short
+2023-09-01,GNRC,sell,10605,118.94,Flagship,short
+2023-09-01,HST,buy,60118,15.82,Flagship,long
+2023-09-01,IFF,sell,14252,70.25,Flagship,short
+2023-09-01,LUV,buy,28974,31.42,Flagship,long
+2023-09-01,NSC,sell,28738,206.38,Flagship,long
+2023-09-01,NTAP,buy,83380,77.6,Flagship,short
+2023-09-01,PAYC,buy,4103,295.79,Flagship,long
+2023-09-01,RMD,buy,12607,159.19,Flagship,long
+2023-09-01,TPL,buy,8259,212.04,Flagship,short
+2023-09-01,TT,buy,4439,205.23,Flagship,short
+2023-09-01,VLO,sell,7072,133.58,Flagship,long
+2023-09-01,VTRS,buy,84956,10.79,Flagship,short
+2023-09-01,APA,sell,178060,45.08,Long Only,long
+2023-09-01,C,buy,27936,41.59,Long Only,long
+2023-09-01,CAG,buy,69890,29.32,Long Only,long
+2023-09-01,CBOE,sell,5615,150.36,Long Only,long
+2023-09-01,CDNS,sell,1429,243.56,Long Only,long
+2023-09-01,EBAY,buy,164153,45.1,Long Only,long
+2023-09-01,ETN,sell,6841,233.67,Long Only,long
+2023-09-01,GIS,buy,32107,66.25,Long Only,long
+2023-09-01,HST,buy,91175,15.82,Long Only,long
+2023-09-01,LUV,buy,10518,31.42,Long Only,long
+2023-09-01,MNST,buy,128372,56.55,Long Only,long
+2023-09-01,OXY,buy,110967,64.57,Long Only,long
+2023-09-01,PAYC,buy,1804,295.79,Long Only,long
+2023-09-01,PHM,sell,87489,82.63,Long Only,long
+2023-09-01,SMCI,buy,48178,28.22,Long Only,long
+2023-09-01,TSN,sell,143439,52.59,Long Only,long
+2023-10-02,AAPL,sell,30673,173.75,Flagship,long
+2023-10-02,AEE,sell,16618,71.13,Flagship,short
+2023-10-02,AZO,buy,2378,2522.93,Flagship,long
+2023-10-02,BALL,buy,18497,49.26,Flagship,long
+2023-10-02,CVNA,sell,152866,39.25,Flagship,short
+2023-10-02,DHI,sell,56508,106.18,Flagship,short
+2023-10-02,ES,sell,25661,55.73,Flagship,short
+2023-10-02,HUM,buy,12202,491.74,Flagship,long
+2023-10-02,KLAC,buy,13026,460.63,Flagship,long
+2023-10-02,LEN,buy,49472,107.6,Flagship,short
+2023-10-02,LHX,buy,5978,171.56,Flagship,long
+2023-10-02,MCHP,buy,12286,78.37,Flagship,long
+2023-10-02,NEE,buy,36796,52.15,Flagship,long
+2023-10-02,NVR,sell,954,5960.95,Flagship,long
+2023-10-02,OMC,buy,13318,73.36,Flagship,long
+2023-10-02,PFE,sell,153022,33.94,Flagship,long
+2023-10-02,TGT,buy,10492,106.69,Flagship,long
+2023-10-02,WYNN,buy,57515,92.63,Flagship,short
+2023-10-02,ALGN,buy,1996,299.76,Long Only,long
+2023-10-02,AMT,buy,5120,161.71,Long Only,long
+2023-10-02,BAX,buy,49666,37.35,Long Only,long
+2023-10-02,CTRA,sell,241608,26.32,Long Only,long
+2023-10-02,EOG,buy,53925,123.66,Long Only,long
+2023-10-02,HOLX,buy,27610,68.87,Long Only,long
+2023-10-02,INTU,buy,19807,517.8,Long Only,long
+2023-10-02,KIM,buy,21763,17.1,Long Only,long
+2023-10-02,KKR,buy,75096,60.99,Long Only,long
+2023-10-02,MGM,buy,52900,36.79,Long Only,long
+2023-10-02,NXPI,sell,45892,200.19,Long Only,long
+2023-10-02,PSKY,buy,65446,12.59,Long Only,long
+2023-10-02,ULTA,buy,925,402.95,Long Only,long
+2023-10-02,WRB,sell,120720,41.95,Long Only,long
+2023-10-02,ZBH,buy,7980,111.42,Long Only,long
+2023-11-01,ADI,sell,7601,159.24,Flagship,short
+2023-11-01,ALB,sell,48796,122.96,Flagship,short
+2023-11-01,APD,buy,21171,283.41,Flagship,long
+2023-11-01,APTV,sell,12663,86.08,Flagship,short
+2023-11-01,BXP,sell,19429,53.5,Flagship,short
+2023-11-01,CBRE,sell,79271,70.19,Flagship,long
+2023-11-01,CCL,buy,149536,11.3,Flagship,long
+2023-11-01,CPT,buy,70855,84.68,Flagship,long
+2023-11-01,CVNA,sell,77992,25.99,Flagship,short
+2023-11-01,EBAY,buy,35951,38.71,Flagship,long
+2023-11-01,EQR,sell,17941,53.19,Flagship,short
+2023-11-01,FIS,sell,26288,49.28,Flagship,short
+2023-11-01,GNRC,sell,11969,96.13,Flagship,short
+2023-11-01,IEX,sell,4993,188.36,Flagship,short
+2023-11-01,IP,sell,180505,33.61,Flagship,long
+2023-11-01,JBHT,buy,5261,172.95,Flagship,long
+2023-11-01,LDOS,buy,60012,101.18,Flagship,short
+2023-11-01,LMT,sell,13263,452.38,Flagship,short
+2023-11-01,LUV,buy,78945,22.23,Flagship,long
+2023-11-01,MKC,sell,23602,64.11,Flagship,short
+2023-11-01,NDSN,sell,4429,211.52,Flagship,short
+2023-11-01,NUE,buy,34682,147.99,Flagship,short
+2023-11-01,PAYC,buy,19532,150.69,Flagship,long
+2023-11-01,RF,sell,89727,14.54,Flagship,short
+2023-11-01,TMO,sell,2610,441.11,Flagship,short
+2023-11-01,TSLA,sell,7732,205.66,Flagship,short
+2023-11-01,VTRS,sell,116576,8.92,Flagship,short
+2023-11-01,WBA,buy,290839,20.63,Flagship,long
+2023-11-01,WMT,sell,125339,54.96,Flagship,long
+2023-11-01,ALGN,buy,6221,183.21,Long Only,long
+2023-11-01,CARR,buy,22754,49.66,Long Only,long
+2023-11-01,CB,sell,2425,220.31,Long Only,long
+2023-11-01,D,buy,27357,40.22,Long Only,long
+2023-11-01,GLW,buy,71346,26.66,Long Only,long
+2023-11-01,KEY,buy,159835,10.15,Long Only,long
+2023-11-01,LUV,sell,69318,22.23,Long Only,long
+2023-11-01,MDT,buy,18222,70.85,Long Only,long
+2023-11-01,NRG,sell,24023,43.86,Long Only,long
+2023-11-01,ODFL,buy,11151,195.32,Long Only,long
+2023-11-01,PAYC,buy,8587,150.69,Long Only,long
+2023-11-01,SYF,buy,23748,27.97,Long Only,long
+2023-11-01,TSLA,buy,8829,205.66,Long Only,long
+2023-11-01,TXN,buy,4876,143.17,Long Only,long
+2023-12-01,AJG,buy,4307,248.0,Flagship,short
+2023-12-01,AMZN,sell,8064,147.03,Flagship,long
+2023-12-01,BK,sell,19205,48.71,Flagship,long
+2023-12-01,BSX,buy,120676,56.14,Flagship,short
+2023-12-01,BXP,buy,17333,63.28,Flagship,short
+2023-12-01,CCL,sell,150262,15.76,Flagship,long
+2023-12-01,COIN,buy,32077,133.76,Flagship,short
+2023-12-01,CTRA,buy,217391,26.14,Flagship,short
+2023-12-01,CVNA,buy,60403,35.2,Flagship,short
+2023-12-01,DELL,sell,83414,71.93,Flagship,short
+2023-12-01,DHI,buy,10657,130.86,Flagship,short
+2023-12-01,DLR,sell,8783,138.61,Flagship,long
+2023-12-01,FDS,sell,2191,455.17,Flagship,long
+2023-12-01,FIS,buy,21586,59.9,Flagship,short
+2023-12-01,FITB,buy,31066,30.58,Flagship,short
+2023-12-01,FTV,buy,114899,52.22,Flagship,long
+2023-12-01,GNRC,buy,13355,122.3,Flagship,short
+2023-12-01,GRMN,sell,9237,123.64,Flagship,long
+2023-12-01,GWW,buy,1316,803.58,Flagship,short
+2023-12-01,HST,sell,379267,17.72,Flagship,long
+2023-12-01,JBHT,sell,34692,189.8,Flagship,long
+2023-12-01,KLAC,sell,2097,549.0,Flagship,long
+2023-12-01,LUV,sell,269906,26.69,Flagship,long
+2023-12-01,MU,buy,16827,75.93,Flagship,short
+2023-12-01,ORLY,buy,16129,65.37,Flagship,short
+2023-12-01,PAYC,sell,7516,185.75,Flagship,long
+2023-12-01,PKG,buy,7905,169.71,Flagship,short
+2023-12-01,RF,buy,71164,17.57,Flagship,short
+2023-12-01,RSG,buy,8496,163.92,Flagship,short
+2023-12-01,SLB,sell,114526,52.39,Flagship,short
+2023-12-01,SNPS,buy,2210,545.96,Flagship,short
+2023-12-01,TGT,sell,11721,134.78,Flagship,long
+2023-12-01,TSLA,buy,4052,238.83,Flagship,short
+2023-12-01,TYL,buy,16349,413.73,Flagship,short
+2023-12-01,UDR,buy,174419,34.4,Flagship,long
+2023-12-01,UPS,buy,38732,154.91,Flagship,long
+2023-12-01,WAT,sell,20772,288.85,Flagship,short
+2023-12-01,ALGN,sell,2703,220.45,Long Only,long
+2023-12-01,AMT,sell,6967,210.47,Long Only,long
+2023-12-01,BK,sell,29540,48.71,Long Only,long
+2023-12-01,CBOE,sell,5463,180.26,Long Only,long
+2023-12-01,CRWD,sell,11939,235.03,Long Only,long
+2023-12-01,D,sell,152391,46.67,Long Only,long
+2023-12-01,FICO,sell,1744,1127.71,Long Only,long
+2023-12-01,KEY,sell,241868,13.22,Long Only,long
+2023-12-01,KIM,sell,20808,20.05,Long Only,long
+2023-12-01,KKR,sell,13922,74.87,Long Only,long
+2023-12-01,KLAC,sell,3675,549.0,Long Only,long
+2023-12-01,LEN,sell,13247,127.38,Long Only,long
+2023-12-01,NOW,sell,20460,138.16,Long Only,long
+2023-12-01,PAYC,sell,3304,185.75,Long Only,long
+2023-12-01,PPL,buy,231465,26.48,Long Only,long
+2023-12-01,PSKY,sell,72719,15.78,Long Only,long
+2023-12-01,PSX,sell,5909,129.7,Long Only,long
+2023-12-01,SYF,sell,22063,33.83,Long Only,long
+2023-12-01,TSLA,sell,4627,238.83,Long Only,long
+2023-12-01,ULTA,sell,869,472.03,Long Only,long
+2023-12-01,VZ,sell,19187,38.58,Long Only,long
+2023-12-01,WSM,sell,36143,97.93,Long Only,long
+2024-01-02,A,sell,8365,138.75,Flagship,long
+2024-01-02,ADI,buy,6684,193.58,Flagship,short
+2024-01-02,ADM,sell,82463,72.76,Flagship,short
+2024-01-02,ADSK,buy,27270,234.12,Flagship,short
+2024-01-02,ALB,buy,7949,146.89,Flagship,short
+2024-01-02,AMD,buy,6926,138.58,Flagship,short
+2024-01-02,BALL,sell,16503,56.98,Flagship,long
+2024-01-02,BF.B,buy,92322,56.85,Flagship,short
+2024-01-02,COF,sell,8613,132.11,Flagship,long
+2024-01-02,COIN,buy,6610,156.88,Flagship,short
+2024-01-02,CPT,sell,11082,100.38,Flagship,long
+2024-01-02,CVNA,buy,47680,48.87,Flagship,short
+2024-01-02,DLTR,buy,8438,142.54,Flagship,short
+2024-01-02,EQR,buy,16262,62.15,Flagship,short
+2024-01-02,FITB,buy,196207,34.78,Flagship,short
+2024-01-02,FTNT,sell,103842,57.78,Flagship,short
+2024-01-02,IFF,buy,11717,81.42,Flagship,short
+2024-01-02,KMI,sell,353357,17.83,Flagship,long
+2024-01-02,LHX,sell,6372,209.78,Flagship,long
+2024-01-02,NDSN,buy,5169,258.65,Flagship,short
+2024-01-02,NEE,sell,17603,61.57,Flagship,long
+2024-01-02,OMC,sell,13020,87.25,Flagship,long
+2024-01-02,OXY,buy,99917,60.05,Flagship,long
+2024-01-02,SCHW,sell,86831,69.1,Flagship,short
+2024-01-02,SNA,buy,3185,288.74,Flagship,short
+2024-01-02,TMO,buy,2576,544.15,Flagship,short
+2024-01-02,TPL,sell,5356,178.29,Flagship,short
+2024-01-02,TT,buy,4300,240.63,Flagship,short
+2024-01-02,VTRS,buy,145868,11.39,Flagship,short
+2024-01-02,WBA,sell,65698,26.65,Flagship,long
+2024-01-02,WDC,sell,29098,38.44,Flagship,long
+2024-01-02,AFL,sell,10840,83.28,Long Only,long
+2024-01-02,ALGN,sell,2397,268.92,Long Only,long
+2024-01-02,C,sell,29782,53.04,Long Only,long
+2024-01-02,CVS,sell,17010,80.85,Long Only,long
+2024-01-02,FIX,sell,6128,202.08,Long Only,long
+2024-01-02,GEN,buy,138302,22.79,Long Only,long
+2024-01-02,HST,sell,113287,19.7,Long Only,long
+2024-01-02,ICE,sell,7333,126.45,Long Only,long
+2024-01-02,INTU,sell,2820,603.76,Long Only,long
+2024-01-02,LKQ,buy,50598,47.28,Long Only,long
+2024-01-02,MAS,sell,21923,66.57,Long Only,long
+2024-01-02,MDT,sell,13206,82.84,Long Only,long
+2024-01-02,MGM,sell,38195,45.48,Long Only,long
+2024-01-02,NRG,sell,20883,51.25,Long Only,long
+2024-01-02,PTC,sell,21513,168.63,Long Only,long
+2024-01-02,SPG,sell,14921,143.03,Long Only,long
+2024-01-02,TXN,sell,3772,169.26,Long Only,long
+2024-01-02,ULTA,sell,5068,486.61,Long Only,long
+2024-01-02,VRTX,sell,1156,410.91,Long Only,long
+2024-02-01,ADM,sell,23245,56.76,Flagship,short
+2024-02-01,ALB,sell,10532,116.78,Flagship,short
+2024-02-01,AMD,buy,8101,170.48,Flagship,short
+2024-02-01,AOS,sell,81555,79.57,Flagship,long
+2024-02-01,CARR,sell,107933,55.59,Flagship,short
+2024-02-01,COF,sell,45417,134.56,Flagship,long
+2024-02-01,COIN,sell,8284,128.95,Flagship,short
+2024-02-01,COR,buy,6102,236.92,Flagship,short
+2024-02-01,CPAY,sell,3301,294.55,Flagship,long
+2024-02-01,CSCO,buy,119570,50.18,Flagship,long
+2024-02-01,DELL,buy,13468,85.78,Flagship,short
+2024-02-01,FTNT,buy,13549,66.45,Flagship,short
+2024-02-01,FTV,sell,18078,61.97,Flagship,long
+2024-02-01,GE,sell,10881,108.07,Flagship,long
+2024-02-01,HCA,sell,3880,314.66,Flagship,long
+2024-02-01,HUM,buy,3763,375.82,Flagship,long
+2024-02-01,IEX,buy,4604,220.18,Flagship,short
+2024-02-01,MAS,buy,86806,69.12,Flagship,long
+2024-02-01,META,sell,3395,394.78,Flagship,long
+2024-02-01,MSCI,sell,1579,604.3,Flagship,long
+2024-02-01,MSFT,sell,3181,403.78,Flagship,long
+2024-02-01,MSI,sell,20369,325.15,Flagship,long
+2024-02-01,PNC,buy,41254,145.44,Flagship,long
+2024-02-01,RMD,sell,6709,193.66,Flagship,long
+2024-02-01,RSG,buy,36603,173.83,Flagship,short
+2024-02-01,TSLA,sell,6648,188.86,Flagship,short
+2024-02-01,AME,sell,4260,165.87,Long Only,long
+2024-02-01,CDNS,sell,1517,290.52,Long Only,long
+2024-02-01,CRWD,sell,5218,299.37,Long Only,long
+2024-02-01,GE,sell,17535,108.07,Long Only,long
+2024-02-01,GLW,sell,49411,32.09,Long Only,long
+2024-02-01,HIG,sell,18786,87.07,Long Only,long
+2024-02-01,KKR,sell,9216,88.15,Long Only,long
+2024-02-01,LEN,sell,11260,149.01,Long Only,long
+2024-02-01,LYV,buy,50664,89.39,Long Only,long
+2024-02-01,META,sell,3526,394.78,Long Only,long
+2024-02-01,PAYC,sell,14202,192.72,Long Only,long
+2024-02-01,PSKY,sell,287000,14.68,Long Only,long
+2024-02-01,SMCI,sell,293594,58.35,Long Only,long
+2024-02-01,TDG,buy,2369,1113.68,Long Only,long
+2024-02-01,TSLA,buy,7590,188.86,Long Only,long
+2024-02-01,VMC,sell,6758,230.36,Long Only,long
+2024-02-01,WDAY,buy,28181,294.0,Long Only,long
+2024-03-01,ALB,buy,9362,142.8,Flagship,short
+2024-03-01,AMD,buy,5586,202.64,Flagship,short
+2024-03-01,AMZN,sell,7142,178.22,Flagship,long
+2024-03-01,APD,buy,4253,236.0,Flagship,long
+2024-03-01,AXON,buy,19093,314.25,Flagship,long
+2024-03-01,AZO,sell,402,3035.99,Flagship,long
+2024-03-01,CNC,buy,12117,77.98,Flagship,short
+2024-03-01,COIN,buy,17371,205.77,Flagship,short
+2024-03-01,CVNA,buy,122775,82.96,Flagship,short
+2024-03-01,DELL,buy,21788,124.59,Flagship,short
+2024-03-01,DHI,buy,6628,152.97,Flagship,short
+2024-03-01,DIS,buy,14133,111.95,Flagship,short
+2024-03-01,EBAY,sell,30129,48.05,Flagship,long
+2024-03-01,FIS,buy,13474,69.21,Flagship,short
+2024-03-01,FTV,sell,96821,64.54,Flagship,long
+2024-03-01,GE,sell,8134,126.62,Flagship,long
+2024-03-01,GWW,buy,1350,980.9,Flagship,short
+2024-03-01,KLAC,sell,10929,717.57,Flagship,long
+2024-03-01,META,sell,3253,502.3,Flagship,long
+2024-03-01,MU,buy,15962,95.15,Flagship,short
+2024-03-01,PHM,sell,53952,111.21,Flagship,short
+2024-03-01,PTC,buy,31956,187.76,Flagship,long
+2024-03-01,TGT,sell,5880,155.29,Flagship,long
+2024-03-01,TT,buy,3955,285.98,Flagship,short
+2024-03-01,WAB,sell,8110,142.08,Flagship,long
+2024-03-01,WAT,buy,3433,346.04,Flagship,short
+2024-03-01,WBA,buy,54059,21.49,Flagship,long
+2024-03-01,WBD,sell,163408,8.67,Flagship,short
+2024-03-01,WDC,sell,32630,48.6,Flagship,long
+2024-03-01,AZO,sell,389,3035.99,Long Only,long
+2024-03-01,CBOE,sell,27472,187.02,Long Only,long
+2024-03-01,CSX,sell,26660,38.23,Long Only,long
+2024-03-01,ETN,sell,8491,293.7,Long Only,long
+2024-03-01,FIX,sell,13381,314.43,Long Only,long
+2024-03-01,GE,sell,13106,126.62,Long Only,long
+2024-03-01,GL,sell,7192,126.17,Long Only,long
+2024-03-01,ICE,sell,47473,138.57,Long Only,long
+2024-03-01,IEX,sell,7377,239.47,Long Only,long
+2024-03-01,KLAC,sell,4050,717.57,Long Only,long
+2024-03-01,MAS,sell,13859,77.6,Long Only,long
+2024-03-01,META,sell,3379,502.3,Long Only,long
+2024-03-01,MS,buy,69414,86.48,Long Only,long
+2024-03-01,NOW,sell,75136,154.73,Long Only,long
+2024-03-01,NVR,sell,121,7687.1,Long Only,long
+2024-03-01,PLTR,buy,416398,24.93,Long Only,long
+2024-03-01,STLD,sell,13360,133.71,Long Only,long
+2024-03-01,SYF,sell,18522,41.05,Long Only,long
+2024-03-01,TYL,sell,1444,440.9,Long Only,long
+2024-03-01,VMC,sell,5901,267.43,Long Only,long
+2024-03-01,WSM,sell,15024,118.32,Long Only,long
+2024-03-01,XYZ,buy,62488,79.25,Long Only,long
+2024-04-01,ADM,buy,105708,62.35,Flagship,short
+2024-04-01,BALL,sell,16857,67.84,Flagship,long
+2024-04-01,BK,sell,17841,56.96,Flagship,long
+2024-04-01,CB,sell,3868,257.4,Flagship,long
+2024-04-01,CCL,sell,380711,16.26,Flagship,long
+2024-04-01,CL,sell,67370,89.06,Flagship,short
+2024-04-01,CMS,buy,100033,59.98,Flagship,long
+2024-04-01,COIN,buy,5360,252.11,Flagship,short
+2024-04-01,DELL,buy,48158,119.64,Flagship,short
+2024-04-01,DOW,sell,19462,58.26,Flagship,long
+2024-04-01,EXC,sell,155925,37.23,Flagship,long
+2024-04-01,GEN,sell,268938,22.31,Flagship,short
+2024-04-01,GRMN,sell,7811,147.36,Flagship,long
+2024-04-01,HAS,buy,106648,56.26,Flagship,long
+2024-04-01,INVH,buy,171086,35.07,Flagship,long
+2024-04-01,MKC,buy,15280,76.62,Flagship,short
+2024-04-01,MU,buy,14788,124.3,Flagship,short
+2024-04-01,ORCL,sell,8793,125.48,Flagship,long
+2024-04-01,ORLY,buy,12157,75.35,Flagship,short
+2024-04-01,PRU,buy,10684,116.29,Flagship,short
+2024-04-01,RF,buy,49662,20.56,Flagship,short
+2024-04-01,UDR,sell,174419,36.64,Flagship,long
+2024-04-01,VLO,sell,10163,172.64,Flagship,long
+2024-04-01,AFL,sell,68553,85.19,Long Only,long
+2024-04-01,ALGN,sell,1730,319.65,Long Only,long
+2024-04-01,BAX,sell,33401,43.55,Long Only,long
+2024-04-01,BK,sell,27443,56.96,Long Only,long
+2024-04-01,C,sell,17762,63.46,Long Only,long
+2024-04-01,CARR,sell,18094,57.4,Long Only,long
+2024-04-01,CB,sell,2011,257.4,Long Only,long
+2024-04-01,CL,sell,120680,89.06,Long Only,long
+2024-04-01,EBAY,sell,22517,52.27,Long Only,long
+2024-04-01,FCX,sell,13690,47.33,Long Only,long
+2024-04-01,HIG,sell,18685,102.49,Long Only,long
+2024-04-01,IP,sell,20823,39.03,Long Only,long
+2024-04-01,KEY,sell,117188,15.49,Long Only,long
+2024-04-01,KMB,buy,74769,128.8,Long Only,long
+2024-04-01,LYV,sell,7209,104.22,Long Only,long
+2024-04-01,NRG,sell,33394,70.15,Long Only,long
+2024-04-01,PSX,sell,5855,163.34,Long Only,long
+2024-04-01,WSM,sell,17936,157.46,Long Only,long
+2024-04-01,WTW,buy,20879,273.44,Long Only,long
+2024-04-01,ZBH,sell,7152,129.75,Long Only,long
+2024-05-01,ABBV,buy,37101,161.72,Flagship,long
+2024-05-01,ALB,buy,42017,119.0,Flagship,short
+2024-05-01,AMD,sell,11980,144.27,Flagship,short
+2024-05-01,APTV,sell,16319,69.75,Flagship,short
+2024-05-01,C,buy,97800,61.35,Flagship,long
+2024-05-01,COIN,sell,4760,210.09,Flagship,short
+2024-05-01,CVS,buy,25351,56.31,Flagship,long
+2024-05-01,DLTR,sell,8514,118.56,Flagship,short
+2024-05-01,EVRG,buy,113336,52.94,Flagship,long
+2024-05-01,FCX,sell,120216,49.91,Flagship,short
+2024-05-01,GE,sell,9816,159.7,Flagship,long
+2024-05-01,HUM,buy,3131,314.21,Flagship,long
+2024-05-01,KEY,sell,407886,14.71,Flagship,short
+2024-05-01,MSCI,buy,2836,470.03,Flagship,long
+2024-05-01,PNC,sell,41254,153.98,Flagship,long
+2024-05-01,RMD,sell,30982,215.01,Flagship,long
+2024-05-01,SCHW,buy,86831,74.57,Flagship,short
+2024-05-01,SRE,sell,79239,71.95,Flagship,long
+2024-05-01,VRSN,buy,6689,171.08,Flagship,long
+2024-05-01,WBA,buy,66821,17.34,Flagship,long
+2024-05-01,ADP,buy,10575,247.33,Long Only,long
+2024-05-01,AMT,buy,4394,176.84,Long Only,long
+2024-05-01,C,sell,90415,61.35,Long Only,long
+2024-05-01,CVS,buy,42657,56.31,Long Only,long
+2024-05-01,GE,sell,15817,159.7,Long Only,long
+2024-05-01,GL,buy,27694,79.48,Long Only,long
+2024-05-01,IEX,sell,38926,221.38,Long Only,long
+2024-05-01,JBHT,buy,6251,163.52,Long Only,long
+2024-05-01,LMT,sell,5728,461.73,Long Only,long
+2024-05-01,NDAQ,buy,95820,59.88,Long Only,long
+2024-05-01,PLTR,sell,416398,22.12,Long Only,long
+2024-05-01,SWK,buy,101433,91.9,Long Only,long
+2024-05-01,WDAY,buy,5642,244.96,Long Only,long
+2024-05-01,XYZ,buy,11602,66.84,Long Only,long
+2024-05-01,ZBRA,buy,33589,309.05,Long Only,long
+2024-06-03,ADI,buy,5156,232.21,Flagship,short
+2024-06-03,AMGN,sell,19517,307.42,Flagship,short
+2024-06-03,APTV,buy,15142,84.65,Flagship,short
+2024-06-03,CAT,buy,18107,331.36,Flagship,long
+2024-06-03,FDX,buy,24133,248.62,Flagship,long
+2024-06-03,GNRC,buy,6618,141.37,Flagship,short
+2024-06-03,HCA,sell,19068,332.7,Flagship,long
+2024-06-03,HUM,sell,2622,364.2,Flagship,long
+2024-06-03,IFF,buy,11251,96.09,Flagship,short
+2024-06-03,ISRG,buy,14857,403.86,Flagship,long
+2024-06-03,MAS,sell,86806,68.7,Flagship,long
+2024-06-03,MCHP,sell,13812,95.62,Flagship,long
+2024-06-03,NEE,sell,20240,77.71,Flagship,long
+2024-06-03,ORLY,sell,14460,63.77,Flagship,short
+2024-06-03,PAYC,buy,9036,145.15,Flagship,long
+2024-06-03,SLB,sell,21621,44.07,Flagship,short
+2024-06-03,WAB,sell,42230,165.72,Flagship,long
+2024-06-03,WAT,buy,17339,309.9,Flagship,short
+2024-06-03,WDC,sell,17581,56.67,Flagship,long
+2024-06-03,ALGN,buy,2347,254.53,Long Only,long
+2024-06-03,APD,buy,36199,270.91,Long Only,long
+2024-06-03,BAX,buy,55913,34.08,Long Only,long
+2024-06-03,GLW,sell,34220,37.36,Long Only,long
+2024-06-03,IP,sell,17111,45.55,Long Only,long
+2024-06-03,KKR,sell,7564,103.17,Long Only,long
+2024-06-03,TDG,sell,399,1339.19,Long Only,long
+2024-06-03,VMC,sell,36670,252.19,Long Only,long
+2024-07-01,ADI,buy,25839,225.18,Flagship,short
+2024-07-01,AKAM,buy,67017,89.53,Flagship,long
+2024-07-01,APTV,sell,16788,68.44,Flagship,short
+2024-07-01,BK,sell,105337,60.11,Flagship,long
+2024-07-01,CNC,sell,14884,65.34,Flagship,short
+2024-07-01,FDX,sell,4045,298.68,Flagship,long
+2024-07-01,HPE,buy,73164,21.16,Flagship,short
+2024-07-01,JKHY,buy,36699,163.49,Flagship,long
+2024-07-01,MSFT,sell,14860,456.73,Flagship,long
+2024-07-01,NWSA,buy,219861,27.29,Flagship,long
+2024-07-01,OMC,sell,68768,87.69,Flagship,long
+2024-07-01,TDY,sell,15669,382.91,Flagship,short
+2024-07-01,TPL,buy,8821,241.62,Flagship,short
+2024-07-01,WBA,buy,172114,11.58,Flagship,long
+2024-07-01,WBD,sell,153028,7.1,Flagship,short
+2024-07-01,CRM,buy,36941,256.21,Long Only,long
+2024-07-01,CRWD,sell,4509,392.15,Long Only,long
+2024-07-01,DTE,buy,58213,109.12,Long Only,long
+2024-07-01,EOG,sell,53925,126.54,Long Only,long
+2024-07-01,FICO,sell,1027,1496.51,Long Only,long
+2024-07-01,KLAC,sell,13190,827.79,Long Only,long
+2024-07-01,MAS,buy,16662,64.71,Long Only,long
+2024-07-01,MDLZ,buy,5583,65.24,Long Only,long
+2024-07-01,MPC,buy,38151,174.79,Long Only,long
+2024-07-01,NRG,sell,90551,77.85,Long Only,long
+2024-07-01,SWK,buy,18460,77.75,Long Only,long
+2024-07-01,SYF,sell,12736,48.11,Long Only,long
+2024-07-01,ZBH,buy,9761,105.96,Long Only,long
+2024-08-01,ABBV,sell,5474,189.71,Flagship,long
+2024-08-01,AJG,buy,3297,287.12,Flagship,short
+2024-08-01,APD,sell,4552,287.47,Flagship,long
+2024-08-01,AVB,sell,28165,213.03,Flagship,short
+2024-08-01,CARR,buy,17106,66.06,Flagship,short
+2024-08-01,CMI,buy,19602,306.09,Flagship,long
+2024-08-01,CNC,buy,14815,77.91,Flagship,short
+2024-08-01,DHI,buy,5713,179.05,Flagship,short
+2024-08-01,DIS,sell,10886,93.05,Flagship,short
+2024-08-01,DLTR,sell,9543,99.75,Flagship,short
+2024-08-01,DTE,buy,10090,123.38,Flagship,short
+2024-08-01,EBAY,sell,18165,56.23,Flagship,long
+2024-08-01,EQR,buy,96541,70.67,Flagship,short
+2024-08-01,ES,buy,16849,66.07,Flagship,short
+2024-08-01,FRT,buy,8310,112.8,Flagship,short
+2024-08-01,GRMN,sell,5642,171.06,Flagship,long
+2024-08-01,HAS,sell,14355,65.01,Flagship,long
+2024-08-01,LHX,sell,28601,229.22,Flagship,long
+2024-08-01,LMT,buy,2331,548.86,Flagship,short
+2024-08-01,MSCI,sell,1814,547.9,Flagship,long
+2024-08-01,MU,sell,10837,101.51,Flagship,short
+2024-08-01,NDAQ,sell,18884,67.32,Flagship,long
+2024-08-01,ORLY,buy,14681,75.56,Flagship,short
+2024-08-01,PAYC,sell,5490,167.38,Flagship,long
+2024-08-01,PHM,buy,7541,129.28,Flagship,short
+2024-08-01,PKG,buy,5051,198.0,Flagship,short
+2024-08-01,TT,buy,2980,333.33,Flagship,short
+2024-08-01,UPS,buy,7217,130.58,Flagship,long
+2024-08-01,WBD,buy,129080,8.38,Flagship,short
+2024-08-01,WDC,buy,25272,45.75,Flagship,long
+2024-08-01,AEP,sell,6923,101.24,Long Only,long
+2024-08-01,AMT,sell,6164,227.93,Long Only,long
+2024-08-01,CARR,sell,15220,66.06,Long Only,long
+2024-08-01,CRWD,buy,10897,224.22,Long Only,long
+2024-08-01,ETR,sell,24955,60.41,Long Only,long
+2024-08-01,FSLR,buy,14425,218.5,Long Only,long
+2024-08-01,GEN,sell,138302,25.24,Long Only,long
+2024-08-01,GL,sell,10845,92.95,Long Only,long
+2024-08-01,HAL,buy,40586,33.24,Long Only,long
+2024-08-01,HOLX,sell,22176,83.2,Long Only,long
+2024-08-01,KKR,sell,6147,119.75,Long Only,long
+2024-08-01,LKQ,buy,8956,40.17,Long Only,long
+2024-08-01,MAS,sell,15136,76.21,Long Only,long
+2024-08-01,MGM,buy,35514,37.29,Long Only,long
+2024-08-01,MS,sell,10423,101.76,Long Only,long
+2024-08-01,SWK,sell,28054,101.5,Long Only,long
+2024-08-01,TYL,sell,2111,569.71,Long Only,long
+2024-08-01,VRTX,sell,1134,505.78,Long Only,long
+2024-09-03,AEE,buy,12307,83.28,Flagship,short
+2024-09-03,AMT,sell,26045,230.37,Flagship,short
+2024-09-03,AMZN,sell,33666,176.25,Flagship,long
+2024-09-03,AVB,buy,28165,227.14,Flagship,short
+2024-09-03,BXP,buy,14085,74.32,Flagship,short
+2024-09-03,CL,buy,11701,107.78,Flagship,short
+2024-09-03,COIN,sell,6917,169.13,Flagship,short
+2024-09-03,CPT,sell,12380,126.6,Flagship,long
+2024-09-03,DLTR,sell,13334,81.65,Flagship,short
+2024-09-03,F,buy,546448,10.98,Flagship,long
+2024-09-03,FCX,sell,24852,41.36,Flagship,short
+2024-09-03,FIS,buy,14080,82.63,Flagship,short
+2024-09-03,FTNT,buy,12502,77.13,Flagship,short
+2024-09-03,GEN,buy,38877,26.08,Flagship,short
+2024-09-03,ISRG,sell,2446,483.44,Flagship,long
+2024-09-03,KMX,sell,72263,83.03,Flagship,short
+2024-09-03,MCHP,buy,15786,76.4,Flagship,long
+2024-09-03,MNST,buy,18665,48.3,Flagship,long
+2024-09-03,NWSA,sell,219861,26.97,Flagship,long
+2024-09-03,OKE,sell,65048,92.24,Flagship,short
+2024-09-03,ORLY,buy,79407,75.79,Flagship,short
+2024-09-03,OXY,sell,99917,55.4,Flagship,long
+2024-09-03,PM,sell,10830,125.71,Flagship,long
+2024-09-03,PSX,buy,44444,135.0,Flagship,long
+2024-09-03,SLB,buy,136147,42.29,Flagship,short
+2024-09-03,TMUS,buy,29921,200.53,Flagship,long
+2024-09-03,VLO,buy,7688,141.37,Flagship,long
+2024-09-03,WBA,buy,150761,8.97,Flagship,long
+2024-09-03,AVB,sell,6462,227.14,Long Only,long
+2024-09-03,BF.B,buy,191928,45.85,Long Only,long
+2024-09-03,BK,sell,26085,67.89,Long Only,long
+2024-09-03,CAG,sell,300133,31.92,Long Only,long
+2024-09-03,CRWD,sell,4045,266.6,Long Only,long
+2024-09-03,DTE,sell,7614,125.54,Long Only,long
+2024-09-03,KIM,sell,16511,23.23,Long Only,long
+2024-09-03,LEN,sell,9090,172.68,Long Only,long
+2024-09-03,MPC,sell,38151,173.82,Long Only,long
+2024-09-03,NDAQ,sell,15449,71.39,Long Only,long
+2024-09-03,NVR,sell,81,9053.67,Long Only,long
+2024-09-03,PPL,sell,40584,32.11,Long Only,long
+2024-09-03,PSX,buy,4739,135.0,Long Only,long
+2024-09-03,TXN,sell,3340,201.83,Long Only,long
+2024-09-03,VLO,buy,47170,141.37,Long Only,long
+2024-09-03,WSM,buy,10892,131.12,Long Only,long
+2024-10-01,AXON,sell,4064,399.22,Flagship,long
+2024-10-01,CARR,buy,15213,79.35,Flagship,short
+2024-10-01,CAT,sell,2816,392.39,Flagship,long
+2024-10-01,CHRW,buy,54645,109.8,Flagship,long
+2024-10-01,CMS,sell,15585,71.05,Flagship,long
+2024-10-01,DLR,sell,5850,160.27,Flagship,long
+2024-10-01,EBAY,sell,15561,65.83,Flagship,long
+2024-10-01,EVRG,sell,15997,61.64,Flagship,long
+2024-10-01,FCX,buy,25973,50.38,Flagship,short
+2024-10-01,GE,sell,5364,186.3,Flagship,long
+2024-10-01,HUM,buy,4997,279.45,Flagship,long
+2024-10-01,KEY,buy,407886,16.24,Flagship,short
+2024-10-01,MMC,sell,26931,222.79,Flagship,short
+2024-10-01,ORCL,sell,11922,167.16,Flagship,long
+2024-10-01,PAYC,sell,35847,166.31,Flagship,long
+2024-10-01,TPL,buy,5146,304.78,Flagship,short
+2024-10-01,TSLA,buy,8516,258.02,Flagship,short
+2024-10-01,TT,buy,2481,386.63,Flagship,short
+2024-10-01,CARR,sell,16895,79.35,Long Only,long
+2024-10-01,EBAY,sell,29175,65.83,Long Only,long
+2024-10-01,FICO,sell,687,1915.69,Long Only,long
+2024-10-01,FIX,sell,4643,389.58,Long Only,long
+2024-10-01,GE,sell,8644,186.3,Long Only,long
+2024-10-01,GLW,sell,33591,44.54,Long Only,long
+2024-10-01,HD,buy,10153,409.05,Long Only,long
+2024-10-01,HIG,sell,13837,117.96,Long Only,long
+2024-10-01,MNST,sell,128372,51.59,Long Only,long
+2024-10-01,NVR,sell,459,9892.3,Long Only,long
+2024-10-01,OXY,buy,23589,53.25,Long Only,long
+2024-10-01,SPG,sell,9102,169.55,Long Only,long
+2024-10-01,TAP,buy,126581,57.35,Long Only,long
+2024-10-01,TSLA,sell,9723,258.02,Long Only,long
+2024-10-01,VZ,sell,18265,45.21,Long Only,long
+2024-10-01,WSM,sell,8587,151.04,Long Only,long
+2024-10-01,ZBRA,sell,5094,364.3,Long Only,long
+2024-11-01,AKAM,sell,67017,100.57,Flagship,long
+2024-11-01,APTV,sell,18772,56.37,Flagship,short
+2024-11-01,BALL,sell,88443,59.01,Flagship,long
+2024-11-01,CARR,buy,75614,72.59,Flagship,short
+2024-11-01,CNC,sell,17446,63.52,Flagship,short
+2024-11-01,DLTR,sell,16606,66.6,Flagship,short
+2024-11-01,DOW,buy,19537,48.97,Flagship,long
+2024-11-01,GNRC,buy,6920,168.91,Flagship,short
+2024-11-01,GRMN,sell,4799,198.18,Flagship,long
+2024-11-01,GWW,buy,6117,1105.07,Flagship,short
+2024-11-01,HPQ,buy,165380,36.28,Flagship,long
+2024-11-01,HUBB,sell,14094,425.7,Flagship,short
+2024-11-01,MLM,buy,10342,580.14,Flagship,long
+2024-11-01,PAYX,sell,43138,139.09,Flagship,short
+2024-11-01,PKG,buy,4215,229.99,Flagship,short
+2024-11-01,RCL,sell,29694,202.06,Flagship,short
+2024-11-01,TDY,buy,2488,455.2,Flagship,short
+2024-11-01,TPL,buy,4336,390.87,Flagship,short
+2024-11-01,TSLA,buy,23254,248.98,Flagship,short
+2024-11-01,ADP,sell,10575,288.18,Long Only,long
+2024-11-01,ALGN,buy,2537,208.58,Long Only,long
+2024-11-01,APO,buy,32483,141.0,Long Only,long
+2024-11-01,CRM,sell,4827,294.72,Long Only,long
+2024-11-01,DE,buy,6532,400.42,Long Only,long
+2024-11-01,ETR,sell,17157,72.39,Long Only,long
+2024-11-01,FIX,sell,19424,392.31,Long Only,long
+2024-11-01,HAL,buy,53090,27.68,Long Only,long
+2024-11-01,INCY,sell,13602,76.13,Long Only,long
+2024-11-01,IP,sell,18771,55.77,Long Only,long
+2024-11-01,KKR,sell,38247,137.58,Long Only,long
+2024-11-01,ROL,buy,159886,47.33,Long Only,long
+2024-12-02,AON,buy,18551,387.71,Flagship,short
+2024-12-02,APD,sell,2995,335.62,Flagship,long
+2024-12-02,AXON,sell,5601,636.39,Flagship,long
+2024-12-02,C,sell,13755,71.39,Flagship,long
+2024-12-02,CMI,sell,3700,377.3,Flagship,long
+2024-12-02,COIN,buy,15635,302.4,Flagship,short
+2024-12-02,CPAY,sell,4704,382.99,Flagship,long
+2024-12-02,CSCO,sell,18611,59.43,Flagship,long
+2024-12-02,DIS,buy,13269,117.16,Flagship,short
+2024-12-02,DLR,sell,6213,192.16,Flagship,long
+2024-12-02,FI,sell,27459,218.51,Flagship,short
+2024-12-02,FRT,buy,53191,114.25,Flagship,short
+2024-12-02,FTNT,buy,14845,95.32,Flagship,short
+2024-12-02,GEN,buy,36075,30.93,Flagship,short
+2024-12-02,META,sell,1824,592.83,Flagship,long
+2024-12-02,NDAQ,sell,15643,81.65,Flagship,long
+2024-12-02,NEE,sell,77210,77.07,Flagship,long
+2024-12-02,OKE,buy,10720,110.44,Flagship,short
+2024-12-02,RCL,buy,5344,246.41,Flagship,short
+2024-12-02,RF,buy,65670,26.53,Flagship,short
+2024-12-02,SNA,buy,4426,366.88,Flagship,short
+2024-12-02,TGT,buy,7263,130.72,Flagship,long
+2024-12-02,TMUS,sell,5413,244.82,Flagship,long
+2024-12-02,TPL,buy,3353,500.12,Flagship,short
+2024-12-02,VST,buy,38933,154.11,Flagship,long
+2024-12-02,VTRS,buy,72233,13.2,Flagship,short
+2024-12-02,WBD,buy,147808,10.56,Flagship,short
+2024-12-02,WDC,sell,23040,55.5,Flagship,long
+2024-12-02,WY,sell,187676,31.97,Flagship,short
+2024-12-02,AME,sell,4104,195.56,Long Only,long
+2024-12-02,APD,sell,6980,335.62,Long Only,long
+2024-12-02,APO,sell,5907,172.34,Long Only,long
+2024-12-02,BK,sell,22157,81.11,Long Only,long
+2024-12-02,CB,sell,11947,289.91,Long Only,long
+2024-12-02,CRWD,sell,4950,346.8,Long Only,long
+2024-12-02,DE,sell,882,462.95,Long Only,long
+2024-12-02,DGX,sell,3157,161.51,Long Only,long
+2024-12-02,ETN,sell,6972,372.22,Long Only,long
+2024-12-02,FICO,sell,438,2332.11,Long Only,long
+2024-12-02,FOX,buy,101979,44.41,Long Only,long
+2024-12-02,GL,sell,9939,110.04,Long Only,long
+2024-12-02,JBHT,sell,5132,189.24,Long Only,long
+2024-12-02,K,buy,119334,80.7,Long Only,long
+2024-12-02,KEY,sell,129281,19.11,Long Only,long
+2024-12-02,KMB,sell,74769,139.56,Long Only,long
+2024-12-02,LYV,sell,43455,137.76,Long Only,long
+2024-12-02,META,sell,1895,592.83,Long Only,long
+2024-12-02,MS,sell,13177,131.03,Long Only,long
+2024-12-02,ODFL,sell,1465,224.85,Long Only,long
+2024-12-02,SPGI,buy,5881,522.87,Long Only,long
+2024-12-02,SYF,sell,74052,67.09,Long Only,long
+2024-12-02,TSLA,sell,7366,357.09,Long Only,long
+2024-12-02,V,buy,11251,316.65,Long Only,long
+2024-12-02,WSM,sell,8394,177.38,Long Only,long
+2024-12-02,WTW,sell,3066,320.5,Long Only,long
+2024-12-02,XYZ,sell,20715,92.78,Long Only,long
+2025-01-02,AJG,buy,20897,275.89,Flagship,short
+2025-01-02,AMD,sell,8150,120.63,Flagship,short
+2025-01-02,AMGN,sell,3624,259.28,Flagship,short
+2025-01-02,AMT,sell,7099,181.03,Flagship,short
+2025-01-02,APD,buy,3303,283.29,Flagship,long
+2025-01-02,APO,sell,36175,165.86,Flagship,short
+2025-01-02,CL,sell,10593,90.55,Flagship,short
+2025-01-02,CLX,buy,37076,161.83,Flagship,long
+2025-01-02,CPRT,sell,106534,56.32,Flagship,short
+2025-01-02,CVS,buy,29132,44.22,Flagship,long
+2025-01-02,DHI,sell,10082,137.64,Flagship,short
+2025-01-02,DLTR,buy,90090,76.47,Flagship,short
+2025-01-02,DOW,sell,122524,39.55,Flagship,long
+2025-01-02,ECL,buy,25982,230.93,Flagship,long
+2025-01-02,FCX,sell,39300,37.88,Flagship,short
+2025-01-02,HRL,sell,190355,31.52,Flagship,short
+2025-01-02,LRCX,buy,82827,72.44,Flagship,long
+2025-01-02,MCHP,buy,26951,56.88,Flagship,long
+2025-01-02,NDSN,sell,6076,204.97,Flagship,short
+2025-01-02,ORCL,sell,35894,166.03,Flagship,long
+2025-01-02,PHM,sell,9330,107.64,Flagship,short
+2025-01-02,PSX,buy,7999,114.41,Flagship,long
+2025-01-02,SNA,buy,16354,335.11,Flagship,short
+2025-01-02,TPL,sell,3256,393.36,Flagship,short
+2025-01-02,VRSN,sell,5817,205.1,Flagship,long
+2025-01-02,WBA,sell,668896,9.19,Flagship,long
+2025-01-02,WDC,buy,20207,46.76,Flagship,long
+2025-01-02,AMT,buy,5528,181.03,Long Only,long
+2025-01-02,APD,buy,5398,283.29,Long Only,long
+2025-01-02,BF.B,sell,191928,37.18,Long Only,long
+2025-01-02,CLX,buy,54377,161.83,Long Only,long
+2025-01-02,CRM,sell,32114,330.66,Long Only,long
+2025-01-02,CSX,buy,29629,32.16,Long Only,long
+2025-01-02,CVS,buy,38425,44.22,Long Only,long
+2025-01-02,DGX,sell,19647,150.96,Long Only,long
+2025-01-02,FCX,buy,17416,37.88,Long Only,long
+2025-01-02,HUBB,buy,15455,419.99,Long Only,long
+2025-01-02,IQV,buy,16263,195.12,Long Only,long
+2025-01-02,LEN,buy,18740,130.08,Long Only,long
+2025-01-02,MAS,sell,85171,71.62,Long Only,long
+2025-01-02,MCHP,buy,166395,56.88,Long Only,long
+2025-01-02,ODFL,buy,2708,175.73,Long Only,long
+2025-01-02,PSX,buy,4915,114.41,Long Only,long
+2025-01-02,STLD,buy,9272,111.93,Long Only,long
+2025-01-02,STZ,buy,6330,222.57,Long Only,long
+2025-01-02,SWK,buy,24857,79.88,Long Only,long
+2025-01-02,VRTX,buy,1211,405.76,Long Only,long
+2025-02-03,ABT,buy,7290,128.45,Flagship,short
+2025-02-03,AEE,buy,9553,96.01,Flagship,short
+2025-02-03,APD,sell,3432,338.07,Flagship,long
+2025-02-03,APO,buy,36175,167.12,Flagship,short
+2025-02-03,CVS,sell,28446,55.95,Flagship,long
+2025-02-03,CZR,buy,168871,35.53,Flagship,long
+2025-02-03,DLR,buy,5944,161.43,Flagship,long
+2025-02-03,FDX,buy,4170,247.34,Flagship,long
+2025-02-03,GRMN,sell,30276,215.49,Flagship,long
+2025-02-03,ISRG,sell,2040,578.55,Flagship,long
+2025-02-03,LMT,sell,2243,455.42,Flagship,short
+2025-02-03,META,sell,1518,697.46,Flagship,long
+2025-02-03,V,sell,17350,345.82,Flagship,short
+2025-02-03,VTRS,sell,88933,11.04,Flagship,short
+2025-02-03,AMZN,buy,41618,237.42,Long Only,long
+2025-02-03,APD,sell,5609,338.07,Long Only,long
+2025-02-03,CARR,buy,21544,63.15,Long Only,long
+2025-02-03,CMCSA,buy,37316,31.11,Long Only,long
+2025-02-03,CVS,sell,37520,55.95,Long Only,long
+2025-02-03,ERIE,buy,14873,403.61,Long Only,long
+2025-02-03,ETN,buy,4697,315.41,Long Only,long
+2025-02-03,FICO,buy,556,1827.96,Long Only,long
+2025-02-03,FSLR,buy,4427,167.19,Long Only,long
+2025-02-03,GLW,sell,23179,51.35,Long Only,long
+2025-02-03,HST,buy,89916,16.49,Long Only,long
+2025-02-03,LEN,sell,75961,126.19,Long Only,long
+2025-02-03,META,sell,1577,697.46,Long Only,long
+2025-02-03,MS,sell,45814,137.16,Long Only,long
+2025-02-03,STZ,buy,9944,174.41,Long Only,long
+2025-02-03,VRTX,sell,841,470.37,Long Only,long
+2025-02-03,WSM,sell,6379,204.48,Long Only,long
+2025-03-03,AMD,sell,11342,98.23,Flagship,short
+2025-03-03,AMGN,buy,3835,310.78,Flagship,short
+2025-03-03,AMT,buy,4519,209.61,Flagship,short
+2025-03-03,AXON,buy,1984,525.75,Flagship,long
+2025-03-03,CAT,buy,2779,332.04,Flagship,long
+2025-03-03,CB,sell,23310,289.69,Flagship,long
+2025-03-03,COIN,sell,9321,205.75,Flagship,short
+2025-03-03,CRM,buy,20474,293.06,Flagship,long
+2025-03-03,CVS,sell,14789,64.9,Flagship,long
+2025-03-03,DTE,buy,48630,135.24,Flagship,short
+2025-03-03,ECL,sell,3745,269.82,Flagship,long
+2025-03-03,EXPD,sell,49306,118.55,Flagship,long
+2025-03-03,GNRC,sell,10322,130.88,Flagship,short
+2025-03-03,HPQ,buy,34354,30.04,Flagship,long
+2025-03-03,HUBB,sell,2810,354.95,Flagship,short
+2025-03-03,IFF,sell,11706,80.92,Flagship,short
+2025-03-03,IR,buy,72639,82.6,Flagship,long
+2025-03-03,MLM,buy,2429,469.8,Flagship,long
+2025-03-03,NI,sell,145525,41.23,Flagship,short
+2025-03-03,PM,sell,9943,158.79,Flagship,long
+2025-03-03,PTC,sell,31956,160.56,Flagship,long
+2025-03-03,SNPS,sell,2546,443.26,Flagship,short
+2025-03-03,VRSN,sell,4271,240.16,Flagship,long
+2025-03-03,VST,buy,9474,123.95,Flagship,long
+2025-03-03,VTRS,sell,99609,9.33,Flagship,short
+2025-03-03,WTW,buy,17628,340.36,Flagship,long
+2025-03-03,ALGN,buy,2689,175.09,Long Only,long
+2025-03-03,AMT,sell,3663,209.61,Long Only,long
+2025-03-03,APO,buy,5103,144.58,Long Only,long
+2025-03-03,AZO,sell,1964,3477.76,Long Only,long
+2025-03-03,CDNS,buy,1588,241.74,Long Only,long
+2025-03-03,COP,buy,94846,92.63,Long Only,long
+2025-03-03,CVNA,buy,10901,219.45,Long Only,long
+2025-03-03,CVS,sell,19506,64.9,Long Only,long
+2025-03-03,ETR,sell,15258,87.89,Long Only,long
+2025-03-03,EXC,sell,20435,44.55,Long Only,long
+2025-03-03,FOX,sell,17248,53.45,Long Only,long
+2025-03-03,FSLR,buy,5844,127.63,Long Only,long
+2025-03-03,GL,sell,7797,128.59,Long Only,long
+2025-03-03,HAL,sell,317398,25.01,Long Only,long
+2025-03-03,HLT,buy,22628,263.58,Long Only,long
+2025-03-03,HOLX,buy,33572,63.27,Long Only,long
+2025-03-03,HUBB,buy,2832,354.95,Long Only,long
+2025-03-03,JBHT,buy,6496,157.82,Long Only,long
+2025-03-03,LKQ,sell,59554,42.0,Long Only,long
+2025-03-03,STLD,sell,8100,130.5,Long Only,long
+2025-03-03,TSLA,buy,4882,284.65,Long Only,long
+2025-03-03,XYZ,buy,25494,62.79,Long Only,long
+2025-03-03,ZBRA,buy,5336,306.84,Long Only,long
+2025-04-01,A,buy,9366,114.05,Flagship,long
+2025-04-01,AZO,sell,403,3813.27,Flagship,long
+2025-04-01,CAT,sell,18070,330.57,Flagship,long
+2025-04-01,CMI,buy,3124,315.36,Flagship,long
+2025-04-01,CNC,buy,94458,60.45,Flagship,short
+2025-04-01,COIN,sell,5218,174.52,Flagship,short
+2025-04-01,COR,buy,3696,277.41,Flagship,short
+2025-04-01,CSCO,sell,100959,61.8,Flagship,long
+2025-04-01,CZR,buy,72772,24.83,Flagship,long
+2025-04-01,DIS,sell,10213,97.68,Flagship,short
+2025-04-01,HPE,sell,100078,15.64,Flagship,short
+2025-04-01,IEX,sell,5872,181.15,Flagship,short
+2025-04-01,META,buy,1636,586.0,Flagship,long
+2025-04-01,MNST,sell,22598,59.04,Flagship,long
+2025-04-01,MOH,sell,18309,327.71,Flagship,short
+2025-04-01,NOC,buy,11694,513.1,Flagship,long
+2025-04-01,QCOM,buy,39203,153.05,Flagship,long
+2025-04-01,RCL,sell,4480,208.12,Flagship,short
+2025-04-01,RF,sell,52005,21.57,Flagship,short
+2025-04-01,TGT,buy,11555,104.43,Flagship,long
+2025-04-01,UPS,buy,8966,109.26,Flagship,long
+2025-04-01,AMZN,buy,9800,192.17,Long Only,long
+2025-04-01,BBY,buy,99547,74.37,Long Only,long
+2025-04-01,EBAY,sell,112461,67.8,Long Only,long
+2025-04-01,INCY,buy,14300,60.91,Long Only,long
+2025-04-01,KEY,buy,115891,15.8,Long Only,long
+2025-04-01,META,buy,1700,586.0,Long Only,long
+2025-04-01,MGM,buy,48415,29.94,Long Only,long
+2025-04-01,WSM,buy,11987,158.87,Long Only,long
+2025-05-01,APD,buy,4298,272.16,Flagship,long
+2025-05-01,AXON,sell,1752,621.1,Flagship,long
+2025-05-01,BDX,buy,13835,133.29,Flagship,long
+2025-05-01,CHRW,buy,11815,90.28,Flagship,long
+2025-05-01,COIN,buy,4574,201.3,Flagship,short
+2025-05-01,CPAY,buy,2930,322.65,Flagship,long
+2025-05-01,CPRT,buy,106534,60.5,Flagship,short
+2025-05-01,DAL,sell,144578,41.5,Flagship,short
+2025-05-01,EBAY,sell,91144,67.67,Flagship,long
+2025-05-01,FDX,buy,4305,210.06,Flagship,long
+2025-05-01,FI,sell,5324,183.02,Flagship,short
+2025-05-01,GEN,sell,40389,25.6,Flagship,short
+2025-05-01,HPQ,buy,36580,25.39,Flagship,long
+2025-05-01,IDXX,sell,12729,471.38,Flagship,short
+2025-05-01,KMX,sell,19312,65.52,Flagship,short
+2025-05-01,MCHP,buy,25007,45.98,Flagship,long
+2025-05-01,MU,sell,18044,77.77,Flagship,short
+2025-05-01,NCLH,buy,369004,16.26,Flagship,long
+2025-05-01,OKE,sell,19810,80.93,Flagship,short
+2025-05-01,PKG,sell,6633,183.37,Flagship,short
+2025-05-01,TMO,sell,3263,419.89,Flagship,short
+2025-05-01,VLO,buy,9786,114.88,Flagship,long
+2025-05-01,VRSN,sell,3531,279.7,Flagship,long
+2025-05-01,VTRS,buy,643087,8.47,Flagship,short
+2025-05-01,WBD,sell,143562,8.43,Flagship,short
+2025-05-01,WY,sell,44702,25.82,Flagship,short
+2025-05-01,APD,buy,7024,272.16,Long Only,long
+2025-05-01,CDNS,sell,9459,299.73,Long Only,long
+2025-05-01,CRWD,sell,16453,431.88,Long Only,long
+2025-05-01,CSCO,buy,39342,58.12,Long Only,long
+2025-05-01,FFIV,buy,21470,265.77,Long Only,long
+2025-05-01,GIS,buy,26924,55.58,Long Only,long
+2025-05-01,IP,buy,22645,43.89,Long Only,long
+2025-05-01,IQV,buy,4738,151.1,Long Only,long
+2025-05-01,JBHT,buy,8445,129.8,Long Only,long
+2025-05-01,MCHP,buy,39446,45.98,Long Only,long
+2025-05-01,MDLZ,sell,35988,67.87,Long Only,long
+2025-05-01,OXY,buy,42623,40.44,Long Only,long
+2025-05-01,PEP,buy,17581,133.55,Long Only,long
+2025-05-01,ROL,sell,24923,56.07,Long Only,long
+2025-05-01,SWK,buy,41459,58.94,Long Only,long
+2025-05-01,TXN,buy,4779,158.26,Long Only,long
+2025-05-01,VLO,buy,10876,114.88,Long Only,long
+2025-05-01,ZBRA,buy,7752,249.64,Long Only,long
+2025-06-02,AMD,buy,8739,114.63,Flagship,short
+2025-06-02,APTV,buy,14556,65.3,Flagship,short
+2025-06-02,AXON,sell,1750,758.57,Flagship,long
+2025-06-02,CLX,buy,8975,130.29,Flagship,long
+2025-06-02,COIN,buy,5487,246.72,Flagship,short
+2025-06-02,CSX,buy,192061,31.24,Flagship,long
+2025-06-02,DAL,buy,20867,48.5,Flagship,short
+2025-06-02,DHI,sell,7738,116.89,Flagship,short
+2025-06-02,DIS,buy,8304,112.95,Flagship,short
+2025-06-02,FDX,sell,28563,217.89,Flagship,long
+2025-06-02,GE,sell,7962,247.48,Flagship,long
+2025-06-02,HUM,buy,4459,231.39,Flagship,long
+2025-06-02,IDXX,buy,12729,514.8,Flagship,short
+2025-06-02,IR,sell,72639,81.06,Flagship,long
+2025-06-02,MCHP,sell,30492,60.0,Flagship,long
+2025-06-02,MLM,sell,1693,541.61,Flagship,long
+2025-06-02,MU,buy,16039,98.18,Flagship,short
+2025-06-02,PM,sell,4954,182.75,Flagship,long
+2025-06-02,RCL,buy,5923,261.93,Flagship,short
+2025-06-02,VST,sell,12580,167.47,Flagship,long
+2025-06-02,WBD,buy,111744,10.0,Flagship,short
+2025-06-02,WM,buy,24783,242.1,Flagship,long
+2025-06-02,ZTS,sell,35415,169.42,Flagship,short
+2025-06-02,AME,sell,22928,176.32,Long Only,long
+2025-06-02,BKR,buy,178681,37.32,Long Only,long
+2025-06-02,CDW,buy,13084,174.76,Long Only,long
+2025-06-02,CLX,buy,13164,130.29,Long Only,long
+2025-06-02,CSCO,sell,39342,63.85,Long Only,long
+2025-06-02,CVNA,sell,3683,331.44,Long Only,long
+2025-06-02,FSLR,sell,3634,149.65,Long Only,long
+2025-06-02,GE,sell,12830,247.48,Long Only,long
+2025-06-02,INTU,sell,3580,764.99,Long Only,long
+2025-06-02,MCHP,sell,48098,60.0,Long Only,long
+2025-06-02,META,sell,10636,670.9,Long Only,long
+2025-06-02,NDAQ,sell,12065,84.0,Long Only,long
+2025-06-02,NFLX,buy,51128,121.9,Long Only,long
+2025-06-02,RSG,buy,17375,258.07,Long Only,long
+2025-06-02,TSLA,sell,4076,342.69,Long Only,long
+2025-06-02,TXN,sell,3119,184.21,Long Only,long
+2025-06-02,V,sell,1499,365.32,Long Only,long
+2025-06-02,VLO,sell,58046,128.3,Long Only,long
+2025-07-01,AMD,buy,8260,136.11,Flagship,short
+2025-07-01,ATO,sell,39050,153.65,Flagship,short
+2025-07-01,C,sell,14496,86.27,Flagship,long
+2025-07-01,COIN,buy,6426,335.33,Flagship,short
+2025-07-01,CZR,sell,39009,29.61,Flagship,long
+2025-07-01,ES,buy,90813,64.55,Flagship,short
+2025-07-01,FCX,buy,22186,44.05,Flagship,short
+2025-07-01,GEN,buy,33033,29.8,Flagship,short
+2025-07-01,HAS,sell,14361,76.99,Flagship,long
+2025-07-01,HPE,buy,90663,20.48,Flagship,short
+2025-07-01,HUBB,buy,2288,410.51,Flagship,short
+2025-07-01,INTC,buy,262582,22.85,Flagship,long
+2025-07-01,LRCX,sell,20850,96.81,Flagship,long
+2025-07-01,MCHP,sell,16295,71.68,Flagship,long
+2025-07-01,META,sell,1897,719.22,Flagship,long
+2025-07-01,MU,buy,11480,120.89,Flagship,short
+2025-07-01,NCLH,sell,83017,20.98,Flagship,long
+2025-07-01,RCL,buy,3865,315.1,Flagship,short
+2025-07-01,SNPS,buy,2037,521.78,Flagship,short
+2025-07-01,VLO,sell,8753,138.01,Flagship,long
+2025-07-01,VRSN,sell,21452,289.08,Flagship,long
+2025-07-01,WDC,sell,34330,63.84,Flagship,long
+2025-07-01,ABT,buy,18246,136.26,Long Only,long
+2025-07-01,ACN,buy,13603,302.62,Long Only,long
+2025-07-01,AEP,sell,33804,104.39,Long Only,long
+2025-07-01,AES,buy,317762,10.77,Long Only,long
+2025-07-01,AMT,sell,23199,224.47,Long Only,long
+2025-07-01,CARR,sell,15836,74.3,Long Only,long
+2025-07-01,FCX,sell,12218,44.05,Long Only,long
+2025-07-01,FRT,buy,51616,94.21,Long Only,long
+2025-07-01,HUBB,sell,2475,410.51,Long Only,long
+2025-07-01,JBHT,sell,6700,151.08,Long Only,long
+2025-07-01,MCHP,sell,25704,71.68,Long Only,long
+2025-07-01,MGM,sell,46276,36.89,Long Only,long
+2025-07-01,SWK,sell,25764,70.41,Long Only,long
+2025-07-01,TYL,sell,7226,590.05,Long Only,long
+2025-07-01,VRTX,sell,5286,452.16,Long Only,long
+2025-07-01,ZBRA,sell,8678,315.48,Long Only,long
+2025-08-01,AMD,buy,9137,171.7,Flagship,short
+2025-08-01,CHRW,sell,13764,113.86,Flagship,long
+2025-08-01,CINF,buy,41042,146.19,Flagship,long
+2025-08-01,CPT,buy,8708,106.95,Flagship,long
+2025-08-01,DHI,buy,11410,150.3,Flagship,short
+2025-08-01,EVRG,sell,13482,71.55,Flagship,long
+2025-08-01,FI,sell,11553,135.33,Flagship,short
+2025-08-01,GNRC,buy,14857,193.63,Flagship,short
+2025-08-01,INTC,buy,48138,19.31,Flagship,long
+2025-08-01,ISRG,buy,2048,483.12,Flagship,long
+2025-08-01,LMT,buy,13175,421.01,Flagship,short
+2025-08-01,MOH,sell,20368,155.13,Flagship,short
+2025-08-01,NCLH,sell,41089,24.5,Flagship,long
+2025-08-01,NDAQ,sell,73484,95.17,Flagship,long
+2025-08-01,RF,buy,37103,24.89,Flagship,short
+2025-08-01,SNPS,buy,1800,618.65,Flagship,short
+2025-08-01,TDY,buy,2166,544.69,Flagship,short
+2025-08-01,TPL,sell,4002,311.6,Flagship,short
+2025-08-01,TXT,sell,77690,77.23,Flagship,short
+2025-08-01,UPS,buy,16091,84.5,Flagship,long
+2025-08-01,VST,sell,6988,208.05,Flagship,long
+2025-08-01,WBD,buy,133800,12.87,Flagship,short
+2025-08-01,WDC,sell,15605,76.55,Flagship,long
+2025-08-01,ACN,sell,13603,255.37,Long Only,long
+2025-08-01,AES,sell,59085,13.23,Long Only,long
+2025-08-01,ALGN,buy,4730,136.52,Long Only,long
+2025-08-01,AVB,buy,7778,184.44,Long Only,long
+2025-08-01,BAX,buy,141913,21.96,Long Only,long
+2025-08-01,BK,sell,21318,99.81,Long Only,long
+2025-08-01,BKR,sell,25420,43.51,Long Only,long
+2025-08-01,EG,buy,2869,331.34,Long Only,long
+2025-08-01,ETN,sell,5318,381.29,Long Only,long
+2025-08-01,FFIV,sell,2910,307.43,Long Only,long
+2025-08-01,FICO,buy,831,1381.07,Long Only,long
+2025-08-01,FSLR,sell,3929,183.97,Long Only,long
+2025-08-01,GLW,sell,151604,62.05,Long Only,long
+2025-08-01,INCY,sell,13891,75.59,Long Only,long
+2025-08-01,IQV,sell,3609,182.45,Long Only,long
+2025-08-01,IT,buy,28808,328.54,Long Only,long
+2025-08-01,JBHT,sell,40867,139.56,Long Only,long
+2025-08-01,MCHP,sell,132039,66.36,Long Only,long
+2025-08-01,ODFL,buy,2960,141.85,Long Only,long
+2025-08-01,ORCL,buy,16842,244.42,Long Only,long
+2025-08-01,TAP,buy,23999,48.21,Long Only,long
+2025-08-01,TDG,sell,306,1585.0,Long Only,long
+2025-08-01,UBER,buy,71041,86.91,Long Only,long
+2025-08-01,VRSN,buy,29336,265.37,Long Only,long
+2025-08-01,WSM,sell,8247,187.67,Long Only,long
+2025-08-01,XYZ,sell,11975,74.03,Long Only,long
+2025-09-02,AEE,buy,62493,99.72,Flagship,short
+2025-09-02,APTV,buy,15344,78.39,Flagship,short
+2025-09-02,CMI,sell,3845,395.23,Flagship,long
+2025-09-02,CVX,sell,37076,161.83,Flagship,short
+2025-09-02,CZR,sell,202634,25.89,Flagship,long
+2025-09-02,DAL,buy,25560,61.13,Flagship,short
+2025-09-02,DG,buy,54318,110.46,Flagship,long
+2025-09-02,F,sell,546448,11.72,Flagship,long
+2025-09-02,FDS,buy,3083,368.88,Flagship,long
+2025-09-02,FIS,sell,15222,68.31,Flagship,short
+2025-09-02,FTNT,sell,15047,76.93,Flagship,short
+2025-09-02,HRL,sell,49357,25.03,Flagship,short
+2025-09-02,HUM,sell,6579,310.06,Flagship,long
+2025-09-02,IFF,sell,16011,66.55,Flagship,short
+2025-09-02,INTC,sell,62889,24.21,Flagship,long
+2025-09-02,MNST,sell,101626,62.67,Flagship,long
+2025-09-02,MOH,buy,38677,183.25,Flagship,short
+2025-09-02,MRNA,sell,248036,24.19,Flagship,short
+2025-09-02,PHM,buy,10317,132.09,Flagship,short
+2025-09-02,PKG,buy,5001,216.45,Flagship,short
+2025-09-02,PSX,sell,7613,133.84,Flagship,long
+2025-09-02,ROST,buy,39669,151.25,Flagship,long
+2025-09-02,TMO,buy,1982,487.53,Flagship,short
+2025-09-02,TPL,buy,19255,314.11,Flagship,short
+2025-09-02,WEC,sell,56593,106.02,Flagship,short
+2025-09-02,WSM,buy,31257,191.96,Flagship,long
+2025-09-02,AMZN,sell,7569,225.34,Long Only,long
+2025-09-02,DDOG,buy,70269,134.69,Long Only,long
+2025-09-02,ERIE,buy,2884,338.06,Long Only,long
+2025-09-02,FOX,sell,84731,55.62,Long Only,long
+2025-09-02,IT,sell,28808,250.91,Long Only,long
+2025-09-02,KEY,sell,111514,18.96,Long Only,long
+2025-09-02,NWS,buy,136371,33.21,Long Only,long
+2025-09-02,OXY,sell,28061,48.05,Long Only,long
+2025-09-02,PSX,sell,4679,133.84,Long Only,long
+2025-09-02,T,buy,165235,29.08,Long Only,long
+2025-09-02,TDG,buy,358,1304.88,Long Only,long
+2025-09-02,VZ,sell,106282,43.8,Long Only,long
+2025-10-01,A,sell,9313,138.58,Flagship,long
+2025-10-01,ABBV,sell,7075,244.38,Flagship,long
+2025-10-01,ACGL,sell,66438,90.31,Flagship,short
+2025-10-01,AWK,sell,44095,136.07,Flagship,short
+2025-10-01,CHRW,sell,7468,132.66,Flagship,long
+2025-10-01,CRM,buy,4983,235.69,Flagship,long
+2025-10-01,CVS,sell,14396,76.87,Flagship,long
+2025-10-01,DD,buy,183318,32.73,Flagship,long
+2025-10-01,ECL,sell,22237,269.71,Flagship,long
+2025-10-01,FDS,buy,4661,286.73,Flagship,long
+2025-10-01,FIS,buy,87835,66.51,Flagship,short
+2025-10-01,GE,sell,4302,300.88,Flagship,long
+2025-10-01,HPE,buy,52295,24.93,Flagship,short
+2025-10-01,HUM,sell,19351,246.77,Flagship,long
+2025-10-01,INTC,sell,80886,35.94,Flagship,long
+2025-10-01,INVH,buy,35739,29.01,Flagship,long
+2025-10-01,KMX,sell,38746,46.04,Flagship,short
+2025-10-01,LRCX,sell,19957,142.79,Flagship,long
+2025-10-01,MU,buy,16692,182.15,Flagship,short
+2025-10-01,NI,buy,145525,43.07,Flagship,short
+2025-10-01,NOC,sell,1784,605.42,Flagship,long
+2025-10-01,RVTY,buy,65388,91.76,Flagship,long
+2025-10-01,SNPS,sell,2576,488.78,Flagship,short
+2025-10-01,VLO,sell,7690,167.67,Flagship,long
+2025-10-01,WBD,buy,156122,19.35,Flagship,short
+2025-10-01,WDC,sell,32435,130.59,Flagship,long
+2025-10-01,AES,sell,36016,15.37,Long Only,long
+2025-10-01,BKR,sell,153261,48.36,Long Only,long
+2025-10-01,CARR,buy,22385,59.46,Long Only,long
+2025-10-01,CVNA,sell,1168,395.41,Long Only,long
+2025-10-01,CVS,sell,18988,76.87,Long Only,long
+2025-10-01,FSLR,sell,3113,224.82,Long Only,long
+2025-10-01,GE,sell,6933,300.88,Long Only,long
+2025-10-01,OKE,buy,91373,72.98,Long Only,long
+2025-10-01,ORCL,sell,2598,289.01,Long Only,long
+2025-10-01,STZ,buy,11729,138.95,Long Only,long
+2025-10-01,TSLA,sell,5081,459.46,Long Only,long
+2025-11-03,AMD,buy,11837,259.65,Flagship,short
+2025-11-03,AMT,sell,5342,176.64,Flagship,short
+2025-11-03,C,sell,10500,101.61,Flagship,long
+2025-11-03,CL,sell,13759,74.98,Flagship,short
+2025-11-03,CLX,buy,8924,109.14,Flagship,long
+2025-11-03,COR,buy,4030,340.93,Flagship,short
+2025-11-03,CPAY,buy,4187,263.36,Flagship,long
+2025-11-03,DIS,buy,53121,112.12,Flagship,short
+2025-11-03,FI,sell,47773,65.14,Flagship,short
+2025-11-03,GD,sell,17551,341.87,Flagship,short
+2025-11-03,GE,sell,19942,308.62,Flagship,long
+2025-11-03,GNRC,sell,5654,163.75,Flagship,short
+2025-11-03,GOOG,sell,21118,284.12,Flagship,short
+2025-11-03,HAL,sell,220751,27.18,Flagship,short
+2025-11-03,KMB,sell,12037,102.27,Flagship,short
+2025-11-03,MKC,sell,15676,63.84,Flagship,short
+2025-11-03,MMC,sell,6942,177.13,Flagship,short
+2025-11-03,MU,buy,7375,234.7,Flagship,short
+2025-11-03,OKE,buy,74138,65.36,Flagship,short
+2025-11-03,PAYX,buy,43138,115.11,Flagship,short
+2025-11-03,PEG,buy,73746,81.36,Flagship,long
+2025-11-03,PM,buy,8662,144.6,Flagship,long
+2025-11-03,QCOM,sell,6002,180.72,Flagship,long
+2025-11-03,RTX,buy,33891,177.04,Flagship,long
+2025-11-03,TMO,buy,1685,564.88,Flagship,short
+2025-11-03,TMUS,buy,5002,203.32,Flagship,long
+2025-11-03,TT,buy,2075,446.31,Flagship,short
+2025-11-03,VST,sell,28839,193.04,Flagship,long
+2025-11-03,WBD,buy,40899,22.29,Flagship,short
+2025-11-03,WDC,sell,7975,158.02,Flagship,long
+2025-11-03,WM,buy,5709,196.77,Flagship,long
+2025-11-03,BAX,buy,82175,18.21,Long Only,long
+2025-11-03,BKNG,buy,826,5030.55,Long Only,long
+2025-11-03,CLX,buy,13088,109.14,Long Only,long
+2025-11-03,CMCSA,buy,41857,25.29,Long Only,long
+2025-11-03,CVNA,buy,1148,332.33,Long Only,long
+2025-11-03,DDOG,sell,11875,162.08,Long Only,long
+2025-11-03,ERIE,sell,17757,285.35,Long Only,long
+2025-11-03,FFIV,buy,4352,249.04,Long Only,long
+2025-11-03,FICO,sell,555,1650.51,Long Only,long
+2025-11-03,FIS,buy,96510,62.2,Long Only,long
+2025-11-03,FSLR,sell,14020,265.71,Long Only,long
+2025-11-03,GIS,buy,32944,46.43,Long Only,long
+2025-11-03,HD,sell,10153,378.35,Long Only,long
+2025-11-03,HOLX,sell,20419,74.06,Long Only,long
+2025-11-03,INCY,sell,57637,101.57,Long Only,long
+2025-11-03,IP,buy,20035,36.93,Long Only,long
+2025-11-03,IQV,sell,2555,213.88,Long Only,long
+2025-11-03,PFE,buy,176673,24.66,Long Only,long
+2025-11-03,RSG,buy,4468,205.28,Long Only,long
+2025-11-03,STLD,sell,7973,155.97,Long Only,long
+2025-11-03,T,buy,30649,24.53,Long Only,long
+2025-11-03,TEL,buy,12767,246.87,Long Only,long
+2025-12-01,AMD,sell,4195,219.76,Flagship,short
+2025-12-01,AXON,buy,3343,533.21,Flagship,long
+2025-12-01,CBOE,sell,23504,255.28,Flagship,short
+2025-12-01,CHRW,sell,7803,160.32,Flagship,long
+2025-12-01,CMI,sell,3088,496.15,Flagship,long
+2025-12-01,COIN,buy,17893,259.84,Flagship,short
+2025-12-01,DD,sell,183318,39.91,Flagship,long
+2025-12-01,FTNT,buy,77993,81.82,Flagship,short
+2025-12-01,ISRG,sell,1844,567.37,Flagship,long
+2025-12-01,KMX,sell,25281,38.56,Flagship,short
+2025-12-01,MCHP,buy,28591,53.43,Flagship,long
+2025-12-01,NCLH,buy,78204,18.57,Flagship,long
+2025-12-01,PPG,buy,60084,99.86,Flagship,long
+2025-12-01,RCL,sell,3464,266.6,Flagship,short
+2025-12-01,ROP,sell,13526,443.58,Flagship,short
+2025-12-01,ROST,sell,5866,177.5,Flagship,long
+2025-12-01,VLO,sell,35785,180.54,Flagship,long
+2025-12-01,WMB,buy,97656,61.44,Flagship,long
+2025-12-01,ZTS,sell,11736,127.25,Flagship,short
+2025-12-01,ALGN,sell,21474,146.72,Long Only,long
+2025-12-01,CDW,buy,2903,143.03,Long Only,long
+2025-12-01,DDOG,sell,58394,157.9,Long Only,long
+2025-12-01,HCA,buy,5828,503.0,Long Only,long
+2025-12-01,INTU,buy,2830,631.62,Long Only,long
+2025-12-01,MDT,sell,15481,103.34,Long Only,long
+2025-12-01,ORCL,buy,6243,200.94,Long Only,long
+2025-12-01,TRMB,buy,115888,81.67,Long Only,long
+2025-12-01,ZBRA,buy,8405,251.29,Long Only,long
+2026-01-02,A,sell,43296,137.95,Flagship,long
+2026-01-02,ABBV,sell,24552,229.31,Flagship,long
+2026-01-02,C,sell,8501,118.7,Flagship,long
+2026-01-02,CL,buy,80021,77.69,Flagship,short
+2026-01-02,CSX,sell,26635,36.27,Flagship,long
+2026-01-02,DG,sell,10465,136.82,Flagship,long
+2026-01-02,FCX,buy,20669,51.93,Flagship,short
+2026-01-02,IQV,buy,26623,225.37,Flagship,long
+2026-01-02,LRCX,sell,9598,185.06,Flagship,long
+2026-01-02,LYB,buy,135166,44.39,Flagship,long
+2026-01-02,MCHP,sell,20031,65.03,Flagship,long
+2026-01-02,MLM,sell,1621,634.44,Flagship,long
+2026-01-02,MRNA,buy,53610,30.86,Flagship,short
+2026-01-02,MU,buy,6543,315.42,Flagship,short
+2026-01-02,NCLH,sell,59713,22.78,Flagship,long
+2026-01-02,NDSN,buy,4380,241.03,Flagship,short
+2026-01-02,PG,sell,42316,141.79,Flagship,short
+2026-01-02,PPG,sell,60084,104.35,Flagship,long
+2026-01-02,TECH,buy,100587,59.65,Flagship,long
+2026-01-02,UPS,sell,11612,101.02,Flagship,long
+2026-01-02,WBD,buy,58727,28.51,Flagship,short
+2026-01-02,WDC,sell,6004,187.7,Flagship,long
+2026-01-02,ADI,buy,20845,273.74,Long Only,long
+2026-01-02,BK,sell,13612,117.04,Long Only,long
+2026-01-02,CDW,sell,15987,133.16,Long Only,long
+2026-01-02,CTSH,buy,28132,81.28,Long Only,long
+2026-01-02,CVNA,sell,1221,400.25,Long Only,long
+2026-01-02,FCX,sell,11382,51.93,Long Only,long
+2026-01-02,FFIV,sell,22912,256.63,Long Only,long
+2026-01-02,HIG,sell,12803,137.11,Long Only,long
+2026-01-02,NDAQ,sell,8946,96.66,Long Only,long
+2026-01-02,NFLX,buy,17368,90.99,Long Only,long
+2026-01-02,TPR,buy,66148,129.07,Long Only,long
+2026-01-02,WDAY,buy,6438,205.79,Long Only,long
+2026-01-02,WSM,sell,45494,187.85,Long Only,long
+2026-01-02,ZBH,buy,9426,90.02,Long Only,long
+2026-02-02,AIG,sell,81169,73.92,Flagship,short
+2026-02-02,AZO,sell,1573,3722.41,Flagship,long
+2026-02-02,BDX,sell,7215,158.73,Flagship,long
+2026-02-02,BXP,sell,14415,63.06,Flagship,short
+2026-02-02,CHRW,sell,7198,198.5,Flagship,long
+2026-02-02,CMI,sell,2011,595.13,Flagship,long
+2026-02-02,CPAY,sell,3102,304.87,Flagship,long
+2026-02-02,DPZ,buy,14662,409.22,Flagship,long
+2026-02-02,FAST,sell,133929,44.8,Flagship,short
+2026-02-02,FCX,buy,16791,60.76,Flagship,short
+2026-02-02,FICO,buy,4135,1450.91,Flagship,long
+2026-02-02,GEN,sell,50865,23.79,Flagship,short
+2026-02-02,GOOG,buy,3722,344.9,Flagship,short
+2026-02-02,HAL,buy,37991,32.83,Flagship,short
+2026-02-02,HAS,sell,13993,93.84,Flagship,long
+2026-02-02,HPQ,buy,66563,19.81,Flagship,long
+2026-02-02,HSY,buy,30301,198.01,Flagship,long
+2026-02-02,HUBB,buy,2509,495.59,Flagship,short
+2026-02-02,INTC,sell,44019,48.81,Flagship,long
+2026-02-02,KMX,buy,21614,44.78,Flagship,short
+2026-02-02,LRCX,sell,7159,237.5,Flagship,long
+2026-02-02,LVS,sell,107836,55.64,Flagship,short
+2026-02-02,MCHP,sell,92265,78.08,Flagship,long
+2026-02-02,MRNA,buy,53415,42.55,Flagship,short
+2026-02-02,MU,buy,5317,437.8,Flagship,short
+2026-02-02,NDSN,buy,24893,276.91,Flagship,short
+2026-02-02,PM,sell,8150,179.94,Flagship,long
+2026-02-02,QCOM,buy,6112,152.62,Flagship,long
+2026-02-02,RCL,buy,22506,334.05,Flagship,short
+2026-02-02,RF,buy,241061,29.12,Flagship,short
+2026-02-02,ROP,sell,2577,372.61,Flagship,short
+2026-02-02,RVTY,sell,9360,107.09,Flagship,long
+2026-02-02,TGT,sell,57455,109.53,Flagship,long
+2026-02-02,WDC,sell,9763,270.23,Flagship,long
+2026-02-02,ABT,buy,4478,109.41,Long Only,long
+2026-02-02,ADI,sell,2837,316.86,Long Only,long
+2026-02-02,CMCSA,sell,32514,29.59,Long Only,long
+2026-02-02,CSX,sell,30283,38.39,Long Only,long
+2026-02-02,FCX,sell,9246,60.76,Long Only,long
+2026-02-02,FICO,sell,2847,1450.91,Long Only,long
+2026-02-02,HOLX,sell,119733,74.74,Long Only,long
+2026-02-02,HUBB,sell,2715,495.59,Long Only,long
+2026-02-02,HUM,buy,47369,187.2,Long Only,long
+2026-02-02,INTU,buy,4817,487.12,Long Only,long
+2026-02-02,KEY,sell,77046,22.0,Long Only,long
+2026-02-02,ODFL,sell,3653,186.13,Long Only,long
+2026-02-02,ORCL,buy,5232,160.06,Long Only,long
+2026-02-02,PEP,sell,2453,155.2,Long Only,long
+2026-02-02,STLD,sell,6696,186.55,Long Only,long
+2026-02-02,TRMB,buy,23543,67.88,Long Only,long
+2026-02-02,TXN,sell,3448,225.01,Long Only,long
+2026-02-02,WDAY,buy,7526,173.38,Long Only,long
+2026-02-02,WDC,buy,17389,270.23,Long Only,long
+2026-02-02,XYZ,buy,15095,60.4,Long Only,long

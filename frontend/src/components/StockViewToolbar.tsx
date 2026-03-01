@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { WidgetConfig } from "../types/entities";
-import { SaveViewDialog } from "./SaveViewDialog";
 import { ScheduleEmailDialog } from "./ScheduleEmailDialog";
 import { useStockEntity } from "../pages/stock/StockEntityPage";
 import "../styles/entity.css";
@@ -15,18 +14,14 @@ export function StockViewToolbar({ pageWidgets }: StockViewToolbarProps) {
     views,
     activeView,
     isViewOwner,
-    dirty,
     viewId,
     handleViewSelect,
-    handleSaveNewView,
-    handleSaveView,
     handleDeleteView,
     collectOverrides,
     user,
     bumpSchedulesRefresh,
   } = useStockEntity();
 
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
 
   return (
@@ -56,22 +51,6 @@ export function StockViewToolbar({ pageWidgets }: StockViewToolbarProps) {
               Delete
             </button>
           )}
-          {dirty && (isViewOwner || !detail.active_view_id) && (
-            <button
-              className="entity-page__action-btn"
-              onClick={handleSaveView}
-            >
-              Save
-            </button>
-          )}
-          {dirty && (
-            <button
-              className="entity-page__action-btn"
-              onClick={() => setShowSaveDialog(true)}
-            >
-              Save As New
-            </button>
-          )}
           <button
             className="entity-page__action-btn entity-page__action-btn--primary"
             onClick={() => setShowScheduleDialog(true)}
@@ -81,15 +60,6 @@ export function StockViewToolbar({ pageWidgets }: StockViewToolbarProps) {
         </div>
       </div>
 
-      {showSaveDialog && (
-        <SaveViewDialog
-          onSave={(name, isShared) => {
-            handleSaveNewView(name, isShared);
-            setShowSaveDialog(false);
-          }}
-          onCancel={() => setShowSaveDialog(false)}
-        />
-      )}
       {showScheduleDialog && (
         <ScheduleEmailDialog
           entityType={detail.entity_type}

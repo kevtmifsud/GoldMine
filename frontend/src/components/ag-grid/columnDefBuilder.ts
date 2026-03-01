@@ -2,8 +2,9 @@ import type { ColDef } from "ag-grid-community";
 import type { ColumnConfig } from "../../types/entities";
 import { getValueFormatter } from "./formatters";
 import { dateFilterParams } from "./filters";
-import { TickerLinkRenderer } from "./TickerLinkRenderer";
+import { getEntityRenderer } from "./EntityLinkRenderer";
 import { TranscriptViewButtonRenderer } from "./TranscriptViewButtonRenderer";
+import { UrlRenderer } from "./UrlRenderer";
 
 function getFilterConfig(format: string): Partial<ColDef> {
   switch (format) {
@@ -32,8 +33,13 @@ export function buildColumnDefs(
       valueFormatter: getValueFormatter(col.format),
     };
 
-    if (col.key === "ticker") {
-      def.cellRenderer = TickerLinkRenderer;
+    if (col.entity_type) {
+      def.cellRenderer = getEntityRenderer(col.entity_type, col.entity_id_field);
+      delete def.valueFormatter;
+    }
+
+    if (col.format === "url") {
+      def.cellRenderer = UrlRenderer;
       delete def.valueFormatter;
     }
 

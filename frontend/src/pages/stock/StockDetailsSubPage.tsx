@@ -5,7 +5,7 @@ import { StockViewToolbar } from "../../components/StockViewToolbar";
 import { useStockEntity } from "./StockEntityPage";
 
 export function StockDetailsSubPage() {
-  const { detail, handleWidgetStateChange, getWidgetRef } = useStockEntity();
+  const { detail, getWidgetRef } = useStockEntity();
 
   const chartWidgets = detail.widgets.filter((w) => w.widget_type === "chart");
   const priceHistory = chartWidgets.filter((w) => w.widget_id === "price_history");
@@ -27,7 +27,6 @@ export function StockDetailsSubPage() {
           ref={getWidgetRef(widget.widget_id)}
           config={widget}
           entityId={detail.entity_id}
-          onStateChange={handleWidgetStateChange}
         />
       ))}
       {otherCharts.map((widget) => (
@@ -36,7 +35,6 @@ export function StockDetailsSubPage() {
           ref={getWidgetRef(widget.widget_id)}
           config={widget}
           entityId={detail.entity_id}
-          onStateChange={handleWidgetStateChange}
         />
       ))}
     </>

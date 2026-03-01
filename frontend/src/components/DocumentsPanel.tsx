@@ -9,12 +9,27 @@ interface DocumentsPanelProps {
   entityId: string;
 }
 
+type SearchMode = "keyword" | "semantic" | "hybrid";
+
+function highlightExcerpt(text: string, query: string): string {
+  if (!query.trim()) return text;
+  const words = query
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length >= 2)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (words.length === 0) return text;
+  const pattern = new RegExp(`(${words.join("|")})`, "gi");
+  return text.replace(pattern, "<mark>$1</mark>");
+}
+
 export function DocumentsPanel({ entityType, entityId }: DocumentsPanelProps) {
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
   const [searchResults, setSearchResults] = useState<
     DocumentSearchResult[] | null
   >(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchMode, setSearchMode] = useState<SearchMode>("hybrid");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -45,7 +60,12 @@ export function DocumentsPanel({ entityType, entityId }: DocumentsPanelProps) {
     setLoading(true);
     setError(null);
     try {
-      const results = await docsApi.searchDocuments(q, entityType, entityId);
+      const results = await docsApi.searchDocuments(
+        q,
+        entityType,
+        entityId,
+        searchMode
+      );
       setSearchResults(results);
     } catch {
       setError("Search failed");
@@ -66,6 +86,21 @@ export function DocumentsPanel({ entityType, entityId }: DocumentsPanelProps) {
   const handleUploadComplete = () => {
     setShowUpload(false);
     fetchDocuments();
+  };
+
+  const handleDelete = async (fileId: string) => {
+    if (!window.confirm("Delete this document?")) return;
+    try {
+      await docsApi.deleteDocument(fileId);
+      fetchDocuments();
+      if (searchResults) {
+        setSearchResults(
+          searchResults.filter((r) => r.file_id !== fileId)
+        );
+      }
+    } catch {
+      setError("Failed to delete document");
+    }
   };
 
   const isSearch = searchResults !== null;
@@ -107,6 +142,18 @@ export function DocumentsPanel({ entityType, entityId }: DocumentsPanelProps) {
         )}
       </div>
 
+      <div className="docs-panel__mode-toggle">
+        {(["keyword", "semantic", "hybrid"] as SearchMode[]).map((mode) => (
+          <button
+            key={mode}
+            className={`docs-panel__mode-btn${searchMode === mode ? " docs-panel__mode-btn--active" : ""}`}
+            onClick={() => setSearchMode(mode)}
+          >
+            {mode.charAt(0).toUpperCase() + mode.slice(1)}
+          </button>
+        ))}
+      </div>
+
       {loading && <div className="docs-panel__loading">Loading...</div>}
       {error && <div className="docs-panel__error">{error}</div>}
 
@@ -128,6 +175,13 @@ export function DocumentsPanel({ entityType, entityId }: DocumentsPanelProps) {
                     <span className="docs-panel__item-type">
                       {item.doc_type}
                     </span>
+                    <button
+                      className="docs-panel__delete-btn"
+                      onClick={() => handleDelete(item.file_id)}
+                      title="Delete document"
+                    >
+                      &times;
+                    </button>
                   </div>
                   <div className="docs-panel__item-meta">
                     {item.filename}
@@ -139,10 +193,15 @@ export function DocumentsPanel({ entityType, entityId }: DocumentsPanelProps) {
                         <div
                           key={chunk.chunk_id}
                           className="docs-panel__item-excerpt"
-                        >
-                          {chunk.text.slice(0, 200)}
-                          {chunk.text.length > 200 ? "..." : ""}
-                        </div>
+                          dangerouslySetInnerHTML={{
+                            __html: highlightExcerpt(
+                              chunk.text.length > 200
+                                ? chunk.text.slice(0, 200) + "..."
+                                : chunk.text,
+                              searchQuery
+                            ),
+                          }}
+                        />
                       ))}
                     </div>
                   )}
@@ -157,6 +216,13 @@ export function DocumentsPanel({ entityType, entityId }: DocumentsPanelProps) {
                     <span className="docs-panel__item-type">
                       {item.doc_type}
                     </span>
+                    <button
+                      className="docs-panel__delete-btn"
+                      onClick={() => handleDelete(item.file_id)}
+                      title="Delete document"
+                    >
+                      &times;
+                    </button>
                   </div>
                   <div className="docs-panel__item-meta">
                     {item.filename}

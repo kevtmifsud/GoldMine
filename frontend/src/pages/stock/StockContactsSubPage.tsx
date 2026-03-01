@@ -4,7 +4,7 @@ import { StockViewToolbar } from "../../components/StockViewToolbar";
 import { useStockEntity } from "./StockEntityPage";
 
 export function StockContactsSubPage() {
-  const { detail, handleWidgetStateChange, getWidgetRef } = useStockEntity();
+  const { detail, getWidgetRef } = useStockEntity();
 
   const relatedPeople = detail.widgets.filter(
     (w) => w.widget_id === "related_people"
@@ -21,7 +21,6 @@ export function StockContactsSubPage() {
             ref={getWidgetRef(widget.widget_id)}
             config={widget}
             entityId={detail.entity_id}
-            onStateChange={handleWidgetStateChange}
           />
         ))
       ) : (

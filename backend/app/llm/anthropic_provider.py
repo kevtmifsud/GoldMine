@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.config.settings import settings
+from app.exceptions import GoldMineError
 from app.llm.interfaces import LLMProvider
 from app.llm.models import LLMQueryRequest, LLMQueryResponse
 from app.logging_config import get_logger
@@ -34,19 +35,48 @@ class AnthropicProvider(LLMProvider):
         context: str,
         sources_context: str,
     ) -> LLMQueryResponse:
-        user_message = (
-            f"Entity: {request.entity_type} / {request.entity_id}\n\n"
-            f"--- Structured Data ---\n{context}\n\n"
-            f"--- Document Excerpts ---\n{sources_context}\n\n"
-            f"--- Question ---\n{request.query}"
-        )
+        # Build multi-turn messages array
+        messages: list[dict[str, str]] = []
 
-        response = self._client.messages.create(
-            model=settings.LLM_MODEL,
-            max_tokens=settings.LLM_MAX_RESPONSE_TOKENS,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
-        )
+        # Replay prior conversation turns
+        for msg in request.conversation_history:
+            messages.append({"role": msg.role, "content": msg.content})
+
+        # Build the current user message
+        if request.is_first_message:
+            user_message = (
+                f"Entity: {request.entity_type} / {request.entity_id}\n\n"
+                f"--- Structured Data ---\n{context}\n\n"
+                f"--- Document Excerpts ---\n{sources_context}\n\n"
+                f"--- Question ---\n{request.query}"
+            )
+        else:
+            user_message = request.query
+
+        messages.append({"role": "user", "content": user_message})
+
+        import anthropic
+
+        try:
+            response = self._client.messages.create(
+                model=settings.LLM_MODEL,
+                max_tokens=settings.LLM_MAX_RESPONSE_TOKENS,
+                system=SYSTEM_PROMPT,
+                messages=messages,
+                timeout=60,
+            )
+        except anthropic.BadRequestError as e:
+            if "credit balance" in str(e).lower():
+                raise GoldMineError("Anthropic API credit balance too low. Please add credits at console.anthropic.com.", status_code=402)
+            raise GoldMineError(f"Invalid request: {e}", status_code=400)
+        except anthropic.AuthenticationError:
+            raise GoldMineError("Invalid Anthropic API key. Check ANTHROPIC_API_KEY.", status_code=401)
+        except anthropic.RateLimitError:
+            raise GoldMineError("Rate limited", status_code=429)
+        except anthropic.APITimeoutError:
+            raise GoldMineError("LLM request timed out", status_code=504)
+        except anthropic.APIError as e:
+            raise GoldMineError(f"LLM service error: {e}", status_code=502)
 
         answer = ""
         for block in response.content:

@@ -38,8 +38,17 @@ class FilterDefinition(BaseModel):
 
 class SecondaryLine(BaseModel):
     y_key: str
+    y_key_alt: str | None = None
     label: str
+    label_alt: str | None = None
     color: str = "#e86319"
+
+
+class BarConfig(BaseModel):
+    y_key: str
+    y_key_alt: str | None = None
+    label: str
+    color: str
 
 
 class ChartConfig(BaseModel):
@@ -49,7 +58,15 @@ class ChartConfig(BaseModel):
     x_label: str
     y_label: str
     color: str = "#2a4a7f"
+    y_format: str | None = None  # "currency", "number", or None (raw)
+    y_key_alt: str | None = None
+    y_label_alt: str | None = None
+    y_format_alt: str | None = None
+    color_key: str | None = None
+    bars: list[BarConfig] = Field(default_factory=list)
+    stacked: bool = False
     secondary_y_label: str | None = None
+    secondary_y_label_alt: str | None = None
     secondary_lines: list[SecondaryLine] = Field(default_factory=list)
 
 
@@ -59,6 +76,8 @@ class ColumnConfig(BaseModel):
     format: str = "text"
     sortable: bool = True
     visible: bool = True
+    entity_type: str | None = None       # e.g. "stock", "person", "portfolio"
+    entity_id_field: str | None = None   # when display value != entity ID (e.g. name → person_id)
 
 
 class WidgetConfig(BaseModel):
@@ -71,6 +90,7 @@ class WidgetConfig(BaseModel):
     chart_config: ChartConfig | None = None
     filter_definitions: list[FilterDefinition] = Field(default_factory=list)
     client_filterable_columns: list[str] = Field(default_factory=list)
+    full_width: bool = False
     has_overrides: bool = False
     initial_filters: dict[str, str] = Field(default_factory=dict)
     initial_sort_by: str | None = None

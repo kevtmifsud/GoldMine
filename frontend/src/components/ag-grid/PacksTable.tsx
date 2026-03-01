@@ -4,6 +4,7 @@ import type { AnalystPack } from "../../types/entities";
 import { PackNameRenderer } from "./PackNameRenderer";
 import { PackActionRenderer } from "./PackActionRenderer";
 import { AppGrid } from "./AppGrid";
+import { useGridColumnManager } from "../../hooks/useGridColumnManager";
 import { SetFilter } from "./SetFilter";
 import { dateFilterParams } from "./filters";
 
@@ -28,8 +29,8 @@ export function PacksTable({
   onSendAlert,
   deletingId,
 }: PacksTableProps) {
-  const columnDefs = useMemo<ColDef<AnalystPack>[]>(() => {
-    const cols: ColDef<AnalystPack>[] = [
+  const allColumns = useMemo<ColDef<AnalystPack>[]>(
+    () => [
       {
         headerName: "Pack Name",
         field: "name",
@@ -39,6 +40,7 @@ export function PacksTable({
       },
       {
         headerName: "Owner",
+        colId: "owner",
         valueGetter: (params) =>
           params.data?.owner_display_name || params.data?.owner || "",
         sortable: true,
@@ -55,10 +57,7 @@ export function PacksTable({
         filter: "agDateColumnFilter",
         filterParams: dateFilterParams,
       },
-    ];
-
-    if (showVisibility) {
-      cols.push({
+      {
         headerName: "Visibility",
         field: "is_shared",
         valueGetter: (params) =>
@@ -76,22 +75,35 @@ export function PacksTable({
         },
         sortable: true,
         filter: SetFilter,
-      });
-    }
+      },
+      {
+        headerName: "Actions",
+        cellRenderer: PackActionRenderer,
+        headerClass: "packs-list__th-actions",
+        cellClass: "packs-list__td-actions",
+        sortable: false,
+        filter: false,
+        floatingFilter: false,
+        suppressHeaderMenuButton: true,
+      },
+    ],
+    []
+  );
 
-    cols.push({
-      headerName: "Actions",
-      cellRenderer: PackActionRenderer,
-      headerClass: "packs-list__th-actions",
-      cellClass: "packs-list__td-actions",
-      sortable: false,
-      filter: false,
-      floatingFilter: false,
-      suppressHeaderMenuButton: true,
-    });
+  const defaultVisibleFields = useMemo(
+    () => {
+      const fields = ["name", "owner", "created_at"];
+      if (showVisibility) fields.push("is_shared");
+      return fields;
+    },
+    [showVisibility]
+  );
 
-    return cols;
-  }, [showVisibility]);
+  const { columnDefs, contextMenuConfig } = useGridColumnManager<AnalystPack>({
+    gridId: "analyst-packs",
+    allColumns,
+    defaultVisibleFields,
+  });
 
   const context = useMemo(
     () => ({
@@ -112,6 +124,8 @@ export function PacksTable({
       domLayout="autoHeight"
       getRowId={(params) => params.data.pack_id}
       suppressPaginationPanel={true}
+      contextMenu={contextMenuConfig}
+      viewKey="analyst-packs"
     />
   );
 }

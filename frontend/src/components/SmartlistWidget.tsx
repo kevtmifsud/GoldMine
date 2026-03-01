@@ -1,14 +1,42 @@
 import { useEffect, useState, useCallback, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
-import type { GridApi, FilterChangedEvent, GridReadyEvent, SortChangedEvent } from "ag-grid-community";
+import type { GridApi, GridReadyEvent, SortChangedEvent } from "ag-grid-community";
 import api from "../config/api";
 import type { WidgetConfig, PaginatedResponse, WidgetStateOverride } from "../types/entities";
 import { buildColumnDefs } from "./ag-grid/columnDefBuilder";
 import { AppGrid } from "./ag-grid/AppGrid";
+import type { ContextMenuConfig } from "./ag-grid/AppGrid";
 import "../styles/smartlist.css";
+
+const COLUMN_STORAGE_PREFIX = "goldmine:grid-columns:smartlist-";
+
+function loadSavedColumns(widgetId: string): string[] | null {
+  try {
+    const raw = localStorage.getItem(COLUMN_STORAGE_PREFIX + widgetId);
+    if (raw) return JSON.parse(raw) as string[];
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function persistColumns(widgetId: string, columns: string[]): void {
+  try {
+    localStorage.setItem(COLUMN_STORAGE_PREFIX + widgetId, JSON.stringify(columns));
+  } catch {
+    // ignore
+  }
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) {
+    if (!b.has(v)) return false;
+  }
+  return true;
+}
 
 interface SmartlistWidgetProps {
   config: WidgetConfig;
-  onStateChange?: () => void;
 }
 
 export interface SmartlistWidgetHandle {
@@ -16,7 +44,7 @@ export interface SmartlistWidgetHandle {
 }
 
 export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidgetProps>(
-  function SmartlistWidget({ config, onStateChange }, ref) {
+  function SmartlistWidget({ config }, ref) {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,23 +63,19 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
   // Client-side quick filter
   const [clientFilterText, setClientFilterText] = useState("");
 
-  // Column visibility
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() =>
-    new Set(config.columns.filter((c) => c.visible !== false).map((c) => c.key))
+  // Column visibility — saved state is what's persisted in localStorage
+  // (or config defaults if nothing saved). Working state is what the user sees.
+  const [savedVisibleColumns, setSavedVisibleColumns] = useState<Set<string>>(() => {
+    const saved = loadSavedColumns(config.widget_id);
+    if (saved && saved.length > 0) return new Set(saved);
+    return new Set(config.columns.filter((c) => c.visible !== false).map((c) => c.key));
+  });
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    () => new Set(savedVisibleColumns)
   );
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const columnPickerRef = useRef<HTMLDivElement>(null);
-  const mountedRef = useRef(false);
   const gridApiRef = useRef<GridApi | null>(null);
-
-  // Notify parent when user changes widget state
-  useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      return;
-    }
-    onStateChange?.();
-  }, [serverFilters, sortBy, sortOrder, visibleColumns]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Expose state to parent via ref
   useImperativeHandle(ref, () => ({
@@ -169,6 +193,32 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
     [config.columns, visibleColumns]
   );
 
+  const columnsDirty = useMemo(
+    () => !setsEqual(visibleColumns, savedVisibleColumns),
+    [visibleColumns, savedVisibleColumns]
+  );
+
+  const saveColumns = useCallback(() => {
+    persistColumns(config.widget_id, Array.from(visibleColumns));
+    setSavedVisibleColumns(new Set(visibleColumns));
+  }, [config.widget_id, visibleColumns]);
+
+  const discardColumns = useCallback(() => {
+    setVisibleColumns(new Set(savedVisibleColumns));
+  }, [savedVisibleColumns]);
+
+  const contextMenuConfig = useMemo<ContextMenuConfig>(() => ({
+    hiddenColumns: config.columns
+      .filter((c) => !visibleColumns.has(c.key))
+      .map((c) => ({ field: c.key, headerName: c.label })),
+    onAddColumn: (field: string) => handleToggleColumn(field),
+    onRemoveColumn: (field: string) => handleToggleColumn(field),
+    visibleCount: visibleColumns.size,
+    isDirty: columnsDirty,
+    onSave: saveColumns,
+    onDiscard: discardColumns,
+  }), [config.columns, visibleColumns, columnsDirty, saveColumns, discardColumns]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const initialState = useMemo(() => ({
     sort: {
       sortModel: config.initial_sort_by
@@ -184,10 +234,6 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
     gridApiRef.current = event.api;
   }, []);
 
-  const handleFilterChanged = useCallback((_event: FilterChangedEvent) => {
-    onStateChange?.();
-  }, [onStateChange]);
-
   const hasFilters = config.filter_definitions.length > 0;
   const hasQuickFilter = config.client_filterable_columns.length > 0;
   const hasColumnToggle = config.columns.length > 0;
@@ -197,9 +243,6 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
       <div className="smartlist__header">
         <h3 className="smartlist__title">
           {config.title}
-          {config.has_overrides && (
-            <span className="smartlist__override-badge">modified</span>
-          )}
         </h3>
         {hasColumnToggle && (
           <div className="smartlist__column-toggle" ref={columnPickerRef}>
@@ -280,8 +323,9 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
               initialState={initialState}
               onGridReady={handleGridReady}
               onSortChanged={handleSortChanged}
-              onFilterChanged={handleFilterChanged}
               suppressPaginationPanel={true}
+              contextMenu={contextMenuConfig}
+              viewKey={`smartlist-${config.widget_id}`}
             />
           </div>
       )}

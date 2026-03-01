@@ -17,7 +17,6 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: "details", label: "Details" },
   { to: "portfolio", label: "Portfolio & Positions" },
   { to: "contacts", label: "Contacts" },
   {

@@ -22,6 +22,7 @@ import { PackBuilderPage } from "./pages/PackBuilderPage";
 import { DatasetsPage } from "./pages/DatasetsPage";
 import { AlertsPage } from "./pages/AlertsPage";
 import { PublicPacksPage } from "./pages/PublicPacksPage";
+import { PortfoliosPage } from "./pages/PortfoliosPage";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -53,7 +54,7 @@ function App() {
             </AuthGuard>
           }
         >
-          <Route index element={<Navigate to="details" replace />} />
+          <Route index element={<Navigate to="portfolio" replace />} />
           <Route path="details" element={<StockDetailsSubPage />} />
           <Route path="portfolio" element={<StockPortfolioSubPage />} />
           <Route path="contacts" element={<StockContactsSubPage />} />
@@ -110,6 +111,14 @@ function App() {
           <Route path="data" element={<StockDataSubPage />} />
           <Route path="alerts" element={<StockAlertsSubPage />} />
         </Route>
+        <Route
+          path="/portfolios"
+          element={
+            <AuthGuard>
+              <PortfoliosPage />
+            </AuthGuard>
+          }
+        />
         <Route
           path="/entity/:entityType/:entityId"
           element={

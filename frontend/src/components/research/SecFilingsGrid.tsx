@@ -2,17 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColDef, GridApi, ICellRendererParams } from "ag-grid-community";
 import api from "../../config/api";
 import { AppGrid } from "../ag-grid/AppGrid";
+import { useGridColumnManager } from "../../hooks/useGridColumnManager";
 import { SetFilter } from "../ag-grid/SetFilter";
 import { dateFilterParams } from "../ag-grid/filters";
-import {
-  saveGridView,
-  restoreGridView,
-  clearGridView,
-  hasGridView,
-} from "../ag-grid/gridViewPersistence";
 import "../../styles/research.css";
-
-const VIEW_KEY = "research-sec-filings";
 
 interface SecFiling {
   symbol: string;
@@ -25,6 +18,7 @@ interface SecFiling {
   report_date: string;
   acceptance_date_time: string;
   filing_url: string;
+  primary_document: string;
 }
 
 interface SecFilingsGridProps {
@@ -59,8 +53,16 @@ export function FormTypeBadgeRenderer(params: ICellRendererParams) {
 }
 
 function EdgarLinkRenderer(params: ICellRendererParams<SecFiling>) {
-  const url = params.value as string;
-  if (!url) return <span>{"\u2014"}</span>;
+  const baseUrl = params.value as string;
+  const accession = params.data?.accession_number;
+  const primaryDoc = params.data?.primary_document;
+  if (!baseUrl || !accession) return <span>{"\u2014"}</span>;
+
+  // If we have the primary document filename, link to the inline XBRL viewer.
+  // Otherwise fall back to the filing index page.
+  const url = primaryDoc
+    ? `https://www.sec.gov/ix?doc=/Archives/edgar/data/${params.data!.cik.replace(/^0+/, "")}/${accession.replace(/-/g, "")}/${primaryDoc}`
+    : `${baseUrl}/${accession}-index.htm`;
 
   return (
     <a
@@ -78,10 +80,7 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
   const [filings, setFilings] = useState<SecFiling[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const [savedViewExists, setSavedViewExists] = useState(() => hasGridView(VIEW_KEY));
   const gridApiRef = useRef<GridApi<SecFiling> | null>(null);
-  const restoringRef = useRef(false);
 
   const fetchFilings = useCallback(async () => {
     setLoading(true);
@@ -107,26 +106,6 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
     fetchFilings();
   }, [fetchFilings]);
 
-  const markDirty = useCallback(() => {
-    if (!restoringRef.current) setDirty(true);
-  }, []);
-
-  const handleSaveView = useCallback(() => {
-    if (gridApiRef.current) {
-      saveGridView(VIEW_KEY, gridApiRef.current);
-      setSavedViewExists(true);
-      setDirty(false);
-    }
-  }, []);
-
-  const handleResetView = useCallback(() => {
-    clearGridView(VIEW_KEY);
-    gridApiRef.current?.resetColumnState();
-    gridApiRef.current?.setFilterModel(null);
-    setSavedViewExists(false);
-    setDirty(false);
-  }, []);
-
   const getRowId = useCallback(
     (params: { data: SecFiling }) => params.data.accession_number,
     []
@@ -139,16 +118,7 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
     []
   );
 
-  const onFirstDataRendered = useCallback(
-    (e: { api: import("ag-grid-community").GridApi<SecFiling> }) => {
-      restoringRef.current = true;
-      restoreGridView(VIEW_KEY, e.api);
-      restoringRef.current = false;
-    },
-    []
-  );
-
-  const columnDefs = useMemo<ColDef<SecFiling>[]>(
+  const allColumns = useMemo<ColDef<SecFiling>[]>(
     () => [
       {
         colId: "filing_date",
@@ -231,6 +201,17 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
     []
   );
 
+  const defaultFilingFields = useMemo(
+    () => ["filing_date", "form_type", "form_type_description", "report_date", "report_year", "report_qtr", "filing_url"],
+    []
+  );
+
+  const { columnDefs, contextMenuConfig: filingContextMenu } = useGridColumnManager<SecFiling>({
+    gridId: "research-sec-filings",
+    allColumns,
+    defaultVisibleFields: defaultFilingFields,
+  });
+
   return (
     <div className="research-grid">
       <div className="research-grid__header">
@@ -239,20 +220,6 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
           <span className="research-grid__count">({filings.length})</span>
         </h3>
         <div className="research-grid__header-actions">
-          <button
-            className={dirty ? "research-grid__save-view-btn research-grid__save-view-btn--dirty" : "research-grid__save-view-btn"}
-            onClick={handleSaveView}
-          >
-            Save Default View
-          </button>
-          {savedViewExists && (
-            <button
-              className="research-grid__download-btn"
-              onClick={handleResetView}
-            >
-              Reset View
-            </button>
-          )}
           {filings.length > 0 && (
             <button
               className="research-grid__download-btn"
@@ -280,11 +247,8 @@ export function SecFilingsGrid({ symbol }: SecFilingsGridProps) {
             domLayout="autoHeight"
             getRowId={getRowId}
             onGridReady={onGridReady}
-            onFirstDataRendered={onFirstDataRendered}
-            onSortChanged={markDirty}
-            onColumnMoved={markDirty}
-            onColumnResized={markDirty}
-            onFilterChanged={markDirty}
+            contextMenu={filingContextMenu}
+            viewKey="research-sec-filings"
           />
         </div>
       )}

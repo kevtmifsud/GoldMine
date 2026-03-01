@@ -1,3 +1,7 @@
+.entity-page {
+  padding: 1.5rem;
+}
+
 .entity-page__back {
   display: inline-block;
   color: var(--color-primary);

@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "claude-sonnet-4-20250514"
     LLM_MAX_CONTEXT_CHUNKS: int = 15
     LLM_MAX_RESPONSE_TOKENS: int = 1024
+    EMBEDDING_PROVIDER: str = "voyage"
+    EMBEDDING_MODEL: str = "voyage-3"
+    EMBEDDING_DIMENSIONS: int = 1024
     LOG_LEVEL: str = "DEBUG"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 8

@@ -1,0 +1,215 @@
+/* Portfolios page — consolidated portfolio view with toggle */
+
+.portfolios-page {
+  padding: 0;
+}
+
+/* ---- Header ---- */
+.portfolios-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.portfolios-page__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* ---- Date picker (centered) ---- */
+.portfolios-page__date-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.portfolios-page__date-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.portfolios-page__date-input {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.portfolios-page__date-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.portfolios-page__apply-btn {
+  padding: 0.25rem 0.45rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid var(--color-primary);
+  border-radius: 4px;
+  background: var(--color-primary);
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+
+.portfolios-page__apply-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.portfolios-page__apply-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+/* ---- Pill toggle ---- */
+.portfolios-toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.portfolios-toggle__btn {
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.portfolios-toggle__btn:not(:last-child) {
+  border-right: 1px solid var(--color-border);
+}
+
+.portfolios-toggle__btn--active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.portfolios-toggle__btn:hover:not(.portfolios-toggle__btn--active) {
+  background: var(--color-surface);
+}
+
+/* ---- Grid section ---- */
+.portfolios-page__grid-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.portfolios-page__grid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.portfolios-page__grid-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.portfolios-page__grid-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.portfolios-page__download-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.portfolios-page__download-btn:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.portfolios-page__grid {
+  height: 500px;
+}
+
+/* ---- Charts row ---- */
+.portfolios-page__charts-row {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 1.25rem 0;
+}
+
+.portfolios-page__chart-section {
+  flex: 1;
+  min-width: 0;
+  padding: 1.25rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.portfolios-page__chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.portfolios-page__chart-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.portfolios-page__chart-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.portfolios-page__group-toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+  font-size: 0.75rem;
+}
+
+.portfolios-page__group-toggle-btn {
+  padding: 0.25rem 0.6rem;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.portfolios-page__group-toggle-btn:not(:last-child) {
+  border-right: 1px solid var(--color-border);
+}
+
+.portfolios-page__group-toggle-btn--active {
+  background: var(--color-primary);
+  color: #fff;
+}

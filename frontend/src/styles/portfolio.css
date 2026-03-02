@@ -88,6 +88,16 @@
   color: var(--color-text-secondary);
 }
 
+.portfolio-summary-card--clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.15s;
+}
+
+.portfolio-summary-card--clickable:hover {
+  background: var(--color-bg);
+}
+
 /* ---- Charts row (side-by-side) ---- */
 .portfolio-charts-row {
   display: flex;
@@ -302,6 +312,42 @@
 
 .portfolio-empty__message {
   font-size: 0.875rem;
+}
+
+/* ---- Chart header controls (toggle + zoom reset) ---- */
+.portfolio-chart__header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ---- Chart zoom ---- */
+.portfolio-chart__container {
+  user-select: none;
+}
+
+.portfolio-chart__container--zoomable {
+  cursor: crosshair;
+}
+
+.portfolio-chart__container--zoomed {
+  cursor: zoom-out;
+}
+
+.portfolio-chart__zoom-reset {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.portfolio-chart__zoom-reset:hover {
+  background: var(--color-bg);
+  border-color: var(--color-primary-light);
 }
 
 /* ---- Loading ---- */

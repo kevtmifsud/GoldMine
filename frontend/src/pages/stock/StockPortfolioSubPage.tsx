@@ -10,12 +10,16 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  ReferenceLine,
+  ReferenceArea,
   ResponsiveContainer,
 } from "recharts";
 import api from "../../config/api";
+import { EarningsDetailDialog } from "../../components/EarningsDetailDialog";
 import { AppGrid } from "../../components/ag-grid/AppGrid";
 import { createEntityLinkRenderer } from "../../components/ag-grid/EntityLinkRenderer";
 import { useGridColumnManager } from "../../hooks/useGridColumnManager";
+import { useChartZoom } from "../../hooks/useChartZoom";
 import { ResearchSearchBar } from "../../components/ResearchSearchBar";
 import { StockViewToolbar } from "../../components/StockViewToolbar";
 import { useStockEntity } from "./StockEntityPage";
@@ -60,6 +64,51 @@ function pnlColor(value: number): string {
   return "";
 }
 
+interface EarningsEntry {
+  report_date: string;
+  time: string;
+  fiscal_quarter_ending: string;
+  fiscal_year?: number;
+  fiscal_quarter?: number;
+  has_transcript?: boolean;
+  filing_url?: string | null;
+}
+
+interface AllEarningsEntry {
+  report_date: string;
+  fiscal_year: number | null;
+  fiscal_quarter: number | null;
+}
+
+interface EarningsData {
+  ticker: string;
+  last_earnings: EarningsEntry | null;
+  next_earnings: EarningsEntry | null;
+  all_earnings: AllEarningsEntry[];
+}
+
+function formatEarningsDate(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatEarningsTime(time: string): string {
+  switch (time) {
+    case "after-market-close": return "After Market";
+    case "before-market-open": return "Before Open";
+    case "time-after-hours": return "After Hours";
+    case "time-pre-market": return "Pre-Market";
+    default: return "";
+  }
+}
+
+function daysUntil(dateStr: string): number {
+  const target = new Date(dateStr + "T00:00:00");
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 const PortfolioLinkRenderer = createEntityLinkRenderer({ entityType: "portfolio" });
 
 export function StockPortfolioSubPage() {
@@ -70,9 +119,13 @@ export function StockPortfolioSubPage() {
   const [selectedPortfolio, setSelectedPortfolio] = useState<string | null>(null);
   const [pnlMode, setPnlMode] = useState<"$" | "%">("$");
   const [weightMode, setWeightMode] = useState<"%" | "$">("%");
+  const [earningsData, setEarningsData] = useState<EarningsData | null>(null);
+  const [showEarningsDialog, setShowEarningsDialog] = useState(false);
   const gridApiRef = useRef<GridApi<TradeRecord> | null>(null);
   const { hiddenKeys: weightHidden, handleToggle: weightToggle, handleSolo: weightSolo } = useToggleableLegend();
   const { hiddenKeys: pnlChartHidden, handleToggle: pnlChartToggle, handleSolo: pnlChartSolo } = useToggleableLegend();
+  const priceZoom = useChartZoom();
+  const pnlZoom = useChartZoom();
 
   useEffect(() => {
     setLoading(true);
@@ -94,6 +147,13 @@ export function StockPortfolioSubPage() {
       .catch(() => setError("Failed to load portfolio data"))
       .finally(() => setLoading(false));
   }, [detail.entity_id, selectedPortfolio]);
+
+  useEffect(() => {
+    api
+      .get<EarningsData>(`/api/earnings/${detail.entity_id}`)
+      .then((resp) => setEarningsData(resp.data))
+      .catch(() => {/* ignore — cards will show dashes */});
+  }, [detail.entity_id]);
 
   const allTradeColumns = useMemo<ColDef<TradeRecord>[]>(
     () => [
@@ -154,10 +214,28 @@ export function StockPortfolioSubPage() {
     []
   );
 
-  const tooltipFormatter = useCallback(
-    (value: number | undefined) => formatDollar(value ?? 0),
-    []
-  );
+  // Earnings date lookup map for tooltip enrichment
+  const earningsDateToLabel = useMemo(() => {
+    const m = new Map<string, string>();
+    earningsData?.all_earnings?.forEach((e) => {
+      if (e.fiscal_year && e.fiscal_quarter) {
+        m.set(e.report_date, `FY${String(e.fiscal_year).slice(-2)} Q${e.fiscal_quarter}`);
+      }
+    });
+    return m;
+  }, [earningsData]);
+
+  // Trade date lookup for chart dot markers and tooltip
+  const tradeDateMap = useMemo(() => {
+    const m = new Map<string, TradeRecord[]>();
+    if (!data) return m;
+    for (const t of data.trades) {
+      const arr = m.get(t.date);
+      if (arr) arr.push(t);
+      else m.set(t.date, [t]);
+    }
+    return m;
+  }, [data]);
 
   const handlePortfolioChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -306,45 +384,119 @@ export function StockPortfolioSubPage() {
               : "No trades"}
           </span>
         </div>
+
+        {/* Last Earnings */}
+        <div
+          className={`portfolio-summary-card${earningsData?.last_earnings?.has_transcript ? " portfolio-summary-card--clickable" : ""}`}
+          onClick={() => {
+            if (earningsData?.last_earnings?.has_transcript) setShowEarningsDialog(true);
+          }}
+        >
+          <span className="portfolio-summary-card__label">Last Earnings</span>
+          <span className="portfolio-summary-card__value">
+            {earningsData?.last_earnings
+              ? formatEarningsDate(earningsData.last_earnings.report_date)
+              : "\u2014"}
+          </span>
+          <span className="portfolio-summary-card__detail">
+            {earningsData?.last_earnings
+              ? [
+                  earningsData.last_earnings.fiscal_year && earningsData.last_earnings.fiscal_quarter
+                    ? `FY${String(earningsData.last_earnings.fiscal_year).slice(-2)} Q${earningsData.last_earnings.fiscal_quarter}`
+                    : "",
+                  formatEarningsTime(earningsData.last_earnings.time),
+                ].filter(Boolean).join(" \u00B7 ") || "\u00A0"
+              : "\u00A0"}
+          </span>
+        </div>
+
+        {/* Next Earnings */}
+        <div className="portfolio-summary-card">
+          <span className="portfolio-summary-card__label">Next Earnings</span>
+          <span className="portfolio-summary-card__value">
+            {earningsData?.next_earnings
+              ? formatEarningsDate(earningsData.next_earnings.report_date)
+              : "\u2014"}
+          </span>
+          <span className="portfolio-summary-card__detail">
+            {earningsData?.next_earnings
+              ? [
+                  formatEarningsTime(earningsData.next_earnings.time),
+                  `in ${daysUntil(earningsData.next_earnings.report_date)} days`,
+                ].filter(Boolean).join(" \u00B7 ")
+              : "\u00A0"}
+          </span>
+        </div>
       </div>
+
+      {/* Earnings Detail Dialog */}
+      {showEarningsDialog && earningsData?.last_earnings?.fiscal_year && earningsData?.last_earnings?.fiscal_quarter && (
+        <EarningsDetailDialog
+          symbol={detail.entity_id}
+          year={earningsData.last_earnings.fiscal_year}
+          quarter={earningsData.last_earnings.fiscal_quarter}
+          filingUrl={earningsData.last_earnings.filing_url ?? null}
+          onClose={() => setShowEarningsDialog(false)}
+        />
+      )}
 
       {/* Charts Row */}
       <div className="portfolio-charts-row">
         {/* Price & Portfolio Weight Chart */}
-        {price_weight_series.length > 1 && (
+        {price_weight_series.length > 1 && (() => {
+          const priceData = priceZoom.zoomData(price_weight_series, "date");
+          const priceDates = new Set(priceData.map((d) => d.date));
+          return (
           <div className="portfolio-chart">
             <div className="portfolio-chart__header">
               <div className="portfolio-chart__title">
                 Price &amp; Portfolio Weight
               </div>
-              <div className="portfolio-chart__toggle">
-                <button
-                  className={`portfolio-chart__toggle-btn${weightMode === "%" ? " portfolio-chart__toggle-btn--active" : ""}`}
-                  onClick={() => setWeightMode("%")}
-                >
-                  %
-                </button>
-                <button
-                  className={`portfolio-chart__toggle-btn${weightMode === "$" ? " portfolio-chart__toggle-btn--active" : ""}`}
-                  onClick={() => setWeightMode("$")}
-                >
-                  $
-                </button>
+              <div className="portfolio-chart__header-controls">
+                <div className="portfolio-chart__toggle">
+                  <button
+                    className={`portfolio-chart__toggle-btn${weightMode === "%" ? " portfolio-chart__toggle-btn--active" : ""}`}
+                    onClick={() => setWeightMode("%")}
+                  >
+                    %
+                  </button>
+                  <button
+                    className={`portfolio-chart__toggle-btn${weightMode === "$" ? " portfolio-chart__toggle-btn--active" : ""}`}
+                    onClick={() => setWeightMode("$")}
+                  >
+                    $
+                  </button>
+                </div>
+                {priceZoom.isZoomed && (
+                  <button className="portfolio-chart__zoom-reset" onClick={priceZoom.handleResetZoom}>
+                    Reset Zoom
+                  </button>
+                )}
               </div>
             </div>
+            <div
+              className={`portfolio-chart__container${priceZoom.isZoomed ? " portfolio-chart__container--zoomed" : " portfolio-chart__container--zoomable"}`}
+              onDoubleClick={priceZoom.isZoomed ? priceZoom.handleResetZoom : undefined}
+            >
             <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={price_weight_series}>
-                <CartesianGrid strokeDasharray="3 3" />
+              <ComposedChart
+                data={priceData}
+                onMouseDown={priceZoom.handleMouseDown as (e: unknown) => void}
+                onMouseMove={priceZoom.handleMouseMove as (e: unknown) => void}
+                onMouseUp={priceZoom.handleMouseUp}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 11 }}
                   tickFormatter={(v: string) => v.slice(0, 7)}
-                  interval={Math.max(0, Math.floor(price_weight_series.length / 8) - 1)}
+                  interval={Math.max(0, Math.floor(priceData.length / 8) - 1)}
                 />
                 <YAxis
                   yAxisId="price"
                   tickFormatter={(v: number) => `$${v}`}
                   tick={{ fontSize: 11 }}
+                  domain={["auto", "auto"]}
                 />
                 <YAxis
                   yAxisId="weight"
@@ -353,12 +505,36 @@ export function StockPortfolioSubPage() {
                   tick={{ fontSize: 11 }}
                 />
                 <Tooltip
-                  labelFormatter={(label) => String(label)}
-                  formatter={(value: number | undefined, name: string | undefined) => {
-                    if (value == null) return "—";
-                    if (name === "Portfolio %") return `${value.toFixed(2)}%`;
-                    if (name === "Portfolio $") return formatCurrency(value);
-                    return `$${value.toFixed(2)}`;
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const dateStr = String(label);
+                    const earningsLabel = earningsDateToLabel.get(dateStr);
+                    const dateTrades = tradeDateMap.get(dateStr);
+                    return (
+                      <div className="recharts-default-tooltip" style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", padding: "8px 12px", fontSize: "0.8rem" }}>
+                        <p style={{ margin: 0, fontWeight: 600 }}>
+                          {dateStr}
+                          {earningsLabel && <span style={{ color: "#718096", fontWeight: 400 }}> — {earningsLabel}</span>}
+                        </p>
+                        {payload.map((entry, i) => (
+                          <p key={i} style={{ margin: "2px 0 0", color: entry.color }}>
+                            {entry.name}: {entry.name === (weightMode === "%" ? "Portfolio %" : "Portfolio $")
+                              ? (weightMode === "%" ? `${Number(entry.value).toFixed(2)}%` : formatCurrency(Number(entry.value)))
+                              : `$${Number(entry.value).toFixed(2)}`}
+                          </p>
+                        ))}
+                        {dateTrades && dateTrades.length > 0 && (
+                          <div style={{ borderTop: "1px solid var(--color-border)", marginTop: 4, paddingTop: 4 }}>
+                            {dateTrades.map((t, i) => (
+                              <p key={i} style={{ margin: i > 0 ? "3px 0 0" : 0, color: t.action === "buy" ? "#38a169" : "#e53e3e" }}>
+                                {t.action.charAt(0).toUpperCase() + t.action.slice(1)} {t.shares.toLocaleString()} @ ${t.price.toFixed(2)}
+                                <span style={{ color: "var(--color-text-secondary)" }}> ({formatCurrency(t.notional)})</span>
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
                   }}
                 />
                 <Legend
@@ -392,48 +568,149 @@ export function StockPortfolioSubPage() {
                   dataKey="stock_price"
                   name="Stock Price"
                   stroke="#1a202c"
-                  dot={false}
+                  dot={(props: Record<string, unknown>) => {
+                    const { cx, cy, payload, key } = props as { cx: number; cy: number; payload: { date: string }; key: string };
+                    const dateTrades = tradeDateMap.get(payload.date);
+                    if (!dateTrades?.length) return <g key={key} />;
+                    const hasBuy = dateTrades.some((t) => t.action === "buy");
+                    const hasSell = dateTrades.some((t) => t.action === "sell");
+                    if (hasBuy && hasSell) {
+                      return (
+                        <g key={key}>
+                          <circle cx={cx} cy={cy - 4} r={4} fill="#38a169" stroke="#fff" strokeWidth={1.5} />
+                          <circle cx={cx} cy={cy + 4} r={4} fill="#e53e3e" stroke="#fff" strokeWidth={1.5} />
+                        </g>
+                      );
+                    }
+                    return (
+                      <circle key={key} cx={cx} cy={cy} r={4}
+                        fill={hasBuy ? "#38a169" : "#e53e3e"}
+                        stroke="#fff" strokeWidth={1.5}
+                      />
+                    );
+                  }}
+                  activeDot={((props: Record<string, unknown>) => {
+                    const { cx, cy, payload, key } = props as { cx: number; cy: number; payload: { date: string }; key: string };
+                    const dateTrades = tradeDateMap.get(payload?.date);
+                    if (!dateTrades?.length) {
+                      return <circle key={key} cx={cx} cy={cy} r={4} fill="#1a202c" stroke="#fff" strokeWidth={2} />;
+                    }
+                    const hasBuy = dateTrades.some((t) => t.action === "buy");
+                    const hasSell = dateTrades.some((t) => t.action === "sell");
+                    if (hasBuy && hasSell) {
+                      return (
+                        <g key={key}>
+                          <circle cx={cx} cy={cy - 4} r={5} fill="#38a169" stroke="#fff" strokeWidth={2} />
+                          <circle cx={cx} cy={cy + 4} r={5} fill="#e53e3e" stroke="#fff" strokeWidth={2} />
+                        </g>
+                      );
+                    }
+                    return (
+                      <circle key={key} cx={cx} cy={cy} r={5}
+                        fill={hasBuy ? "#38a169" : "#e53e3e"}
+                        stroke="#fff" strokeWidth={2}
+                      />
+                    );
+                  }) as never}
                   strokeWidth={2}
                   hide={weightHidden.has("stock_price")}
                 />
+                {earningsData?.all_earnings
+                  ?.filter((e) => priceDates.has(e.report_date))
+                  .map((e) => (
+                    <ReferenceLine
+                      key={`pw-earn-${e.report_date}`}
+                      x={e.report_date}
+                      yAxisId="price"
+                      stroke="#a0aec0"
+                      strokeDasharray="4 3"
+                      strokeWidth={1}
+                    />
+                  ))}
+                {priceZoom.selectingLeft && priceZoom.selectingRight && (
+                  <ReferenceArea
+                    yAxisId="price"
+                    x1={priceZoom.selectingLeft}
+                    x2={priceZoom.selectingRight}
+                    strokeOpacity={0.3}
+                    fill="#3182ce"
+                    fillOpacity={0.15}
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
+            </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Cumulative PnL Chart */}
-        {pnl_series.length > 1 && (
+        {pnl_series.length > 1 && (() => {
+          const pnlData = pnlZoom.zoomData(pnl_series, "date");
+          const pnlDates = new Set(pnlData.map((d) => d.date));
+          return (
           <div className="portfolio-chart">
             <div className="portfolio-chart__header">
               <div className="portfolio-chart__title">Cumulative PnL</div>
-              <div className="portfolio-chart__toggle">
-                <button
-                  className={`portfolio-chart__toggle-btn${pnlMode === "$" ? " portfolio-chart__toggle-btn--active" : ""}`}
-                  onClick={() => setPnlMode("$")}
-                >
-                  $
-                </button>
-                <button
-                  className={`portfolio-chart__toggle-btn${pnlMode === "%" ? " portfolio-chart__toggle-btn--active" : ""}`}
-                  onClick={() => setPnlMode("%")}
-                >
-                  %
-                </button>
+              <div className="portfolio-chart__header-controls">
+                <div className="portfolio-chart__toggle">
+                  <button
+                    className={`portfolio-chart__toggle-btn${pnlMode === "$" ? " portfolio-chart__toggle-btn--active" : ""}`}
+                    onClick={() => setPnlMode("$")}
+                  >
+                    $
+                  </button>
+                  <button
+                    className={`portfolio-chart__toggle-btn${pnlMode === "%" ? " portfolio-chart__toggle-btn--active" : ""}`}
+                    onClick={() => setPnlMode("%")}
+                  >
+                    %
+                  </button>
+                </div>
+                {pnlZoom.isZoomed && (
+                  <button className="portfolio-chart__zoom-reset" onClick={pnlZoom.handleResetZoom}>
+                    Reset Zoom
+                  </button>
+                )}
               </div>
             </div>
+            <div
+              className={`portfolio-chart__container${pnlZoom.isZoomed ? " portfolio-chart__container--zoomed" : " portfolio-chart__container--zoomable"}`}
+              onDoubleClick={pnlZoom.isZoomed ? pnlZoom.handleResetZoom : undefined}
+            >
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={pnl_series}>
-                <CartesianGrid strokeDasharray="3 3" />
+              <LineChart
+                data={pnlData}
+                onMouseDown={pnlZoom.handleMouseDown as (e: unknown) => void}
+                onMouseMove={pnlZoom.handleMouseMove as (e: unknown) => void}
+                onMouseUp={pnlZoom.handleMouseUp}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                 <YAxis
                   tickFormatter={pnlMode === "$" ? (v: number) => formatCurrency(v) : (v: number) => `${v.toFixed(1)}%`}
                   tick={{ fontSize: 11 }}
+                  domain={["auto", "auto"]}
                 />
                 <Tooltip
-                  formatter={pnlMode === "$"
-                    ? tooltipFormatter
-                    : (value: number | undefined) => `${(value ?? 0).toFixed(2)}%`
-                  }
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const dateStr = String(label);
+                    const earningsLabel = earningsDateToLabel.get(dateStr);
+                    return (
+                      <div className="recharts-default-tooltip" style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", padding: "8px 12px", fontSize: "0.8rem" }}>
+                        <p style={{ margin: 0, fontWeight: 600 }}>
+                          {dateStr}
+                          {earningsLabel && <span style={{ color: "#718096", fontWeight: 400 }}> — {earningsLabel}</span>}
+                        </p>
+                        {payload.map((entry, i) => (
+                          <p key={i} style={{ margin: "2px 0 0", color: entry.color }}>
+                            {entry.name}: {pnlMode === "$" ? formatDollar(Number(entry.value)) : `${Number(entry.value).toFixed(2)}%`}
+                          </p>
+                        ))}
+                      </div>
+                    );
+                  }}
                 />
                 <Legend
                   content={(props) => (
@@ -466,10 +743,32 @@ export function StockPortfolioSubPage() {
                   strokeWidth={2}
                   hide={pnlChartHidden.has(pnlMode === "$" ? "realized_pnl" : "realized_pnl_pct")}
                 />
+                {earningsData?.all_earnings
+                  ?.filter((e) => pnlDates.has(e.report_date))
+                  .map((e) => (
+                    <ReferenceLine
+                      key={`pnl-earn-${e.report_date}`}
+                      x={e.report_date}
+                      stroke="#a0aec0"
+                      strokeDasharray="4 3"
+                      strokeWidth={1}
+                    />
+                  ))}
+                {pnlZoom.selectingLeft && pnlZoom.selectingRight && (
+                  <ReferenceArea
+                    x1={pnlZoom.selectingLeft}
+                    x2={pnlZoom.selectingRight}
+                    strokeOpacity={0.3}
+                    fill="#3182ce"
+                    fillOpacity={0.15}
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
+            </div>
           </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Open Positions */}

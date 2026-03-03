@@ -10,12 +10,14 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  ReferenceArea,
   ResponsiveContainer,
 } from "recharts";
 import { Layout } from "../components/Layout";
 import { AppGrid } from "../components/ag-grid/AppGrid";
 import { createEntityLinkRenderer } from "../components/ag-grid/EntityLinkRenderer";
 import { useGridColumnManager } from "../hooks/useGridColumnManager";
+import { useChartZoom } from "../hooks/useChartZoom";
 import api from "../config/api";
 import type {
   EntityDetail,
@@ -102,6 +104,7 @@ const PORTFOLIO_COLORS: Record<string, string> = {
   Flagship: "#3182ce",
   "Long Only": "#38a169",
 };
+const MV_AREA_COLOR = "#a0aec0";
 const SP500_COLOR = "#718096";
 const INDUSTRY_PALETTE = [
   "#3182ce",
@@ -130,6 +133,7 @@ export function PortfoliosPage() {
   const [breakdownGroups, setBreakdownGroups] = useState<string[]>([]);
   const { hiddenKeys: perfHidden, handleToggle: perfToggle, handleSolo: perfSolo } = useToggleableLegend();
   const { hiddenKeys: breakdownHidden, handleToggle: breakdownToggle, handleSolo: breakdownSolo } = useToggleableLegend();
+  const perfZoom = useChartZoom();
   const [perfMode, setPerfMode] = useState<"$" | "%">("%");
   const [breakdownMode, setBreakdownMode] = useState<"$" | "%">("%");
   const [startDate, setStartDate] = useState<string>("2022-01-01");
@@ -519,27 +523,45 @@ export function PortfoliosPage() {
         {/* Charts row */}
         <div className="portfolios-page__charts-row">
           {/* Cumulative performance chart */}
-          {comparisonData.length > 0 && (
+          {comparisonData.length > 0 && (() => {
+            const perfData = perfZoom.zoomData(chartComparisonData, "date");
+            return (
             <div className="portfolios-page__chart-section">
               <div className="portfolios-page__chart-header">
                 <div className="portfolios-page__chart-title">Cumulative Performance</div>
-                <div className="portfolios-page__group-toggle">
-                  <button
-                    className={`portfolios-page__group-toggle-btn${perfMode === "%" ? " portfolios-page__group-toggle-btn--active" : ""}`}
-                    onClick={() => setPerfMode("%")}
-                  >
-                    %
-                  </button>
-                  <button
-                    className={`portfolios-page__group-toggle-btn${perfMode === "$" ? " portfolios-page__group-toggle-btn--active" : ""}`}
-                    onClick={() => setPerfMode("$")}
-                  >
-                    $
-                  </button>
+                <div className="portfolios-page__chart-header-controls">
+                  <div className="portfolios-page__group-toggle">
+                    <button
+                      className={`portfolios-page__group-toggle-btn${perfMode === "%" ? " portfolios-page__group-toggle-btn--active" : ""}`}
+                      onClick={() => setPerfMode("%")}
+                    >
+                      %
+                    </button>
+                    <button
+                      className={`portfolios-page__group-toggle-btn${perfMode === "$" ? " portfolios-page__group-toggle-btn--active" : ""}`}
+                      onClick={() => setPerfMode("$")}
+                    >
+                      $
+                    </button>
+                  </div>
+                  {perfZoom.isZoomed && (
+                    <button className="portfolio-chart__zoom-reset" onClick={perfZoom.handleResetZoom}>
+                      Reset Zoom
+                    </button>
+                  )}
                 </div>
               </div>
+              <div
+                className={`portfolio-chart__container${perfZoom.isZoomed ? " portfolio-chart__container--zoomed" : " portfolio-chart__container--zoomable"}`}
+                onDoubleClick={perfZoom.isZoomed ? perfZoom.handleResetZoom : undefined}
+              >
               <ResponsiveContainer width="100%" height={350}>
-                <ComposedChart data={chartComparisonData}>
+                <ComposedChart
+                  data={perfData}
+                  onMouseDown={perfZoom.handleMouseDown as (e: unknown) => void}
+                  onMouseMove={perfZoom.handleMouseMove as (e: unknown) => void}
+                  onMouseUp={perfZoom.handleMouseUp}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                   <XAxis
                     dataKey="date"
@@ -552,6 +574,7 @@ export function PortfoliosPage() {
                     yAxisId="mv"
                     tick={{ fontSize: 11 }}
                     tickFormatter={(v: number) => formatCurrency(v)}
+                    domain={["auto", "auto"]}
                   />
                   <YAxis
                     yAxisId="perf"
@@ -561,6 +584,7 @@ export function PortfoliosPage() {
                       ? (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`
                       : (v: number) => formatCurrency(v)
                     }
+                    domain={["auto", "auto"]}
                   />
                   <Tooltip
                     formatter={((value: number, name: string) => {
@@ -585,11 +609,11 @@ export function PortfoliosPage() {
                       type="monotone"
                       dataKey={`${selected}_mv`}
                       name="Portfolio Value"
-                      fill={PORTFOLIO_COLORS[selected] || "#805ad5"}
-                      stroke={PORTFOLIO_COLORS[selected] || "#805ad5"}
-                      fillOpacity={0.1}
+                      fill={MV_AREA_COLOR}
+                      stroke={MV_AREA_COLOR}
+                      fillOpacity={0.15}
                       strokeWidth={1}
-                      strokeOpacity={0.3}
+                      strokeOpacity={0.4}
                       connectNulls
                       hide={perfHidden.has(`${selected}_mv`)}
                     />
@@ -619,10 +643,22 @@ export function PortfoliosPage() {
                       hide={perfHidden.has("S&P 500")}
                     />
                   )}
+                  {perfZoom.selectingLeft && perfZoom.selectingRight && (
+                    <ReferenceArea
+                      yAxisId="mv"
+                      x1={perfZoom.selectingLeft}
+                      x2={perfZoom.selectingRight}
+                      strokeOpacity={0.3}
+                      fill="#3182ce"
+                      fillOpacity={0.15}
+                    />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
+              </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* Breakdown by sector/industry chart */}
           {breakdownData.length > 0 && (

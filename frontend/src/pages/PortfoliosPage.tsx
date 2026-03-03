@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColDef, GridApi } from "ag-grid-community";
 import {
+  ComposedChart,
   LineChart,
   Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -24,6 +26,7 @@ import {
   ToggleableLegend,
   useToggleableLegend,
 } from "../components/ToggleableLegend";
+import { ResearchSearchBar } from "../components/ResearchSearchBar";
 import "../styles/portfolio.css";
 import "../styles/portfolios-page.css";
 
@@ -420,6 +423,11 @@ export function PortfoliosPage() {
       const out: ComparisonDataPoint = { date: point.date };
       for (const [key, value] of Object.entries(point)) {
         if (key === "date") continue;
+        // Always carry through market value under a stable key
+        if (key.endsWith("_mv")) {
+          out[key] = value;
+          continue;
+        }
         if (perfMode === "%") {
           if (!key.endsWith("_dollars")) out[key] = value;
         } else {
@@ -448,7 +456,10 @@ export function PortfoliosPage() {
   // All dataKeys for each chart (for solo / double-click behavior)
   const perfAllKeys = useMemo(() => {
     const keys: string[] = [];
-    if (selected) keys.push(selected);
+    if (selected) {
+      keys.push(selected);
+      keys.push(`${selected}_mv`);
+    }
     if (selected !== "Flagship" && perfMode === "%") keys.push("S&P 500");
     return keys;
   }, [selected, perfMode]);
@@ -501,6 +512,10 @@ export function PortfoliosPage() {
           )}
         </div>
 
+        {selected && (
+          <ResearchSearchBar entityType="portfolio" entityId={selected} />
+        )}
+
         {/* Charts row */}
         <div className="portfolios-page__charts-row">
           {/* Cumulative performance chart */}
@@ -524,8 +539,8 @@ export function PortfoliosPage() {
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={350}>
-                <LineChart data={chartComparisonData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <ComposedChart data={chartComparisonData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 11 }}
@@ -534,6 +549,13 @@ export function PortfoliosPage() {
                     minTickGap={60}
                   />
                   <YAxis
+                    yAxisId="mv"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v: number) => formatCurrency(v)}
+                  />
+                  <YAxis
+                    yAxisId="perf"
+                    orientation="right"
                     tick={{ fontSize: 11 }}
                     tickFormatter={perfMode === "%"
                       ? (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`
@@ -541,16 +563,11 @@ export function PortfoliosPage() {
                     }
                   />
                   <Tooltip
-                    formatter={perfMode === "%"
-                      ? ((value: number, name: string) => [
-                          `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`,
-                          name,
-                        ]) as never
-                      : ((value: number, name: string) => [
-                          formatCurrency(value),
-                          name,
-                        ]) as never
-                    }
+                    formatter={((value: number, name: string) => {
+                      if (name === "Portfolio Value") return [formatCurrency(value), name];
+                      if (perfMode === "%") return [`${value >= 0 ? "+" : ""}${value.toFixed(1)}%`, name];
+                      return [formatCurrency(value), name];
+                    }) as never}
                   />
                   <Legend
                     content={(props) => (
@@ -563,7 +580,23 @@ export function PortfoliosPage() {
                     )}
                   />
                   {selected && (
+                    <Area
+                      yAxisId="mv"
+                      type="monotone"
+                      dataKey={`${selected}_mv`}
+                      name="Portfolio Value"
+                      fill={PORTFOLIO_COLORS[selected] || "#805ad5"}
+                      stroke={PORTFOLIO_COLORS[selected] || "#805ad5"}
+                      fillOpacity={0.1}
+                      strokeWidth={1}
+                      strokeOpacity={0.3}
+                      connectNulls
+                      hide={perfHidden.has(`${selected}_mv`)}
+                    />
+                  )}
+                  {selected && (
                     <Line
+                      yAxisId="perf"
                       type="monotone"
                       dataKey={selected}
                       stroke={PORTFOLIO_COLORS[selected] || "#805ad5"}
@@ -575,6 +608,7 @@ export function PortfoliosPage() {
                   )}
                   {selected !== "Flagship" && perfMode === "%" && (
                     <Line
+                      yAxisId="perf"
                       type="monotone"
                       dataKey="S&P 500"
                       stroke={SP500_COLOR}
@@ -585,7 +619,7 @@ export function PortfoliosPage() {
                       hide={perfHidden.has("S&P 500")}
                     />
                   )}
-                </LineChart>
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           )}
@@ -594,7 +628,7 @@ export function PortfoliosPage() {
           {breakdownData.length > 0 && (
             <div className="portfolios-page__chart-section">
               <div className="portfolios-page__chart-header">
-                <div className="portfolios-page__chart-title">PnL by</div>
+                <div className="portfolios-page__chart-title">PnL by {groupBy === "sector" ? "Sector" : "Industry"}</div>
                 <div className="portfolios-page__chart-header-controls">
                   <div className="portfolios-page__group-toggle">
                     <button

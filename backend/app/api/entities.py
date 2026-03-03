@@ -221,21 +221,20 @@ async def get_portfolio_comparison(
     # Compute cumulative return % and $ series for each portfolio
     portfolio_pct: dict[str, dict[str, float]] = {}   # name -> {date: cum_ret_pct}
     portfolio_dollars: dict[str, dict[str, float]] = {}  # name -> {date: cum_pnl_$}
-    portfolio_value: dict[str, dict[str, float]] = {}  # name -> {date: cost_basis + cum_pnl}
+    portfolio_nav: dict[str, dict[str, float]] = {}  # name -> {date: portfolio_value (NAV)}
     earliest_date: str | None = None
     for name in portfolio_names:
         daily = _compute_daily_pnl_series(name)
         pct_map: dict[str, float] = {}
         dollar_map: dict[str, float] = {}
-        value_map: dict[str, float] = {}
+        nav_map: dict[str, float] = {}
         for row in daily:
             pct_map[row["date"]] = float(row["cumulative_pnl_pct"])
-            cum_pnl = float(row["cumulative_pnl"])
-            dollar_map[row["date"]] = cum_pnl
-            value_map[row["date"]] = float(row["total_cost_basis"]) + cum_pnl
+            dollar_map[row["date"]] = float(row["cumulative_pnl"])
+            nav_map[row["date"]] = float(row["portfolio_value"])
         portfolio_pct[name] = pct_map
         portfolio_dollars[name] = dollar_map
-        portfolio_value[name] = value_map
+        portfolio_nav[name] = nav_map
         if daily and (earliest_date is None or daily[0]["date"] < earliest_date):
             earliest_date = daily[0]["date"]
 
@@ -278,7 +277,7 @@ async def get_portfolio_comparison(
             if date in portfolio_pct.get(name, {}):
                 point[name] = round(portfolio_pct[name][date] - baselines_pct.get(name, 0.0), 2)
                 point[f"{name}_dollars"] = round(portfolio_dollars[name][date] - baselines_dollars.get(name, 0.0))
-                point[f"{name}_mv"] = round(portfolio_value.get(name, {}).get(date, 0.0))
+                point[f"{name}_mv"] = round(portfolio_nav.get(name, {}).get(date, 0.0))
         if date in sp500:
             point["S&P 500"] = round(sp500[date], 2)
         series.append(point)
@@ -1741,6 +1740,7 @@ def _compute_daily_pnl_series(portfolio_name: str) -> list[dict[str, str]]:
     positions: dict[str, dict[str, Any]] = {}  # ticker -> {side, shares, total_cost}
     prev_market_value = 0.0
     cumulative_pnl = 0.0
+    initial_capital = 0.0  # net capital deployed on day 1, used as denominator for PnL%
     series: list[dict[str, str]] = []
 
     for i in range(start_idx, len(all_dates)):
@@ -1782,28 +1782,33 @@ def _compute_daily_pnl_series(portfolio_name: str) -> list[dict[str, str]]:
                     if pos["shares"] <= 0.5:
                         del positions[ticker]
 
-        # Compute market value and cumulative PnL
+        # Compute market value of current holdings
         market_value = 0.0
-        cum_pnl = 0.0
         for ticker, pos in positions.items():
             pr = _price_on_date(ticker, date)
             if pr is None:
                 pr = pos["total_cost"] / pos["shares"] if pos["shares"] > 0 else 0
-            current_val = pos["shares"] * pr
-            market_value += current_val
-            if pos["side"] == "long":
-                cum_pnl += current_val - pos["total_cost"]
-            else:
-                cum_pnl += pos["total_cost"] - current_val
+            market_value += pos["shares"] * pr
 
-        daily_pnl = market_value - prev_market_value if i > start_idx else 0.0
-        cumulative_pnl = cum_pnl
+        # Daily PnL: change in market value minus net new capital deployed.
+        # This isolates actual returns from capital flows (buys inflate MV,
+        # sells deflate it — neither is a gain/loss).
+        net_capital_flow = buy_amount - sell_amount
+        daily_pnl = (market_value - prev_market_value) - net_capital_flow if i > start_idx else 0.0
+        cumulative_pnl += daily_pnl
         total_trades = num_buys + num_sells
 
-        # Percentage calculations
+        # Set initial capital on day 1 (used as fixed denominator for PnL%)
+        if i == start_idx:
+            initial_capital = market_value
+            # Day 1 PnL = intraday move from trade price to EOD price
+            daily_pnl = market_value - net_capital_flow
+            cumulative_pnl = daily_pnl
+
         total_cost_basis = sum(p["total_cost"] for p in positions.values())
+        portfolio_value = initial_capital + cumulative_pnl
         daily_pnl_pct = (daily_pnl / prev_market_value * 100) if prev_market_value and i > start_idx else 0.0
-        cumulative_pnl_pct = (cumulative_pnl / total_cost_basis * 100) if total_cost_basis else 0.0
+        cumulative_pnl_pct = (cumulative_pnl / initial_capital * 100) if initial_capital else 0.0
 
         series.append({
             "date": date,
@@ -1812,6 +1817,7 @@ def _compute_daily_pnl_series(portfolio_name: str) -> list[dict[str, str]]:
             "daily_pnl_pct": f"{daily_pnl_pct:.2f}",
             "cumulative_pnl_pct": f"{cumulative_pnl_pct:.2f}",
             "market_value": str(round(market_value)),
+            "portfolio_value": str(round(portfolio_value)),
             "total_cost_basis": str(round(total_cost_basis)),
             "total_trades": str(total_trades),
             "num_buys": str(num_buys),

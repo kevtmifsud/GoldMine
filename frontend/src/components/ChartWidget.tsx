@@ -1,18 +1,6 @@
-import { useEffect, useState, useCallback, useMemo, useRef, type CSSProperties } from "react";
-import {
-  BarChart,
-  Bar,
-  Cell,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  ReferenceArea,
-} from "recharts";
+import { useEffect, useState, useCallback, useMemo, type CSSProperties } from "react";
+import ReactECharts from "echarts-for-react";
+import type { EChartsOption } from "echarts";
 import { useToggleableLegend } from "./ToggleableLegend";
 import api from "../config/api";
 import type { WidgetConfig, PaginatedResponse } from "../types/entities";
@@ -141,14 +129,14 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
     if (activeYFormat === "currency") return (v: number) => formatCurrency(v);
     if (activeYFormat === "number") return (v: number) => formatNumber(v);
     if (activeYFormat === "percent") return (v: number) => formatPercent(v);
-    return undefined;
+    return (v: number) => String(v);
   }, [activeYFormat]);
 
   const yTooltipFormatter = useMemo(() => {
     if (activeYFormat === "currency") return (v: number) => formatCurrencyFull(v);
     if (activeYFormat === "number") return (v: number) => formatNumber(v);
     if (activeYFormat === "percent") return (v: number) => formatPercentFull(v);
-    return undefined;
+    return (v: number) => String(v);
   }, [activeYFormat]);
 
   // Sort by y-value descending for bar charts; coerce numeric fields
@@ -167,7 +155,6 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
       }
       for (const sl of secondaryLines) {
         const raw = row[sl.y_key];
-        // Keep undefined for missing EPS points so Recharts skips them
         out[sl.y_key] = raw != null && raw !== "" ? Number(raw) : undefined;
         if (sl.y_key_alt) {
           const rawAlt = row[sl.y_key_alt];
@@ -178,7 +165,6 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
     });
     if (chartConfig.chart_type !== "line") {
       if (hasBars) {
-        // Sort by sum of active bar values descending
         mapped.sort((a, b) => {
           const sumA = activeBarsKeys.reduce((s, k) => s + Math.abs(Number(a[k]) || 0), 0);
           const sumB = activeBarsKeys.reduce((s, k) => s + Math.abs(Number(b[k]) || 0), 0);
@@ -195,7 +181,6 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
   }, [data, chartConfig.y_key, chartConfig.y_key_alt, chartConfig.chart_type, secondaryLines, activeYKey, barsConfig, hasBars, activeBarsKeys]);
 
   // Build color maps for bar charts.
-  // barFillSets[i] is the Cell fill array for the i-th <Bar>.
   const colorKey = chartConfig.color_key;
   const isStacked = chartConfig.stacked;
   const BAR_ALPHAS = [0.85, 0.45];
@@ -204,10 +189,8 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
     if (chartConfig.chart_type === "line") return empty;
 
     const numBars = hasBars ? barsConfig.length : 1;
-    // When stacked, both bars share sector color — skip bar legend
     const bLegend = hasBars && !isStacked ? barsConfig.map((b) => ({ label: b.label, color: b.color })) : [];
 
-    // Color by a generic grouping field (e.g. sector) — sort alphabetically for consistent palette
     if (colorKey) {
       const groups = [...new Set(numericData.map((r) => String(r[colorKey] ?? "")))].sort();
       const colorMap: Record<string, string> = {};
@@ -216,7 +199,6 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
       const fillSets = Array.from({ length: numBars }, (_, barIdx) =>
         numericData.map((row) => {
           const group = String(row[colorKey] ?? "");
-          // Stacked: same alpha for all bars; grouped: differentiate by opacity
           const alpha = isStacked ? 0.85 : (BAR_ALPHAS[barIdx] ?? 0.7);
           return hexToRgba(colorMap[group] ?? INDUSTRY_PALETTE[0], alpha);
         })
@@ -225,7 +207,6 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
       return { barFillSets: fillSets, sectorLegendItems: sItems, barLegendItems: bLegend };
     }
 
-    // Highlight a specific entity and its industry peers
     if (!entityId) {
       return { barFillSets: null, sectorLegendItems: [], barLegendItems: bLegend };
     }
@@ -258,83 +239,206 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
       industry: ind, color: colorMap[ind], isHighlighted: ind === selectedIndustry,
     }));
     return { barFillSets: [fills], sectorLegendItems: sItems, barLegendItems: bLegend };
-  }, [numericData, entityId, chartConfig.x_key, chartConfig.chart_type, colorKey, hasBars, barsConfig]);
+  }, [numericData, entityId, chartConfig.x_key, chartConfig.chart_type, colorKey, hasBars, barsConfig, isStacked]);
 
-  // --- Zoom state for line charts ---
   const isLineChart = chartConfig.chart_type === "line";
-  const [zoomLeft, setZoomLeft] = useState<string | null>(null);
-  const [zoomRight, setZoomRight] = useState<string | null>(null);
-  const [selectingLeft, setSelectingLeft] = useState<string | null>(null);
-  const [selectingRight, setSelectingRight] = useState<string | null>(null);
-  const isDragging = useRef(false);
 
-  const zoomedData = useMemo(() => {
-    if (!isLineChart || !zoomLeft || !zoomRight) return numericData;
-    const xKey = chartConfig.x_key;
-    const leftIdx = numericData.findIndex((d) => String(d[xKey]) === zoomLeft);
-    const rightIdx = numericData.findIndex((d) => String(d[xKey]) === zoomRight);
-    if (leftIdx === -1 || rightIdx === -1) return numericData;
-    const lo = Math.min(leftIdx, rightIdx);
-    const hi = Math.max(leftIdx, rightIdx);
-    return numericData.slice(lo, hi + 1);
-  }, [numericData, zoomLeft, zoomRight, isLineChart, chartConfig.x_key]);
+  // Build ECharts option
+  const option: EChartsOption = useMemo(() => {
+    const xData = numericData.map((row) => String(row[chartConfig.x_key]));
+    const series: EChartsOption["series"] = [];
 
-  const isZoomed = isLineChart && zoomLeft !== null && zoomRight !== null;
+    if (isLineChart) {
+      // Primary line on left axis
+      series.push({
+        type: "line",
+        name: activeYLabel ?? activeYKey,
+        data: numericData.map((row) => {
+          const v = row[activeYKey];
+          return v != null ? Number(v) : null;
+        }),
+        yAxisIndex: 0,
+        lineStyle: { color: chartConfig.color || "#3182ce", width: 1.5 },
+        itemStyle: { color: chartConfig.color || "#3182ce" },
+        showSymbol: false,
+        animation: false,
+        connectNulls: false,
+      });
 
-  const handleMouseDown = useCallback(
-    (e: { activeLabel?: string }) => {
-      if (!isLineChart || !e?.activeLabel) return;
-      isDragging.current = true;
-      setSelectingLeft(e.activeLabel);
-      setSelectingRight(null);
-    },
-    [isLineChart]
-  );
-
-  const handleMouseMove = useCallback(
-    (e: { activeLabel?: string }) => {
-      if (!isDragging.current || !e?.activeLabel) return;
-      setSelectingRight(e.activeLabel);
-    },
-    []
-  );
-
-  const handleMouseUp = useCallback(() => {
-    if (!isDragging.current) return;
-    isDragging.current = false;
-    if (selectingLeft && selectingRight && selectingLeft !== selectingRight) {
-      // Determine correct order based on data indices
-      const xKey = chartConfig.x_key;
-      const leftIdx = numericData.findIndex((d) => String(d[xKey]) === selectingLeft);
-      const rightIdx = numericData.findIndex((d) => String(d[xKey]) === selectingRight);
-      if (leftIdx !== -1 && rightIdx !== -1 && leftIdx !== rightIdx) {
-        const lo = Math.min(leftIdx, rightIdx);
-        const hi = Math.max(leftIdx, rightIdx);
-        setZoomLeft(String(numericData[lo][xKey]));
-        setZoomRight(String(numericData[hi][xKey]));
+      // Secondary lines on right axis
+      for (let idx = 0; idx < secondaryLines.length; idx++) {
+        const sl = secondaryLines[idx];
+        series.push({
+          type: "line",
+          name: activeSecondaryLabels[idx],
+          data: numericData.map((row) => {
+            const v = row[activeSecondaryKeys[idx]];
+            return v != null ? Number(v) : null;
+          }),
+          yAxisIndex: hasSecondaryAxis ? 1 : 0,
+          lineStyle: { color: sl.color, width: 1.5, opacity: 0.45 },
+          itemStyle: { color: sl.color },
+          showSymbol: false,
+          animation: false,
+          connectNulls: true,
+        });
+      }
+    } else {
+      // Bar chart
+      if (hasBars) {
+        barsConfig.forEach((bar, barIdx) => {
+          const dataKey = activeBarsKeys[barIdx];
+          series.push({
+            type: "bar",
+            name: bar.label,
+            data: numericData.map((row, i) => ({
+              value: Number(row[dataKey]) || 0,
+              itemStyle: barFillSets?.[barIdx]?.[i]
+                ? { color: barFillSets[barIdx][i] }
+                : { color: bar.color },
+            })),
+            stack: isStacked ? "stack" : undefined,
+          });
+        });
+      } else {
+        series.push({
+          type: "bar",
+          name: activeYLabel ?? activeYKey,
+          data: numericData.map((row, i) => ({
+            value: Number(row[activeYKey]) || 0,
+            itemStyle: barFillSets?.[0]?.[i]
+              ? { color: barFillSets[0][i] }
+              : { color: chartConfig.color },
+          })),
+        });
       }
     }
-    setSelectingLeft(null);
-    setSelectingRight(null);
-  }, [selectingLeft, selectingRight, numericData, chartConfig.x_key]);
 
-  const handleResetZoom = useCallback(() => {
-    setZoomLeft(null);
-    setZoomRight(null);
-    setSelectingLeft(null);
-    setSelectingRight(null);
-  }, []);
+    // Legend
+    const legendNames: string[] = [];
+    const legendSelected: Record<string, boolean> = {};
+    if (isLineChart && hasSecondaryAxis) {
+      legendNames.push(activeYLabel ?? activeYKey);
+      legendSelected[activeYLabel ?? activeYKey] = !hiddenKeys.has(activeYKey);
+      for (let idx = 0; idx < secondaryLines.length; idx++) {
+        legendNames.push(activeSecondaryLabels[idx]);
+        legendSelected[activeSecondaryLabels[idx]] = !hiddenKeys.has(activeSecondaryKeys[idx]);
+      }
+    } else if (!isLineChart && (barLegendItems.length > 0 || sectorLegendItems.length > 0)) {
+      if (barLegendItems.length > 0) {
+        for (let idx = 0; idx < barLegendItems.length; idx++) {
+          legendNames.push(barLegendItems[idx].label);
+          legendSelected[barLegendItems[idx].label] = !hiddenKeys.has(activeBarsKeys[idx]);
+        }
+      }
+    }
 
-  // Thin out x-axis ticks for line charts to avoid overlap
-  const lineXTicks = useMemo(() => {
-    if (!isLineChart) return undefined;
-    const src = zoomedData;
-    if (src.length <= 12) return undefined;
-    const step = Math.ceil(src.length / 10);
-    return src
-      .filter((_, i) => i % step === 0)
-      .map((d) => String(d[chartConfig.x_key]));
-  }, [isLineChart, zoomedData, chartConfig.x_key]);
+    const showLegend = legendNames.length > 0;
+
+    // Build yAxis
+    const yAxes: EChartsOption["yAxis"] = [
+      {
+        type: "value",
+        axisLabel: { fontSize: 11, formatter: (v: number) => yTickFormatter(v) },
+        ...(activeYLabel ? { name: activeYLabel, nameLocation: "middle", nameGap: 50, nameTextStyle: { fontSize: 11 } } : {}),
+        ...(isLineChart ? { scale: true } : {}),
+        splitLine: { lineStyle: { type: "dashed" as const, color: "#e2e8f0" } },
+      },
+    ];
+
+    if (isLineChart && hasSecondaryAxis) {
+      yAxes.push({
+        type: "value",
+        position: "right",
+        axisLabel: { fontSize: 11, formatter: (v: number) => yTickFormatter(v) },
+        ...(activeSecondaryYLabel ? { name: activeSecondaryYLabel, nameLocation: "middle", nameGap: 50, nameRotate: -90, nameTextStyle: { fontSize: 11 } } : {}),
+        scale: true,
+        splitLine: { show: false },
+      });
+    }
+
+    return {
+      grid: { left: 55, right: hasSecondaryAxis ? 55 : 12, top: 8, bottom: isLineChart ? (showLegend ? 55 : 40) : (showLegend ? 30 : 20) },
+      xAxis: {
+        type: "category",
+        data: xData,
+        axisLabel: {
+          fontSize: 11,
+          ...(isLineChart && xData.length > 12
+            ? { interval: Math.ceil(xData.length / 10) - 1 }
+            : {}),
+        },
+        ...(chartConfig.x_label
+          ? { name: chartConfig.x_label, nameLocation: "middle", nameGap: 25, nameTextStyle: { fontSize: 11 } }
+          : {}),
+      },
+      yAxis: yAxes,
+      tooltip: {
+        trigger: "axis",
+        formatter: (params: unknown) => {
+          const items = Array.isArray(params) ? params : [params];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const first = items[0] as any;
+          let html = `<div style="font-weight:600;margin-bottom:4px">${first.axisValue}</div>`;
+          for (const item of items) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const p = item as any;
+            if (p.value == null) continue;
+            const val = typeof p.value === "object" ? p.value.value : p.value;
+            if (val == null) continue;
+            html += `<div>${p.marker} ${p.seriesName}: ${yTooltipFormatter(val)}</div>`;
+          }
+          return html;
+        },
+      },
+      series,
+      ...(showLegend ? {
+        legend: {
+          data: legendNames,
+          selected: legendSelected,
+          bottom: 0,
+          textStyle: { fontSize: 11 },
+        },
+      } : {}),
+      ...(isLineChart ? {
+        dataZoom: [
+          { type: "inside", xAxisIndex: 0 },
+          { type: "slider", xAxisIndex: 0, height: 20, bottom: showLegend ? 22 : 5 },
+        ],
+      } : {}),
+    };
+  }, [numericData, chartConfig, isLineChart, activeYKey, activeYLabel, activeYFormat, hasSecondaryAxis,
+      secondaryLines, activeSecondaryKeys, activeSecondaryLabels, activeSecondaryYLabel,
+      hasBars, barsConfig, activeBarsKeys, barFillSets, isStacked, hiddenKeys, barLegendItems,
+      sectorLegendItems, yTickFormatter, yTooltipFormatter]);
+
+  // Map legend names back to data keys for toggle/solo
+  const legendNameToKeyMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    if (isLineChart && hasSecondaryAxis) {
+      m[activeYLabel ?? activeYKey] = activeYKey;
+      for (let idx = 0; idx < secondaryLines.length; idx++) {
+        m[activeSecondaryLabels[idx]] = activeSecondaryKeys[idx];
+      }
+    } else if (!isLineChart && barLegendItems.length > 0) {
+      for (let idx = 0; idx < barLegendItems.length; idx++) {
+        m[barLegendItems[idx].label] = activeBarsKeys[idx];
+      }
+    }
+    return m;
+  }, [isLineChart, hasSecondaryAxis, activeYLabel, activeYKey, secondaryLines, activeSecondaryLabels, activeSecondaryKeys, barLegendItems, activeBarsKeys]);
+
+  const allLegendDataKeys = useMemo(() => Object.values(legendNameToKeyMap), [legendNameToKeyMap]);
+
+  const onEvents = useMemo(() => ({
+    legendselectchanged: (params: { name: string }) => {
+      const dataKey = legendNameToKeyMap[params.name];
+      if (dataKey) legendToggle(dataKey);
+    },
+  }), [legendNameToKeyMap, legendToggle]);
+
+  // Custom sector legend rendered below the chart (not managed by ECharts legend)
+  const showSectorLegend = !isLineChart && sectorLegendItems.length > 0;
 
   return (
     <div className="chart-widget">
@@ -357,11 +461,6 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
               </button>
             </div>
           )}
-          {isZoomed && (
-            <button className="chart-widget__zoom-reset" onClick={handleResetZoom}>
-              Reset Zoom
-            </button>
-          )}
         </div>
       </div>
       {loading && (
@@ -379,220 +478,51 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
         <div className="chart-widget__empty">No data available</div>
       )}
       {!loading && !error && data.length > 0 && (
-        <div
-          className={`chart-widget__container${isLineChart ? (isZoomed ? " chart-widget__container--zoomed" : " chart-widget__container--zoomable") : ""}`}
-          onDoubleClick={isZoomed ? handleResetZoom : undefined}
-        >
-          <ResponsiveContainer width="100%" height={300}>
-            {isLineChart && hasSecondaryAxis ? (
-              <LineChart
-                data={zoomedData}
-                onMouseDown={handleMouseDown as (e: unknown) => void}
-                onMouseMove={handleMouseMove as (e: unknown) => void}
-                onMouseUp={handleMouseUp}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey={chartConfig.x_key}
-                  ticks={lineXTicks}
-                  tick={{ fontSize: 11 }}
-                  label={{ value: chartConfig.x_label, position: "insideBottom", offset: -5 }}
-                />
-                <YAxis
-                  yAxisId="left"
-                  tickFormatter={yTickFormatter}
-                  label={{ value: activeYLabel, angle: -90, position: "insideLeft" }}
-                  domain={["auto", "auto"]}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tickFormatter={yTickFormatter}
-                  label={{ value: activeSecondaryYLabel ?? "", angle: 90, position: "insideRight" }}
-                  domain={["auto", "auto"]}
-                />
-                <Tooltip formatter={yTooltipFormatter as never} />
-                <Legend
-                  content={() => {
-                    const items: { key: string; label: string; color: string }[] = [
-                      { key: activeYKey, label: activeYLabel ?? activeYKey, color: chartConfig.color || "#3182ce" },
-                      ...secondaryLines.map((sl, idx) => ({
-                        key: activeSecondaryKeys[idx],
-                        label: activeSecondaryLabels[idx],
-                        color: sl.color,
-                      })),
-                    ];
-                    const allKeys = items.map((i) => i.key);
-                    return (
-                      <div className="chart-widget__legend">
-                        {items.map((item) => {
-                          const isHidden = hiddenKeys.has(item.key);
-                          const style: CSSProperties = {
-                            cursor: "pointer",
-                            opacity: isHidden ? 0.35 : 1,
-                            textDecoration: isHidden ? "line-through" : "none",
-                            userSelect: "none",
-                          };
-                          return (
-                            <span
-                              key={item.key}
-                              className="chart-widget__legend-item"
-                              style={style}
-                              onClick={() => legendToggle(item.key)}
-                              onDoubleClick={(e) => { e.stopPropagation(); legendSolo(item.key, allKeys); }}
-                            >
-                              <span className="chart-widget__legend-swatch" style={{ background: item.color }} />
-                              {item.label}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    );
-                  }}
-                />
-                <Line
-                  yAxisId="left"
-                  type="linear"
-                  dataKey={activeYKey}
-                  stroke={chartConfig.color || "#3182ce"}
-                  dot={false}
-                  strokeWidth={1.5}
-                  isAnimationActive={false}
-                  hide={hiddenKeys.has(activeYKey)}
-                />
-                {secondaryLines.map((sl, idx) => (
-                  <Line
-                    key={sl.y_key}
-                    yAxisId="right"
-                    type="linear"
-                    dataKey={activeSecondaryKeys[idx]}
-                    stroke={sl.color}
-                    strokeOpacity={0.45}
-                    dot={false}
-                    strokeWidth={1.5}
-                    connectNulls
-                    isAnimationActive={false}
-                    hide={hiddenKeys.has(activeSecondaryKeys[idx])}
+        <div className="chart-widget__container">
+          <ReactECharts
+            option={option}
+            style={{ height: "100%" }}
+            notMerge
+            onEvents={onEvents}
+          />
+          {showSectorLegend && (
+            <div className="chart-widget__legend">
+              {barLegendItems.map((item, idx) => {
+                const dataKey = activeBarsKeys[idx];
+                const isHidden = hiddenKeys.has(dataKey);
+                const style: CSSProperties = {
+                  cursor: "pointer",
+                  opacity: isHidden ? 0.35 : 1,
+                  textDecoration: isHidden ? "line-through" : "none",
+                  userSelect: "none",
+                };
+                return (
+                  <span
+                    key={item.label}
+                    className="chart-widget__legend-item"
+                    style={style}
+                    onClick={() => legendToggle(dataKey)}
+                    onDoubleClick={(e) => { e.stopPropagation(); legendSolo(dataKey, allLegendDataKeys); }}
+                  >
+                    <span className="chart-widget__legend-swatch" style={{ background: item.color }} />
+                    {item.label}
+                  </span>
+                );
+              })}
+              {sectorLegendItems.map((item) => (
+                <span key={item.industry} className="chart-widget__legend-item">
+                  <span
+                    className="chart-widget__legend-swatch"
+                    style={{
+                      background: item.color,
+                      opacity: item.isHighlighted ? SAME_INDUSTRY_ALPHA : OTHER_ALPHA,
+                    }}
                   />
-                ))}
-                {selectingLeft && selectingRight && (
-                  <ReferenceArea
-                    yAxisId="left"
-                    x1={selectingLeft}
-                    x2={selectingRight}
-                    strokeOpacity={0.3}
-                    fill="#3182ce"
-                    fillOpacity={0.15}
-                  />
-                )}
-              </LineChart>
-            ) : isLineChart ? (
-              <LineChart
-                data={zoomedData}
-                onMouseDown={handleMouseDown as (e: unknown) => void}
-                onMouseMove={handleMouseMove as (e: unknown) => void}
-                onMouseUp={handleMouseUp}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey={chartConfig.x_key}
-                  ticks={lineXTicks}
-                  tick={{ fontSize: 11 }}
-                  label={{ value: chartConfig.x_label, position: "insideBottom", offset: -5 }}
-                />
-                <YAxis
-                  yAxisId="left"
-                  tickFormatter={yTickFormatter}
-                  label={{ value: chartConfig.y_label, angle: -90, position: "insideLeft" }}
-                  domain={["auto", "auto"]}
-                />
-                <Tooltip formatter={yTooltipFormatter as never} />
-                <Line
-                  yAxisId="left"
-                  type="linear"
-                  dataKey={chartConfig.y_key}
-                  stroke={chartConfig.color || "#3182ce"}
-                  dot={false}
-                  strokeWidth={1.5}
-                  isAnimationActive={false}
-                />
-                {selectingLeft && selectingRight && (
-                  <ReferenceArea
-                    yAxisId="left"
-                    x1={selectingLeft}
-                    x2={selectingRight}
-                    strokeOpacity={0.3}
-                    fill="#3182ce"
-                    fillOpacity={0.15}
-                  />
-                )}
-              </LineChart>
-            ) : (
-              <BarChart data={numericData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey={chartConfig.x_key} label={{ value: chartConfig.x_label, position: "insideBottom", offset: -5 }} />
-                <YAxis tickFormatter={yTickFormatter} label={{ value: activeYLabel, angle: -90, position: "insideLeft" }} />
-                <Tooltip formatter={yTooltipFormatter as never} />
-                {hasBars ? (
-                  barsConfig.map((bar, barIdx) => (
-                    <Bar key={bar.y_key} dataKey={activeBarsKeys[barIdx]} fill={bar.color} name={bar.label} stackId={isStacked ? "stack" : undefined} hide={hiddenKeys.has(activeBarsKeys[barIdx])}>
-                      {barFillSets?.[barIdx]?.map((fill, i) => (
-                        <Cell key={i} fill={fill} />
-                      ))}
-                    </Bar>
-                  ))
-                ) : (
-                  <Bar dataKey={activeYKey} fill={chartConfig.color}>
-                    {barFillSets?.[0]?.map((fill, i) => (
-                      <Cell key={i} fill={fill} />
-                    ))}
-                  </Bar>
-                )}
-                {(barLegendItems.length > 0 || sectorLegendItems.length > 0) && (
-                  <Legend
-                    content={() => (
-                      <div className="chart-widget__legend">
-                        {barLegendItems.map((item, idx) => {
-                          const dataKey = activeBarsKeys[idx];
-                          const isHidden = hiddenKeys.has(dataKey);
-                          const style: CSSProperties = {
-                            cursor: "pointer",
-                            opacity: isHidden ? 0.35 : 1,
-                            textDecoration: isHidden ? "line-through" : "none",
-                            userSelect: "none",
-                          };
-                          return (
-                            <span
-                              key={item.label}
-                              className="chart-widget__legend-item"
-                              style={style}
-                              onClick={() => legendToggle(dataKey)}
-                              onDoubleClick={(e) => { e.stopPropagation(); legendSolo(dataKey, [...activeBarsKeys]); }}
-                            >
-                              <span className="chart-widget__legend-swatch" style={{ background: item.color }} />
-                              {item.label}
-                            </span>
-                          );
-                        })}
-                        {sectorLegendItems.map((item) => (
-                          <span key={item.industry} className="chart-widget__legend-item">
-                            <span
-                              className="chart-widget__legend-swatch"
-                              style={{
-                                background: item.color,
-                                opacity: item.isHighlighted ? SAME_INDUSTRY_ALPHA : OTHER_ALPHA,
-                              }}
-                            />
-                            {item.industry}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  />
-                )}
-              </BarChart>
-            )}
-          </ResponsiveContainer>
+                  {item.industry}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -559,11 +559,11 @@ export function PortfoliosPage() {
     }
 
     return {
-      grid: { left: 60, right: 60, top: 30, bottom: 60 },
+      grid: { left: 55, right: 55, top: 8, bottom: 55 },
       legend: {
         data: perfLegendNames,
         selected: legendSelected,
-        top: 0,
+        bottom: 0,
         textStyle: { fontSize: 11 },
       },
       xAxis: {
@@ -617,7 +617,7 @@ export function PortfoliosPage() {
       },
       dataZoom: [
         { type: "inside", xAxisIndex: 0 },
-        { type: "slider", xAxisIndex: 0, height: 20, bottom: 5 },
+        { type: "slider", xAxisIndex: 0, height: 20, bottom: 22 },
       ],
       series,
     };
@@ -702,11 +702,11 @@ export function PortfoliosPage() {
     }
 
     return {
-      grid: { left: 55, right: 16, top: 30, bottom: 30 },
+      grid: { left: 55, right: 12, top: 8, bottom: 28 },
       legend: {
         data: legendNames,
         selected: legendSelected,
-        top: 0,
+        bottom: 0,
         textStyle: { fontSize: 11 },
       },
       xAxis: {

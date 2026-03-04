@@ -21,6 +21,7 @@ export function PackBuilderPage() {
         widgets: [],
         is_shared: isShared,
         row_columns: [2],
+        row_heights: [],
         row_descriptions: [],
       });
       navigate(`/pack/${created.pack_id}`);

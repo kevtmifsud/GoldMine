@@ -174,7 +174,10 @@ export interface AnalystPack {
   created_at: string;
   updated_at: string;
   row_columns: number[];
+  row_heights: number[];
   row_descriptions: string[];
+  entity_type?: string | null;
+  entity_id?: string | null;
 }
 
 export interface AnalystPackCreate {
@@ -183,7 +186,10 @@ export interface AnalystPackCreate {
   widgets: PackWidgetRef[];
   is_shared: boolean;
   row_columns: number[];
+  row_heights: number[];
   row_descriptions: string[];
+  entity_type?: string | null;
+  entity_id?: string | null;
 }
 
 export interface AnalystPackUpdate {
@@ -192,6 +198,7 @@ export interface AnalystPackUpdate {
   widgets?: PackWidgetRef[];
   is_shared?: boolean;
   row_columns?: number[];
+  row_heights?: number[];
   row_descriptions?: string[];
 }
 

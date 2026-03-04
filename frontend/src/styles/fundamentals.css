@@ -1,0 +1,260 @@
+/* ===== Period Toggle ===== */
+.fundamentals-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fundamentals-toggle__label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.fundamentals-toggle__buttons {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.fundamentals-toggle__btn {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: none;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.fundamentals-toggle__btn:not(:last-child) {
+  border-right: 1px solid var(--color-border);
+}
+
+.fundamentals-toggle__btn--active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.fundamentals-toggle__btn:hover:not(.fundamentals-toggle__btn--active) {
+  background: var(--color-bg);
+}
+
+.fundamentals-toggle__spacer {
+  flex: 1;
+}
+
+.fundamentals-toggle__download {
+  padding: 0.375rem 0.875rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.fundamentals-toggle__download:hover:not(:disabled) {
+  background: var(--color-bg);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.fundamentals-toggle__download:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ===== Financial Table ===== */
+.financial-table-wrap {
+  overflow-x: auto;
+  background: var(--color-surface);
+}
+
+.financial-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.financial-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+  border-bottom: 2px solid var(--color-border);
+  padding: 0.625rem 1rem;
+  text-align: right;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  z-index: 1;
+}
+
+.financial-table thead th:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--color-surface);
+  min-width: 220px;
+}
+
+.financial-table tbody td {
+  padding: 0.5rem 1rem;
+  text-align: right;
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.financial-table tbody td:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: inherit;
+  z-index: 1;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+/* Row-level backgrounds — set on tr so sticky td:first-child inherits */
+.financial-table tbody tr {
+  background: var(--color-surface);
+}
+
+.financial-table tbody tr.financial-table__row--header {
+  background: #f0f4f8;
+}
+
+.financial-table__row--header td:first-child {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.financial-table__row--header td {
+  font-weight: 600;
+}
+
+.financial-table tbody tr.financial-table__row--detail {
+  background: #f8fafc;
+}
+
+/* Fiscal year-end boundary (right border after Q4 column) */
+.financial-table__fy-end {
+  border-right: 1px solid #b0bec5 !important;
+}
+
+/* Indent levels */
+.financial-table__label--indent-1 {
+  padding-left: 1.25rem !important;
+}
+
+.financial-table__label--indent-2 {
+  padding-left: 2.5rem !important;
+}
+
+/* Value cell */
+.financial-table__value {
+  display: block;
+  line-height: 1.3;
+}
+
+.financial-table__value--negative {
+  color: var(--color-error);
+}
+
+/* YoY growth label */
+.financial-table__yoy {
+  display: block;
+  font-size: 0.65rem;
+  line-height: 1.2;
+  margin-top: 0.125rem;
+}
+
+.financial-table__yoy--positive {
+  color: var(--color-success);
+}
+
+.financial-table__yoy--negative {
+  color: var(--color-error);
+}
+
+/* Loading / Error / Empty states */
+.financial-table__loading,
+.financial-table__error,
+.financial-table__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  background: var(--color-surface);
+}
+
+.financial-table__error {
+  color: var(--color-error);
+}
+
+/* ===== Fundamentals Summary ===== */
+.fundamentals-summary {
+  padding: 1.25rem;
+}
+
+.fundamentals-summary__section {
+  margin-bottom: 2rem;
+}
+
+.fundamentals-summary__section:last-child {
+  margin-bottom: 0;
+}
+
+.fundamentals-summary__section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fundamentals-summary__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.fundamentals-summary__card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.fundamentals-summary__card-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 0.75rem;
+  text-align: center;
+}
+
+.fundamentals-summary__card-chart {
+  height: 200px;
+}
+
+/* YoY label above bars */
+.fundamentals-summary__bar-label {
+  font-size: 0.6rem;
+  font-weight: 500;
+}

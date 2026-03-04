@@ -416,6 +416,22 @@
   color: var(--color-primary);
 }
 
+/* Resize handle between rows */
+.pack-page__resize-handle {
+  height: 6px;
+  margin: -2px 0;
+  cursor: ns-resize;
+  position: relative;
+  z-index: 1;
+}
+
+.pack-page__resize-handle:hover,
+.pack-page__resize-handle:active {
+  background: var(--color-primary);
+  opacity: 0.3;
+  border-radius: 3px;
+}
+
 /* Pack Builder */
 .pack-builder h2 {
   font-size: 1.5rem;
@@ -549,7 +565,7 @@
 
 .pack-builder__cell {
   border-radius: var(--radius);
-  min-height: 120px;
+  height: 100%;
   position: relative;
 }
 
@@ -778,4 +794,24 @@
 .pack-builder__footer {
   display: flex;
   justify-content: flex-end;
+}
+
+/* Entity Pack Section (embedded on entity pages) */
+.entity-pack-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.entity-pack-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.entity-pack-section__header h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
 }

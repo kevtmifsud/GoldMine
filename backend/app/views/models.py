@@ -64,7 +64,10 @@ class AnalystPack(BaseModel):
     created_at: str = ""
     updated_at: str = ""
     row_columns: list[int] = Field(default_factory=lambda: [2])
+    row_heights: list[int] = Field(default_factory=list)
     row_descriptions: list[str] = Field(default_factory=list)
+    entity_type: str | None = None
+    entity_id: str | None = None
 
 
 class AnalystPackCreate(BaseModel):
@@ -73,7 +76,10 @@ class AnalystPackCreate(BaseModel):
     widgets: list[PackWidgetRef] = Field(default_factory=list)
     is_shared: bool = False
     row_columns: list[int] = Field(default_factory=lambda: [2])
+    row_heights: list[int] = Field(default_factory=list)
     row_descriptions: list[str] = Field(default_factory=list)
+    entity_type: str | None = None
+    entity_id: str | None = None
 
 
 class AnalystPackUpdate(BaseModel):
@@ -82,4 +88,5 @@ class AnalystPackUpdate(BaseModel):
     widgets: list[PackWidgetRef] | None = None
     is_shared: bool | None = None
     row_columns: list[int] | None = None
+    row_heights: list[int] | None = None
     row_descriptions: list[str] | None = None

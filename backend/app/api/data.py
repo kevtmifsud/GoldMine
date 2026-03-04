@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, Request
 
+from app.api.entities import _DATASET_JOINS, _JOIN_EXCLUDE_COLUMNS
 from app.data_access.factory import get_data_provider
 from app.data_access.models import DatasetInfo, FilterParams, PaginatedResponse
 from app.exceptions import NotFoundError
@@ -9,6 +10,32 @@ from app.exceptions import NotFoundError
 router = APIRouter(prefix="/api/data", tags=["data"])
 
 _KNOWN_PARAMS = {"page", "page_size", "sort_by", "sort_order", "search"}
+
+
+def _enrich_rows(dataset: str, rows: list[dict], provider) -> list[dict]:
+    joins = _DATASET_JOINS.get(dataset, [])
+    if not joins or not rows:
+        return rows
+    native_keys = set(rows[0].keys())
+    enriched = [dict(row) for row in rows]
+    for target_dataset, source_key, target_key in joins:
+        try:
+            target_data = provider._get_data(target_dataset)
+        except Exception:
+            continue
+        if not target_data:
+            continue
+        lookup = {r[target_key]: r for r in target_data}
+        joinable_keys = [
+            k for k in target_data[0]
+            if k not in native_keys and k != target_key and k not in _JOIN_EXCLUDE_COLUMNS
+        ]
+        native_keys.update(joinable_keys)
+        for row in enriched:
+            target_row = lookup.get(row.get(source_key, ""))
+            for k in joinable_keys:
+                row[k] = target_row.get(k, "") if target_row else ""
+    return enriched
 
 
 @router.get("/")
@@ -40,7 +67,9 @@ async def query_dataset(
         search=search,
         filters=filters,
     )
-    return provider.query(dataset, params)
+    result = provider.query(dataset, params)
+    result.data = _enrich_rows(dataset, result.data, provider)
+    return result
 
 
 @router.get("/{dataset}/{record_id}")
@@ -49,4 +78,5 @@ async def get_record(dataset: str, record_id: str) -> dict:
     record = provider.get_record(dataset, record_id)
     if record is None:
         raise NotFoundError(f"Record '{record_id}' not found in '{dataset}'")
-    return record
+    enriched = _enrich_rows(dataset, [record], provider)
+    return enriched[0]

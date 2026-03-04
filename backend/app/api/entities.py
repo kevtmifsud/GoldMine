@@ -567,6 +567,29 @@ def _build_dataset_detail(dataset_name: str) -> EntityDetail:
 
     _annotate_entity_columns(ds_meta.name, columns)
 
+    # Add joinable columns from related datasets (hidden by default)
+    joins = _DATASET_JOINS.get(ds_meta.name, [])
+    native_keys = {c.key for c in columns}
+    for target_dataset, _src_key, target_key in joins:
+        try:
+            target_result = provider.query(target_dataset, FilterParams(page=1, page_size=1))
+            if target_result.data:
+                for key in target_result.data[0]:
+                    if key in native_keys or key == target_key or key in _JOIN_EXCLUDE_COLUMNS:
+                        continue
+                    fmt = _infer_column_format(key, target_result.data[0].get(key))
+                    columns.append(ColumnConfig(
+                        key=key, label=key.replace("_", " ").title(),
+                        format=fmt, visible=False,
+                    ))
+                    native_keys.add(key)
+        except Exception:
+            pass
+
+    # Annotate joined columns with entity links from their source datasets
+    for target_dataset, _, _ in joins:
+        _annotate_entity_columns(target_dataset, columns)
+
     widgets: list[WidgetConfig] = []
     if columns:
         filter_defs = _get_dataset_filter_definitions(ds_meta.name)
@@ -1476,6 +1499,26 @@ _DATASET_ENTITY_COLUMNS: dict[str, dict[str, tuple[str, str | None]]] = {
 
 _DATASET_FORMAT_OVERRIDES: dict[str, dict[str, str]] = {
     "portfolio_trades": {"side": "titlecase", "action": "titlecase"},
+}
+
+_JOIN_EXCLUDE_COLUMNS = {"long_business_summary"}
+
+_DATASET_JOINS: dict[str, list[tuple[str, str, str]]] = {
+    # source_dataset: [(target_dataset, source_key, target_key), ...]
+    "portfolio_trades": [
+        ("stocks", "ticker", "ticker"),
+        ("portfolios", "portfolio", "name"),
+        ("stock_betas", "ticker", "ticker"),
+    ],
+    "sec_filings": [
+        ("stocks", "symbol", "ticker"),
+    ],
+    "transcripts_list": [
+        ("stocks", "symbol", "ticker"),
+    ],
+    "stocks": [
+        ("stock_betas", "ticker", "ticker"),
+    ],
 }
 
 

@@ -22,6 +22,7 @@
     "row_columns": [
       1
     ],
+    "row_heights": [],
     "row_descriptions": [
       "JPM historical stock price trend over the past year"
     ],
@@ -41,6 +42,7 @@
     "row_columns": [
       2
     ],
+    "row_heights": [],
     "row_descriptions": [],
     "entity_type": "person",
     "entity_id": "PER-0001"
@@ -58,6 +60,7 @@
     "row_columns": [
       2
     ],
+    "row_heights": [],
     "row_descriptions": [],
     "entity_type": "stock",
     "entity_id": "AAPL"
@@ -75,6 +78,7 @@
     "row_columns": [
       2
     ],
+    "row_heights": [],
     "row_descriptions": [],
     "entity_type": "dataset",
     "entity_id": "stocks"
@@ -92,6 +96,7 @@
     "row_columns": [
       2
     ],
+    "row_heights": [],
     "row_descriptions": [],
     "entity_type": "stock",
     "entity_id": "TTD"
@@ -109,6 +114,7 @@
     "row_columns": [
       2
     ],
+    "row_heights": [],
     "row_descriptions": [],
     "entity_type": "dataset",
     "entity_id": "sec_filings"
@@ -119,13 +125,24 @@
     "owner": "analyst1",
     "owner_display_name": "",
     "description": "",
-    "widgets": [],
+    "widgets": [
+      {
+        "source_entity_type": "portfolio",
+        "source_entity_id": "Flagship",
+        "widget_id": "daily_pnl",
+        "title_override": null,
+        "overrides": null,
+        "row": 0,
+        "col": 0
+      }
+    ],
     "is_shared": false,
     "created_at": "2026-03-02T03:18:48.630978+00:00",
-    "updated_at": "2026-03-02T03:18:48.630978+00:00",
+    "updated_at": "2026-03-04T19:59:22.444752+00:00",
     "row_columns": [
       2
     ],
+    "row_heights": [],
     "row_descriptions": [],
     "entity_type": "portfolio",
     "entity_id": "Flagship"
@@ -143,6 +160,7 @@
     "row_columns": [
       2
     ],
+    "row_heights": [],
     "row_descriptions": [],
     "entity_type": "person",
     "entity_id": "PER-4621"
@@ -160,6 +178,7 @@
     "row_columns": [
       2
     ],
+    "row_heights": [],
     "row_descriptions": [],
     "entity_type": "dataset",
     "entity_id": "people"
@@ -177,6 +196,7 @@
     "row_columns": [
       2
     ],
+    "row_heights": [],
     "row_descriptions": [],
     "entity_type": "stock",
     "entity_id": "AFL"
@@ -194,6 +214,7 @@
     "row_columns": [
       2
     ],
+    "row_heights": [],
     "row_descriptions": [],
     "entity_type": "dataset",
     "entity_id": "portfolio_trades"

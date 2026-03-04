@@ -22,5 +22,29 @@
     "retry_count": 0,
     "created_at": "2026-03-02T04:30:40.978196+00:00",
     "updated_at": "2026-03-03T14:10:18.587966+00:00"
+  },
+  {
+    "schedule_id": "d4d85725-7454-4965-aaad-9f4c959dc149",
+    "owner": "analyst1",
+    "name": "Daily Long Only PnL Report",
+    "entity_type": "report",
+    "entity_id": "daily-pnl-long-only",
+    "widget_ids": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ],
+    "recurrence_type": "weekly",
+    "time_of_day": "14:00",
+    "days_of_week": [
+      2
+    ],
+    "day_of_month": null,
+    "next_run_at": "2026-03-11T14:00:00+00:00",
+    "last_run_at": "2026-03-04T19:51:34.048666+00:00",
+    "status": "active",
+    "widget_overrides": [],
+    "retry_count": 0,
+    "created_at": "2026-03-04T19:51:34.047154+00:00",
+    "updated_at": "2026-03-04T19:51:35.743533+00:00"
   }
 ]

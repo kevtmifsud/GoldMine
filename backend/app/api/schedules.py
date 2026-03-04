@@ -11,6 +11,7 @@ from app.email.models import EmailLog, EmailSchedule, EmailScheduleCreate, Email
 from app.email.renderer import render_email
 from app.exceptions import NotFoundError
 from app.logging_config import get_logger
+from app.reports.catalog import get_report
 
 logger = get_logger(__name__)
 
@@ -31,13 +32,19 @@ async def create_schedule(request: Request, body: EmailScheduleCreate) -> EmailS
     # Burst send: immediately send the email on creation
     now = datetime.now(timezone.utc).isoformat()
     try:
-        subject, html_body, text_body, images = render_email(
-            entity_type=schedule.entity_type,
-            entity_id=schedule.entity_id,
-            schedule_name=schedule.name,
-            widget_ids=schedule.widget_ids,
-            widget_overrides=schedule.widget_overrides,
-        )
+        if schedule.entity_type == "report":
+            report = get_report(schedule.entity_id)
+            if report is None:
+                raise ValueError(f"Unknown report: {schedule.entity_id}")
+            subject, html_body, text_body, images = report.render()
+        else:
+            subject, html_body, text_body, images = render_email(
+                entity_type=schedule.entity_type,
+                entity_id=schedule.entity_id,
+                schedule_name=schedule.name,
+                widget_ids=schedule.widget_ids,
+                widget_overrides=schedule.widget_overrides,
+            )
         email_provider = get_email_provider()
         success = email_provider.send_email(
             recipients=schedule.recipients,
@@ -145,13 +152,19 @@ async def send_now(request: Request, schedule_id: str) -> EmailLog:
     if schedule is None or schedule.owner != user.username:
         raise NotFoundError(f"Schedule '{schedule_id}' not found")
 
-    subject, html_body, text_body, images = render_email(
-        entity_type=schedule.entity_type,
-        entity_id=schedule.entity_id,
-        schedule_name=schedule.name,
-        widget_ids=schedule.widget_ids,
-        widget_overrides=schedule.widget_overrides,
-    )
+    if schedule.entity_type == "report":
+        report = get_report(schedule.entity_id)
+        if report is None:
+            raise NotFoundError(f"Unknown report: {schedule.entity_id}")
+        subject, html_body, text_body, images = report.render()
+    else:
+        subject, html_body, text_body, images = render_email(
+            entity_type=schedule.entity_type,
+            entity_id=schedule.entity_id,
+            schedule_name=schedule.name,
+            widget_ids=schedule.widget_ids,
+            widget_overrides=schedule.widget_overrides,
+        )
 
     email_provider = get_email_provider()
     now = datetime.now(timezone.utc).isoformat()

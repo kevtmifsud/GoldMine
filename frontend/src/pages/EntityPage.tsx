@@ -10,6 +10,7 @@ import { DocumentsPanel } from "../components/DocumentsPanel";
 import { ResearchSearchBar } from "../components/ResearchSearchBar";
 import { ScheduleEmailDialog } from "../components/ScheduleEmailDialog";
 import { SchedulesList } from "../components/SchedulesList";
+import { EntityPackSection } from "../components/EntityPackSection";
 import { useAuth } from "../auth/useAuth";
 import * as viewsApi from "../config/viewsApi";
 import "../styles/entity.css";
@@ -214,6 +215,7 @@ export function EntityPage() {
                 </div>
               </>
             )}
+            <EntityPackSection entityType={detail.entity_type} entityId={detail.entity_id} />
           </>
         )}
         {showScheduleDialog && detail && (

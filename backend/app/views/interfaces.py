@@ -56,3 +56,7 @@ class ViewsProvider(ABC):
     @abstractmethod
     def delete_pack(self, pack_id: str) -> bool:
         """Delete a pack. Returns True if deleted, False if not found."""
+
+    @abstractmethod
+    def get_entity_pack(self, entity_type: str, entity_id: str) -> AnalystPack | None:
+        """Get the pack attached to a specific entity."""

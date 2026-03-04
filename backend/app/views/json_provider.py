@@ -161,6 +161,8 @@ class JsonViewsProvider(ViewsProvider):
             is_shared=pack.is_shared,
             created_at=now,
             updated_at=now,
+            entity_type=pack.entity_type,
+            entity_id=pack.entity_id,
         )
         packs.append(saved)
         self._write_packs(packs)
@@ -193,3 +195,9 @@ class JsonViewsProvider(ViewsProvider):
         self._write_packs(new_packs)
         logger.info("pack_deleted", pack_id=pack_id)
         return True
+
+    def get_entity_pack(self, entity_type: str, entity_id: str) -> AnalystPack | None:
+        for p in self._read_packs():
+            if p.entity_type == entity_type and p.entity_id == entity_id:
+                return p
+        return None

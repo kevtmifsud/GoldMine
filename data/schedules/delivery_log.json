@@ -218,5 +218,35 @@
     "recipients": [
       "kevintdonadio@gmail.com"
     ]
+  },
+  {
+    "log_id": "0d100267-d0c2-4452-9916-37f01ee1180c",
+    "schedule_id": "2c9fccbb-49ad-4ae6-b9c6-8358f696d460",
+    "sent_at": "2026-03-02T04:14:41.263872+00:00",
+    "status": "sent",
+    "error": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ]
+  },
+  {
+    "log_id": "981a530c-c0aa-435a-8fb9-e101172ed43c",
+    "schedule_id": "a47af85c-035a-4c92-b851-fbcf8fb24c5d",
+    "sent_at": "2026-03-02T04:30:40.979724+00:00",
+    "status": "sent",
+    "error": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ]
+  },
+  {
+    "log_id": "75404a96-258f-486c-b0f4-cc160d57d63d",
+    "schedule_id": "a47af85c-035a-4c92-b851-fbcf8fb24c5d",
+    "sent_at": "2026-03-03T14:10:18.585629+00:00",
+    "status": "sent",
+    "error": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ]
   }
 ]

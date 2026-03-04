@@ -67,10 +67,14 @@ export function ResearchSearchBar({ entityType, entityId }: ResearchSearchBarPro
 
   const hasThread = thread.length > 0;
 
-  // Auto-scroll to bottom when thread updates
+  // Auto-scroll thread container to bottom when thread updates
+  // (only scroll within the thread, not the entire page)
   useEffect(() => {
     if (hasThread) {
-      threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      const el = threadEndRef.current;
+      if (el?.parentElement) {
+        el.parentElement.scrollTop = el.parentElement.scrollHeight;
+      }
     }
   }, [thread, hasThread]);
 

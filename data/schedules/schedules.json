@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "schedule_id": "a47af85c-035a-4c92-b851-fbcf8fb24c5d",
+    "owner": "analyst1",
+    "name": "Daily Flagship PnL Report",
+    "entity_type": "report",
+    "entity_id": "daily-pnl-flagship",
+    "widget_ids": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ],
+    "recurrence_type": "weekly",
+    "time_of_day": "14:00",
+    "days_of_week": [
+      1
+    ],
+    "day_of_month": null,
+    "next_run_at": "2026-03-10T14:00:00+00:00",
+    "last_run_at": "2026-03-03T14:10:18.585629+00:00",
+    "status": "active",
+    "widget_overrides": [],
+    "retry_count": 0,
+    "created_at": "2026-03-02T04:30:40.978196+00:00",
+    "updated_at": "2026-03-03T14:10:18.587966+00:00"
+  }
+]

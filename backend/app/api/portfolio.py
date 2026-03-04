@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import bisect
 import csv
+from datetime import date as _date_type
 from pathlib import Path
 from typing import Any
 
@@ -124,58 +125,71 @@ def _compute_price_weight_series(
     portfolio_name: str,
     ticker_trades: list[dict[str, str]],
 ) -> list[dict[str, Any]]:
-    """Build a daily stock-price series from 2021 with portfolio weight at trade dates.
+    """Build a daily stock-price series from 2021 with portfolio weight & dollar value.
 
-    Returns one entry per trading day with:
-    - stock_price: daily close
-    - portfolio_pct: ticker's % of total portfolio (only on trade dates, null otherwise)
+    Both portfolio_pct and portfolio_dollars are computed **daily** using each
+    day's stock prices so the chart reflects real market-value movements, not
+    flat forward-filled snapshots from trade dates.
     """
     daily_dates, daily_prices = _get_daily_prices(ticker_upper)
     if not daily_dates:
         return []
 
-    # Pre-compute portfolio weight at each trade date (sparse)
-    weight_map: dict[str, float] = {}
-    dollar_map: dict[str, float] = {}
+    # If we have trades + portfolio context, compute daily weight & dollars.
+    # We walk through daily dates, advancing the portfolio trade log as we go,
+    # then price every open position on each date.
+    all_trades: list[dict[str, str]] = []
+    ticker_variants: set[str] = set()
+    positions: dict[str, dict[str, Any]] = {}
+    trade_idx = 0
+    has_position = False  # True once the ticker has been traded
+
     if ticker_trades and portfolio_name:
         all_trades = _load_all_portfolio_trades(portfolio_name)
         ticker_variants = _ticker_variants(ticker_upper)
-        positions: dict[str, dict[str, Any]] = {}
-        trade_idx = 0
-        trade_dates = sorted({t["date"] for t in ticker_trades})
 
-        for snap_date in trade_dates:
-            while trade_idx < len(all_trades) and all_trades[trade_idx]["date"] <= snap_date:
-                t = all_trades[trade_idx]
-                tk = t["ticker"]
-                action = t["action"]
-                side = t["side"]
-                shares = float(t["shares"])
-                price = float(t["price"])
+    series: list[dict[str, Any]] = []
+    for date, price in zip(daily_dates, daily_prices):
+        # Advance portfolio trades up to this date
+        while trade_idx < len(all_trades) and all_trades[trade_idx]["date"] <= date:
+            t = all_trades[trade_idx]
+            tk = t["ticker"]
+            action = t["action"]
+            side = t["side"]
+            shares = float(t["shares"])
+            tprice = float(t["price"])
 
-                if tk not in positions:
-                    positions[tk] = {"side": side, "shares": 0.0, "total_cost": 0.0}
+            if tk not in positions:
+                positions[tk] = {"side": side, "shares": 0.0, "total_cost": 0.0}
 
-                pos = positions[tk]
-                if _is_opening(action, side):
-                    pos["total_cost"] += shares * price
-                    pos["shares"] += shares
-                else:
-                    if pos["shares"] > 0:
-                        ratio = min(shares / pos["shares"], 1.0)
-                        pos["total_cost"] *= 1 - ratio
-                        pos["shares"] -= shares
-                        if pos["shares"] <= 0.5:
-                            del positions[tk]
+            pos = positions[tk]
+            if _is_opening(action, side):
+                pos["total_cost"] += shares * tprice
+                pos["shares"] += shares
+            else:
+                if pos["shares"] > 0:
+                    ratio = min(shares / pos["shares"], 1.0)
+                    pos["total_cost"] *= 1 - ratio
+                    pos["shares"] -= shares
+                    if pos["shares"] <= 0.5:
+                        del positions[tk]
 
-                trade_idx += 1
+            if tk in ticker_variants:
+                has_position = True
 
+            trade_idx += 1
+
+        # Compute portfolio weight and dollar value for this day
+        portfolio_pct: float | None = None
+        portfolio_dollars: float | None = None
+
+        if has_position and positions:
             ticker_mv = 0.0
             total_mv = 0.0
             for tk, pos in positions.items():
                 if pos["shares"] < 0.5:
                     continue
-                pk = _price_on_date(tk, snap_date)
+                pk = _price_on_date(tk, date)
                 if pk is None:
                     pk = pos["total_cost"] / pos["shares"] if pos["shares"] > 0 else 0
                 mv = pos["shares"] * pk
@@ -183,77 +197,17 @@ def _compute_price_weight_series(
                 if tk in ticker_variants:
                     ticker_mv += abs(mv)
 
-            weight_map[snap_date] = round(
-                (ticker_mv / total_mv * 100) if total_mv > 0 else 0, 2
-            )
-            dollar_map[snap_date] = round(ticker_mv)
-
-        # If the ticker still has an open position, add a weight at the last
-        # price date so the area chart extends to the right edge.
-        has_open = any(
-            tk in ticker_variants and pos["shares"] > 0.5
-            for tk, pos in positions.items()
-        )
-        if has_open and daily_dates:
-            last_date = daily_dates[-1]
-            if last_date not in weight_map:
-                # Advance portfolio state through any remaining trades
-                while trade_idx < len(all_trades) and all_trades[trade_idx]["date"] <= last_date:
-                    t = all_trades[trade_idx]
-                    tk = t["ticker"]
-                    action = t["action"]
-                    side = t["side"]
-                    shares = float(t["shares"])
-                    price = float(t["price"])
-
-                    if tk not in positions:
-                        positions[tk] = {"side": side, "shares": 0.0, "total_cost": 0.0}
-
-                    pos = positions[tk]
-                    if _is_opening(action, side):
-                        pos["total_cost"] += shares * price
-                        pos["shares"] += shares
-                    else:
-                        if pos["shares"] > 0:
-                            ratio = min(shares / pos["shares"], 1.0)
-                            pos["total_cost"] *= 1 - ratio
-                            pos["shares"] -= shares
-                            if pos["shares"] <= 0.5:
-                                del positions[tk]
-
-                    trade_idx += 1
-
-                ticker_mv = 0.0
-                total_mv = 0.0
-                for tk, pos in positions.items():
-                    if pos["shares"] < 0.5:
-                        continue
-                    pk = _price_on_date(tk, last_date)
-                    if pk is None:
-                        pk = pos["total_cost"] / pos["shares"] if pos["shares"] > 0 else 0
-                    mv = pos["shares"] * pk
-                    total_mv += abs(mv)
-                    if tk in ticker_variants:
-                        ticker_mv += abs(mv)
-
-                weight_map[last_date] = round(
+            if ticker_mv > 0:
+                portfolio_pct = round(
                     (ticker_mv / total_mv * 100) if total_mv > 0 else 0, 2
                 )
-                dollar_map[last_date] = round(ticker_mv)
+                portfolio_dollars = round(ticker_mv)
 
-    # Build the series: daily prices + forward-filled weight
-    series: list[dict[str, Any]] = []
-    current_weight: float | None = None
-    current_dollars: float | None = None
-    for date, price in zip(daily_dates, daily_prices):
-        if date in weight_map:
-            current_weight = weight_map[date]
-            current_dollars = dollar_map.get(date)
         series.append({
             "date": date,
             "stock_price": round(price, 2),
-            "portfolio_pct": current_weight,
-            "portfolio_dollars": current_dollars,
+            "portfolio_pct": portfolio_pct,
+            "portfolio_dollars": portfolio_dollars,
         })
 
     return series
@@ -529,6 +483,15 @@ async def get_ticker_portfolio(
 
             if all_closed:
                 position_closed = True
+
+        # Carry forward the final PnL values to today's date so the chart
+        # always extends to the current date (even for closed positions
+        # where realized PnL is locked in).
+        if pnl_series:
+            last_data_date = pnl_series[-1]["date"]
+            today_str = _date_type.today().isoformat()
+            if last_data_date < today_str:
+                pnl_series.append({**pnl_series[-1], "date": today_str})
 
     # ------------------------------------------------------------------
     # YTD PnL

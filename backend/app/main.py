@@ -17,6 +17,10 @@ from app.auth.middleware import AuthMiddleware
 from app.api.schedules import router as schedules_router
 from app.api.transcripts import router as transcripts_router
 from app.api.portfolio import router as portfolio_router
+from app.api.earnings import router as earnings_router
+from app.api.reports import router as reports_router
+from app.api.financials import router as financials_router
+from app.api.studios import router as studios_router
 from app.email.scheduler import start_scheduler
 
 setup_logging()
@@ -48,6 +52,10 @@ def create_app() -> FastAPI:
     application.include_router(schedules_router)
     application.include_router(transcripts_router)
     application.include_router(portfolio_router)
+    application.include_router(earnings_router)
+    application.include_router(reports_router)
+    application.include_router(financials_router)
+    application.include_router(studios_router)
 
     start_scheduler(application)
 

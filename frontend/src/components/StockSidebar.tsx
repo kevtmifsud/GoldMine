@@ -32,14 +32,24 @@ const NAV_ITEMS: NavItem[] = [
       { to: "research/other", label: "Other" },
     ],
   },
+  {
+    to: "fundamentals",
+    label: "Fundamentals",
+    children: [
+      { to: "fundamentals", label: "Summary" },
+      { to: "fundamentals/income-statement", label: "Income Statement" },
+      { to: "fundamentals/balance-sheet", label: "Balance Sheet" },
+      { to: "fundamentals/cash-flow", label: "Cash Flow" },
+    ],
+  },
   { to: "data", label: "Data" },
   { to: "alerts", label: "Alerts" },
+  { to: "pack", label: "Analyst Pack" },
 ];
 
 export function StockSidebar({ displayName, entityId }: StockSidebarProps) {
   const location = useLocation();
   const basePath = `/entity/stock/${entityId}`;
-  const isResearchActive = location.pathname.startsWith(`${basePath}/research`);
 
   return (
     <aside className="stock-sidebar">
@@ -59,7 +69,7 @@ export function StockSidebar({ displayName, entityId }: StockSidebarProps) {
             >
               {item.label}
             </NavLink>
-            {item.children && isResearchActive && (
+            {item.children && location.pathname.startsWith(`${basePath}/${item.to}`) && (
               <div className="stock-sidebar__sub-nav">
                 {item.children.map((child) => (
                   <NavLink

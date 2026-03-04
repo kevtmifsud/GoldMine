@@ -17,7 +17,7 @@ export function AlertsPage() {
   const fetchSchedules = () => {
     schedulesApi
       .listSchedules()
-      .then(setSchedules)
+      .then((data) => setSchedules(data.filter((s) => s.entity_type !== "report")))
       .catch(() => {})
       .finally(() => setLoading(false));
   };

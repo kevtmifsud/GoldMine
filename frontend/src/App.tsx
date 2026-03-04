@@ -11,18 +11,27 @@ import { StockPortfolioSubPage } from "./pages/stock/StockPortfolioSubPage";
 import { StockContactsSubPage } from "./pages/stock/StockContactsSubPage";
 import { StockDataSubPage } from "./pages/stock/StockDataSubPage";
 import { StockAlertsSubPage } from "./pages/stock/StockAlertsSubPage";
+import { StockPackSubPage } from "./pages/stock/StockPackSubPage";
 import { StockResearchLayout } from "./pages/stock/research/StockResearchLayout";
 import { ResearchSummarySubPage } from "./pages/stock/research/ResearchSummarySubPage";
 import { ResearchCategorySubPage } from "./pages/stock/research/ResearchCategorySubPage";
 import { SecFilingsSubPage } from "./pages/stock/research/SecFilingsSubPage";
 import { TranscriptsSubPage } from "./pages/stock/research/TranscriptsSubPage";
+import { StockFundamentalsLayout } from "./pages/stock/fundamentals/StockFundamentalsLayout";
+import { FundamentalsSummarySubPage } from "./pages/stock/fundamentals/FundamentalsSummarySubPage";
+import { IncomeStatementSubPage } from "./pages/stock/fundamentals/IncomeStatementSubPage";
+import { BalanceSheetSubPage } from "./pages/stock/fundamentals/BalanceSheetSubPage";
+import { CashFlowSubPage } from "./pages/stock/fundamentals/CashFlowSubPage";
 import { PacksListPage } from "./pages/PacksListPage";
 import { PackPage } from "./pages/PackPage";
 import { PackBuilderPage } from "./pages/PackBuilderPage";
 import { DatasetsPage } from "./pages/DatasetsPage";
 import { AlertsPage } from "./pages/AlertsPage";
+import { ReportsPage } from "./pages/ReportsPage";
 import { PublicPacksPage } from "./pages/PublicPacksPage";
 import { PortfoliosPage } from "./pages/PortfoliosPage";
+import { StudiosListPage } from "./pages/StudiosListPage";
+import { StudioPage } from "./pages/StudioPage";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -108,8 +117,15 @@ function App() {
               }
             />
           </Route>
+          <Route path="fundamentals" element={<StockFundamentalsLayout />}>
+            <Route index element={<FundamentalsSummarySubPage />} />
+            <Route path="income-statement" element={<IncomeStatementSubPage />} />
+            <Route path="balance-sheet" element={<BalanceSheetSubPage />} />
+            <Route path="cash-flow" element={<CashFlowSubPage />} />
+          </Route>
           <Route path="data" element={<StockDataSubPage />} />
           <Route path="alerts" element={<StockAlertsSubPage />} />
+          <Route path="pack" element={<StockPackSubPage />} />
         </Route>
         <Route
           path="/portfolios"
@@ -140,6 +156,14 @@ function App() {
           element={
             <AuthGuard>
               <AlertsPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <AuthGuard>
+              <ReportsPage />
             </AuthGuard>
           }
         />
@@ -178,6 +202,22 @@ function App() {
         <Route
           path="/pack/:packId/edit"
           element={<Navigate to=".." replace />}
+        />
+        <Route
+          path="/studios"
+          element={
+            <AuthGuard>
+              <StudiosListPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/studio/:studioId"
+          element={
+            <AuthGuard>
+              <StudioPage />
+            </AuthGuard>
+          }
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

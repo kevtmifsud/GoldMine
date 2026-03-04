@@ -19,8 +19,10 @@ export function Layout({ children, contentClassName }: { children: ReactNode; co
           {user && (
             <nav className="header-nav">
               <Link to="/packs" className="header-nav__link">My Packs</Link>
+              <Link to="/studios" className="header-nav__link">Data Studio</Link>
               <Link to="/portfolios" className="header-nav__link">Portfolios</Link>
               <Link to="/alerts" className="header-nav__link">Alerts</Link>
+              <Link to="/reports" className="header-nav__link">Reports</Link>
             </nav>
           )}
         </div>

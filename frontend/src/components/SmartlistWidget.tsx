@@ -124,7 +124,8 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
         }
 
         setData(allRows);
-      } catch {
+      } catch (err) {
+        console.error("[SmartlistWidget] Data fetch error:", config.endpoint, err);
         setError("Failed to load data");
       } finally {
         setLoading(false);

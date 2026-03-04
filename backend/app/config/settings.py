@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     DATA_DIR: str = "../data/structured"
     STORAGE_DIR: str = "../data/unstructured"
     VIEWS_DIR: str = "../data/views"
+    STUDIOS_DIR: str = "../data/studios"
     DOCUMENTS_DIR: str = "../data/documents"
     SCHEDULES_DIR: str = "../data/schedules"
     SCHEDULER_INTERVAL_SECONDS: int = 60
@@ -36,7 +37,7 @@ class Settings(BaseSettings):
     MAX_PAGE_SIZE: int = 1000
     DEFAULT_PAGE_SIZE: int = 50
 
-    model_config = {"env_prefix": "GOLDMINE_", "env_file": ".env"}
+    model_config = {"env_prefix": "GOLDMINE_", "env_file": ".env", "extra": "ignore"}
 
 
 settings = Settings()

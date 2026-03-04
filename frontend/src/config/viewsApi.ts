@@ -69,6 +69,16 @@ export async function deletePack(packId: string): Promise<void> {
   await api.delete(`/api/views/packs/${packId}`);
 }
 
+export async function getEntityPack(
+  entityType: string,
+  entityId: string
+): Promise<AnalystPack> {
+  const resp = await api.get<AnalystPack>(
+    `/api/views/packs/entity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`
+  );
+  return resp.data;
+}
+
 export async function resolvePackWidgets(
   packId: string
 ): Promise<WidgetConfig[]> {

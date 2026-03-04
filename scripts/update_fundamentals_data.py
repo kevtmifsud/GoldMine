@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
-"""Download stock prices and EPS data, writing data/structured/stock_history.csv.
+"""Download stock prices, EPS, earnings calendar, financial statements, and beta.
 
-Runs two phases sequentially:
-  Phase 1 — Prices: Per-ticker defeatbeta-api price() calls via ThreadPoolExecutor
-  Phase 2 — EPS:    Per-ticker defeatbeta-api ttm_eps() calls with
-                     checkpoint/resume. Synthetic EPS estimate derived from
-                     price / sector P/E. Tickers that fail automatically fall
-                     back to fully synthetic EPS.
+Runs seven phases sequentially:
+  Phase 1 — Prices:      Per-ticker defeatbeta-api price() calls
+  Phase 2 — EPS:         Per-ticker defeatbeta-api ttm_eps() calls with
+                          checkpoint/resume + synthetic fallback
+  Phase 3 — Write:       Writes data/structured/stock_history.csv
+  Phase 4 — Stocks:      Updates stocks.csv with computed financials
+  Phase 5 — Calendar:    Bulk DuckDB query → data/structured/earnings_calendar.csv
+  Phase 6 — Statements:  Bulk DuckDB queries → 6 CSVs in data/structured/financials/
+  Phase 7 — Beta:        Bulk DuckDB query + local computation →
+                          data/structured/stock_betas.csv
 
-Output CSV columns: date, ticker, close, eps_estimate, eps_actual
+Phases 5-7 use bulk SQL queries against the HuggingFace parquet files via DuckDB,
+fetching all tickers in a single query per data type instead of per-ticker calls.
+Phases 1-2 remain per-ticker because they have checkpoint/resume logic.
 
 CLI flags:
   --fresh              Re-fetch all EPS (ignore checkpoint)
   --synthetic-only     Skip real EPS fetches, use synthetic EPS only
   --prices-only        Skip EPS entirely (empty EPS columns)
+  --skip-calendar      Skip earnings calendar phase
+  --skip-statements    Skip financial statements phase
+  --skip-beta          Skip stock beta phase
   --start-date DATE    Price history start date (default: 2015-01-01)
 """
 
@@ -25,21 +34,54 @@ import csv
 import json
 import logging
 import math
+import os
 import random
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
 from pathlib import Path
 
+import finnhub
+import numpy as np
+import pandas as pd
+from defeatbeta_api.client.duckdb_client import get_duckdb_client
+from defeatbeta_api.client.hugging_face_client import HuggingFaceClient
 from defeatbeta_api.data.ticker import Ticker
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT / "backend" / ".env")
+
 STOCKS_CSV = ROOT / "data" / "structured" / "stocks.csv"
 OUTPUT_CSV = ROOT / "data" / "structured" / "stock_history.csv"
 CHECKPOINT = ROOT / "scripts" / ".eps_checkpoint.json"
 
+CALENDAR_CSV = ROOT / "data" / "structured" / "earnings_calendar.csv"
+BETA_CSV = ROOT / "data" / "structured" / "stock_betas.csv"
+
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
+FINNHUB_LOOKAHEAD_DAYS = 90  # ~3 months of future earnings
+FINNHUB_CHUNK_DAYS = 7       # query in weekly chunks to avoid 1500-row API cap
+STATEMENTS_DIR = ROOT / "data" / "structured" / "financials"
+
 PRICE_WORKERS = 10
 EPS_WORKERS = 10
+
+CALENDAR_COLUMNS = ["ticker", "report_date", "time", "fiscal_quarter_ending"]
+STATEMENT_COLUMNS = ["ticker", "metric", "date", "value"]
+BETA_COLUMNS = ["ticker", "beta"]
+
+# (finance_type, period_type, output csv filename)
+STATEMENT_TYPES = [
+    ("income_statement", "quarterly", "quarterly_income_statements.csv"),
+    ("income_statement", "annual", "annual_income_statements.csv"),
+    ("balance_sheet", "quarterly", "quarterly_balance_sheets.csv"),
+    ("balance_sheet", "annual", "annual_balance_sheets.csv"),
+    ("cash_flow", "quarterly", "quarterly_cash_flows.csv"),
+    ("cash_flow", "annual", "annual_cash_flows.csv"),
+]
 
 # Approximate sector P/E ratios for synthetic EPS derivation
 SECTOR_PE = {
@@ -90,6 +132,28 @@ def load_sectors() -> dict[str, str]:
 def to_api_ticker(ticker: str) -> str:
     """defeatbeta-api data uses Yahoo Finance format (dashes instead of dots)."""
     return ticker.replace(".", "-")
+
+
+def from_api_ticker(symbol: str) -> str:
+    """Convert API symbol (BRK-B) back to our ticker format (BRK.B)."""
+    return symbol.replace("-", ".")
+
+
+def _build_symbol_in_clause(tickers: list[str]) -> str:
+    """Build a SQL IN clause with API-format ticker symbols."""
+    api_tickers = [to_api_ticker(t) for t in tickers]
+    return ", ".join(f"'{s}'" for s in api_tickers)
+
+
+def _get_parquet_url(table_name: str) -> str:
+    """Get the HuggingFace parquet URL for a given table."""
+    return HuggingFaceClient().get_url_path(table_name)
+
+
+def _bulk_query(sql: str) -> pd.DataFrame:
+    """Execute a SQL query against the DuckDB singleton."""
+    db = get_duckdb_client(log_level=logging.WARNING)
+    return db.query(sql)
 
 
 # ---------------------------------------------------------------------------
@@ -413,6 +477,327 @@ def generate_synthetic_eps(
 
 
 # ---------------------------------------------------------------------------
+# Phase 5 — Earnings Calendar (DefeatBeta historical + Finnhub future)
+# ---------------------------------------------------------------------------
+
+def _fetch_historical_calendar(tickers: list[str]) -> list[dict[str, str]]:
+    """Bulk-fetch historical earnings calendar from DefeatBeta."""
+    print("  Fetching historical calendar from DefeatBeta (bulk query)...")
+    symbols_clause = _build_symbol_in_clause(tickers)
+    url = _get_parquet_url("stock_earning_calendar")
+    sql = (
+        f"SELECT symbol, report_date, time, fiscal_quarter_ending "
+        f"FROM '{url}' "
+        f"WHERE symbol IN ({symbols_clause}) "
+        f"ORDER BY symbol, report_date"
+    )
+    df = _bulk_query(sql)
+    if df is None or df.empty:
+        print("  WARNING: No historical calendar data returned", file=sys.stderr)
+        return []
+
+    rows: list[dict[str, str]] = []
+    for _, row in df.iterrows():
+        rows.append({
+            "ticker": from_api_ticker(str(row["symbol"])),
+            "report_date": str(row["report_date"])[:10],
+            "time": str(row.get("time", "time-not-supplied")),
+            "fiscal_quarter_ending": str(row["fiscal_quarter_ending"])[:10],
+        })
+    print(f"  Historical: {len(rows)} rows ({df['symbol'].nunique()} tickers)")
+    return rows
+
+
+def _fetch_finnhub_calendar(tickers: list[str]) -> list[dict[str, str]]:
+    """Fetch upcoming earnings dates from Finnhub in weekly chunks.
+
+    Queries the full market calendar and filters to our ticker universe.
+    Uses weekly chunks because the API caps responses at 1500 rows.
+    """
+    if not FINNHUB_API_KEY:
+        print("  WARNING: FINNHUB_API_KEY not set, skipping future dates",
+              file=sys.stderr)
+        return []
+
+    api_tickers = {to_api_ticker(t): t for t in tickers}
+    client = finnhub.Client(api_key=FINNHUB_API_KEY)
+
+    today = datetime.now()
+    end = today + timedelta(days=FINNHUB_LOOKAHEAD_DAYS)
+
+    print(f"  Fetching future calendar from Finnhub "
+          f"({today.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')})...")
+
+    all_rows: list[dict[str, str]] = []
+    chunk_start = today
+
+    while chunk_start < end:
+        chunk_end = min(chunk_start + timedelta(days=FINNHUB_CHUNK_DAYS), end)
+        start_str = chunk_start.strftime("%Y-%m-%d")
+        end_str = chunk_end.strftime("%Y-%m-%d")
+
+        try:
+            result = client.earnings_calendar(
+                _from=start_str, to=end_str, symbol="", international=False,
+            )
+            entries = result.get("earningsCalendar", [])
+
+            if len(entries) >= 1500:
+                print(f"  WARNING: {start_str} to {end_str} hit 1500-row cap, "
+                      f"some entries may be missing", file=sys.stderr)
+
+            for e in entries:
+                sym = e.get("symbol", "")
+                if sym not in api_tickers:
+                    continue
+                # Map Finnhub hour codes to readable time
+                hour = e.get("hour", "")
+                if hour == "bmo":
+                    time_str = "before-market-open"
+                elif hour == "amc":
+                    time_str = "after-market-close"
+                else:
+                    time_str = "time-not-supplied"
+
+                # Finnhub doesn't provide fiscal_quarter_ending directly;
+                # approximate from quarter + year
+                quarter = e.get("quarter")
+                year = e.get("year")
+                if quarter and year:
+                    # Standard quarter-end months: Q1=Mar, Q2=Jun, Q3=Sep, Q4=Dec
+                    q_month = {1: 3, 2: 6, 3: 9, 4: 12}.get(quarter, 12)
+                    # Last day of quarter-end month
+                    if q_month == 12:
+                        fqe = f"{year}-12-31"
+                    else:
+                        next_month_start = datetime(year, q_month + 1, 1)
+                        fqe = (next_month_start - timedelta(days=1)).strftime("%Y-%m-%d")
+                else:
+                    fqe = ""
+
+                all_rows.append({
+                    "ticker": api_tickers[sym],
+                    "report_date": e.get("date", ""),
+                    "time": time_str,
+                    "fiscal_quarter_ending": fqe,
+                })
+        except Exception as exc:
+            print(f"  WARNING: Finnhub query {start_str}–{end_str} failed: {exc}",
+                  file=sys.stderr)
+
+        chunk_start = chunk_end
+        time.sleep(1)  # respect rate limits
+
+    unique = len({r["ticker"] for r in all_rows})
+    print(f"  Finnhub future: {len(all_rows)} rows ({unique} tickers)")
+    return all_rows
+
+
+def fetch_earnings_calendars(tickers: list[str]) -> None:
+    """Merge DefeatBeta historical + Finnhub future earnings calendars."""
+    print(f"Building earnings calendar for {len(tickers)} tickers...")
+
+    historical = _fetch_historical_calendar(tickers)
+    future = _fetch_finnhub_calendar(tickers)
+
+    # Merge and deduplicate by (ticker, report_date)
+    seen: set[tuple[str, str]] = set()
+    merged: list[dict[str, str]] = []
+    # Historical rows first (they have accurate fiscal_quarter_ending)
+    for row in historical:
+        key = (row["ticker"], row["report_date"])
+        if key not in seen:
+            seen.add(key)
+            merged.append(row)
+    # Then future rows (only add if not already present from historical)
+    for row in future:
+        key = (row["ticker"], row["report_date"])
+        if key not in seen:
+            seen.add(key)
+            merged.append(row)
+
+    merged.sort(key=lambda r: (r["ticker"], r["report_date"]))
+
+    CALENDAR_CSV.parent.mkdir(parents=True, exist_ok=True)
+    with open(CALENDAR_CSV, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=CALENDAR_COLUMNS)
+        writer.writeheader()
+        writer.writerows(merged)
+
+    unique_tickers = len({r["ticker"] for r in merged})
+    hist_count = len(historical)
+    future_only = len(merged) - hist_count
+    print(f"Wrote {len(merged)} rows to {CALENDAR_CSV} "
+          f"({unique_tickers} tickers, {hist_count} historical + "
+          f"{future_only} new from Finnhub)")
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Financial Statements (bulk query)
+# ---------------------------------------------------------------------------
+
+def fetch_financial_statements(tickers: list[str]) -> None:
+    """Bulk-fetch all financial statements with one DuckDB query per type.
+
+    Queries the raw stock_statement parquet directly (6 queries total: one per
+    finance_type + period_type combination) instead of 507 × 6 per-ticker calls.
+    """
+    print(f"Downloading financial statements for {len(tickers)} tickers "
+          f"(6 bulk queries)...")
+
+    symbols_clause = _build_symbol_in_clause(tickers)
+    url = _get_parquet_url("stock_statement")
+    STATEMENTS_DIR.mkdir(parents=True, exist_ok=True)
+    total_rows = 0
+
+    for finance_type, period_type, csv_name in STATEMENT_TYPES:
+        sql = (
+            f"SELECT symbol, item_name, report_date, item_value "
+            f"FROM '{url}' "
+            f"WHERE symbol IN ({symbols_clause}) "
+            f"  AND finance_type = '{finance_type}' "
+            f"  AND period_type = '{period_type}' "
+            f"ORDER BY symbol, report_date, item_name"
+        )
+        df = _bulk_query(sql)
+
+        csv_path = STATEMENTS_DIR / csv_name
+        row_count = 0
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=STATEMENT_COLUMNS)
+            writer.writeheader()
+            if df is not None and not df.empty:
+                for _, row in df.iterrows():
+                    val = row["item_value"]
+                    if pd.isna(val):
+                        continue
+                    writer.writerow({
+                        "ticker": from_api_ticker(str(row["symbol"])),
+                        "metric": str(row["item_name"]),
+                        "date": str(row["report_date"])[:10],
+                        "value": str(val),
+                    })
+                    row_count += 1
+
+        unique = df["symbol"].nunique() if df is not None and not df.empty else 0
+        print(f"  {csv_name}: {row_count} rows ({unique} tickers)")
+        total_rows += row_count
+
+    print(f"Total financial statement rows: {total_rows}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 — Stock Beta (bulk query + local computation)
+# ---------------------------------------------------------------------------
+
+BETA_PERIOD_YEARS = 5
+BETA_BENCHMARK = "SPY"
+
+
+def _compute_beta(stock_prices: pd.DataFrame, bench_prices: pd.DataFrame) -> float | None:
+    """Compute 5-year monthly beta from two DataFrames of (report_date, close).
+
+    Uses monthly returns and cov/var, matching the Ticker.beta() algorithm.
+    """
+    if stock_prices.empty or bench_prices.empty:
+        return None
+
+    # Merge on date, resample to monthly
+    merged = stock_prices.merge(bench_prices, on="report_date", suffixes=("_stock", "_bench"))
+    if len(merged) < 2:
+        return None
+
+    merged["report_date"] = pd.to_datetime(merged["report_date"])
+    merged = merged.set_index("report_date").sort_index()
+    monthly = merged.resample("ME").last().dropna()
+    if len(monthly) < 3:
+        return None
+
+    monthly["stock_return"] = monthly["close_stock"].pct_change()
+    monthly["bench_return"] = monthly["close_bench"].pct_change()
+    monthly = monthly.dropna()
+    if len(monthly) < 2:
+        return None
+
+    cov = np.cov(monthly["stock_return"], monthly["bench_return"])[0, 1]
+    var = np.var(monthly["bench_return"], ddof=1)
+    if var == 0:
+        return None
+    return round(float(cov / var), 4)
+
+
+def fetch_betas(tickers: list[str]) -> None:
+    """Bulk-fetch prices for all tickers + benchmark, compute beta locally.
+
+    One DuckDB query fetches 5 years of prices for all symbols at once,
+    then beta is computed per-ticker in Python.
+    """
+    # Determine date range matching Ticker.beta("5y") logic
+    end_date_str = HuggingFaceClient().get_data_update_time()
+    end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+    start_date = end_date - timedelta(days=BETA_PERIOD_YEARS * 365)
+    start_str = start_date.strftime("%Y-%m-%d")
+
+    # Build symbol list including benchmark
+    all_symbols = [to_api_ticker(t) for t in tickers] + [BETA_BENCHMARK]
+    symbols_clause = ", ".join(f"'{s}'" for s in all_symbols)
+    url = _get_parquet_url("stock_prices")
+
+    print(f"Downloading prices for beta computation "
+          f"({len(tickers)} tickers + {BETA_BENCHMARK}, single bulk query)...")
+
+    sql = (
+        f"SELECT symbol, report_date, close "
+        f"FROM '{url}' "
+        f"WHERE symbol IN ({symbols_clause}) "
+        f"  AND report_date >= '{start_str}' "
+        f"  AND report_date <= '{end_date_str}' "
+        f"ORDER BY symbol, report_date"
+    )
+    df = _bulk_query(sql)
+
+    if df is None or df.empty:
+        print("WARNING: No price data returned for beta", file=sys.stderr)
+        BETA_CSV.parent.mkdir(parents=True, exist_ok=True)
+        with open(BETA_CSV, "w", newline="") as f:
+            csv.DictWriter(f, fieldnames=BETA_COLUMNS).writeheader()
+        return
+
+    # Extract benchmark prices
+    bench_df = df[df["symbol"] == BETA_BENCHMARK][["report_date", "close"]].copy()
+
+    # Compute beta per ticker
+    print(f"Computing beta for {len(tickers)} tickers...")
+    rows: list[dict[str, str]] = []
+    failed: list[str] = []
+    for ticker in tickers:
+        api_sym = to_api_ticker(ticker)
+        stock_df = df[df["symbol"] == api_sym][["report_date", "close"]].copy()
+        try:
+            beta_val = _compute_beta(stock_df, bench_df)
+            if beta_val is not None:
+                rows.append({"ticker": ticker, "beta": str(beta_val)})
+            else:
+                failed.append(ticker)
+        except Exception:
+            failed.append(ticker)
+
+    if failed:
+        print(f"WARNING: {len(failed)} tickers had insufficient data for beta: "
+              f"{', '.join(sorted(failed)[:20])}", file=sys.stderr)
+
+    rows.sort(key=lambda r: r["ticker"])
+
+    BETA_CSV.parent.mkdir(parents=True, exist_ok=True)
+    with open(BETA_CSV, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=BETA_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(f"Wrote {len(rows)} rows to {BETA_CSV}")
+
+
+# ---------------------------------------------------------------------------
 # Phase 3 — Update stocks.csv with computed financial values
 # ---------------------------------------------------------------------------
 
@@ -535,6 +920,12 @@ def parse_args() -> argparse.Namespace:
                         help="Skip real EPS fetches, use synthetic EPS only")
     parser.add_argument("--prices-only", action="store_true",
                         help="Skip EPS entirely (empty EPS columns)")
+    parser.add_argument("--skip-calendar", action="store_true",
+                        help="Skip earnings calendar phase")
+    parser.add_argument("--skip-statements", action="store_true",
+                        help="Skip financial statements phase")
+    parser.add_argument("--skip-beta", action="store_true",
+                        help="Skip stock beta phase")
     parser.add_argument("--start-date", default="2015-01-01",
                         help="Price history start date (default: 2015-01-01)")
     return parser.parse_args()
@@ -599,6 +990,34 @@ def main() -> None:
     print("Phase 4: Updating stocks.csv with computed financials")
     print("=" * 60)
     update_stocks_csv(price_rows, eps_lookup)
+
+    # --- Phase 5: Earnings Calendar ---
+    if args.skip_calendar:
+        print("\n--skip-calendar: skipping earnings calendar")
+    else:
+        print("\n" + "=" * 60)
+        print("Phase 5: Downloading earnings calendar")
+        print("=" * 60)
+        fetch_earnings_calendars(tickers)
+
+    # --- Phase 6: Financial Statements ---
+    if args.skip_statements:
+        print("\n--skip-statements: skipping financial statements")
+    else:
+        print("\n" + "=" * 60)
+        print("Phase 6: Downloading financial statements")
+        print("=" * 60)
+        fetch_financial_statements(tickers)
+
+    # --- Phase 7: Stock Beta ---
+    if args.skip_beta:
+        print("\n--skip-beta: skipping stock beta")
+    else:
+        print("\n" + "=" * 60)
+        print("Phase 7: Downloading stock beta")
+        print("=" * 60)
+        fetch_betas(tickers)
+
     print("\nDone!")
 
 

@@ -12,6 +12,7 @@ from app.email.models import EmailLog, EmailScheduleUpdate
 from dateutil.relativedelta import relativedelta
 from app.email.renderer import render_email
 from app.logging_config import get_logger
+from app.reports.catalog import get_report
 
 logger = get_logger(__name__)
 
@@ -44,15 +45,24 @@ def _process_due_schedules() -> None:
 
     logger.info("processing_due_schedules", count=len(due))
 
+    # Ensure report definitions are registered
+    import app.reports.register  # noqa: F401
+
     for schedule in due:
         try:
-            subject, html_body, text_body, images = render_email(
-                entity_type=schedule.entity_type,
-                entity_id=schedule.entity_id,
-                schedule_name=schedule.name,
-                widget_ids=schedule.widget_ids,
-                widget_overrides=schedule.widget_overrides,
-            )
+            if schedule.entity_type == "report":
+                report = get_report(schedule.entity_id)
+                if report is None:
+                    raise ValueError(f"Unknown report: {schedule.entity_id}")
+                subject, html_body, text_body, images = report.render()
+            else:
+                subject, html_body, text_body, images = render_email(
+                    entity_type=schedule.entity_type,
+                    entity_id=schedule.entity_id,
+                    schedule_name=schedule.name,
+                    widget_ids=schedule.widget_ids,
+                    widget_overrides=schedule.widget_overrides,
+                )
 
             success = email_provider.send_email(
                 recipients=schedule.recipients,

@@ -72,6 +72,22 @@ async def create_pack(request: Request, body: AnalystPackCreate) -> AnalystPack:
     return _enrich_pack(provider.create_pack(body, owner=user.username))
 
 
+@router.get("/packs/entity/{entity_type}/{entity_id}")
+async def get_entity_pack(request: Request, entity_type: str, entity_id: str) -> AnalystPack:
+    user = request.state.user
+    provider = get_views_provider()
+    pack = provider.get_entity_pack(entity_type, entity_id)
+    if pack is None:
+        create_body = AnalystPackCreate(
+            name=f"{entity_id} Pack",
+            widgets=[],
+            entity_type=entity_type,
+            entity_id=entity_id,
+        )
+        pack = provider.create_pack(create_body, owner=user.username)
+    return _enrich_pack(pack)
+
+
 @router.get("/packs/{pack_id}/resolved")
 async def resolve_pack(request: Request, pack_id: str) -> list[WidgetConfig]:
     user = request.state.user

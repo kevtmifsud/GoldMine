@@ -572,7 +572,7 @@ def _build_dataset_detail(dataset_name: str) -> EntityDetail:
         filter_defs = _get_dataset_filter_definitions(ds_meta.name)
         widgets.append(
             WidgetConfig(
-                widget_id="dataset_contents",
+                widget_id=f"dataset_contents_{ds_meta.name}",
                 title=f"{ds_meta.display_name} Contents",
                 endpoint=f"/api/data/{ds_meta.name}",
                 columns=columns,
@@ -886,7 +886,9 @@ def _build_portfolio_detail(portfolio_name: str) -> EntityDetail:
                 ColumnConfig(key="current_price", label="Current Price", format="currency"),
                 ColumnConfig(key="exposure_dollars", label="Current Exposure ($)", format="number"),
                 ColumnConfig(key="exposure_pct", label="Current Exposure %", format="text"),
-                ColumnConfig(key="pnl", label="PnL", format="number"),
+                ColumnConfig(key="return_dollar", label="Return $", format="number"),
+                ColumnConfig(key="return_pct", label="Return %", format="text"),
+                ColumnConfig(key="pnl", label="PnL $", format="number"),
                 ColumnConfig(key="pnl_pct", label="PnL %", format="text"),
                 ColumnConfig(key="sector", label="Sector", entity_type="sector"),
                 ColumnConfig(key="company_name", label="Company", visible=False, entity_type="stock", entity_id_field="ticker"),
@@ -1161,7 +1163,10 @@ async def get_portfolio_positions(
     for h in holdings:
         price = latest_prices.get(h["ticker"], h["avg_cost"])
         position_value = h["shares"] * price
+        avg_cost = h["avg_cost"]
         cost_basis = h["total_cost"]
+        return_dollar = position_value - cost_basis
+        return_pct = ((price / avg_cost) - 1) * 100 if avg_cost else 0.0
         if h["side"] == "long":
             pnl = position_value - cost_basis
         else:
@@ -1178,6 +1183,8 @@ async def get_portfolio_positions(
             "current_price": f"{price:.2f}",
             "exposure_dollars": f"{position_value * direction:,.0f}",
             "exposure_pct": f"{exposure_pct * direction:.1f}%",
+            "return_dollar": f"{return_dollar:,.0f}",
+            "return_pct": f"{return_pct:.1f}%",
             "pnl": f"{pnl:,.0f}",
             "pnl_pct": f"{pnl_pct:.1f}%",
             "sector": h["sector"],
@@ -1640,63 +1647,24 @@ def _compute_portfolio_holdings(
 
 
 def _compute_portfolio_value_series(portfolio_name: str) -> list[dict[str, Any]]:
-    """Replay trades and produce monthly market-value + cumulative-PnL snapshots."""
-    trades = _load_portfolio_trades(portfolio_name)
-    if not trades:
+    """Produce monthly market-value + cumulative-PnL snapshots.
+
+    Delegates to _compute_daily_pnl_series (the single source of truth for
+    PnL) and samples the last trading day of each month.
+    """
+    daily = _compute_daily_pnl_series(portfolio_name)
+    if not daily:
         return []
 
-    positions: dict[str, dict[str, Any]] = {}  # ticker -> {side, shares, total_cost}
-    date_snapshots: dict[str, dict[str, Any]] = {}  # date -> snapshot
-
-    for trade in trades:
-        date = trade["date"]
-        ticker = trade["ticker"]
-        action = trade["action"]
-        side = trade["side"]
-        shares = float(trade["shares"])
-        price = float(trade["price"])
-        cost = shares * price
-
-        # Opening
-        if (action == "buy" and side == "long") or (action == "sell" and side == "short"):
-            if ticker not in positions:
-                positions[ticker] = {"side": side, "shares": 0.0, "total_cost": 0.0}
-            positions[ticker]["shares"] += shares
-            positions[ticker]["total_cost"] += cost
-        # Closing
-        elif (action == "sell" and side == "long") or (action == "buy" and side == "short"):
-            if ticker in positions and positions[ticker]["shares"] > 0:
-                pos = positions[ticker]
-                ratio = min(shares / pos["shares"], 1.0)
-                pos["total_cost"] *= 1 - ratio
-                pos["shares"] -= shares
-                if pos["shares"] <= 0.5:
-                    del positions[ticker]
-
-        # Snapshot at this date (overwrite if multiple trades on same date)
-        market_value = 0.0
-        cumulative_pnl = 0.0
-        for t, p in positions.items():
-            pr = _price_on_date(t, date)
-            if pr is None:
-                pr = p["total_cost"] / p["shares"] if p["shares"] > 0 else 0
-            current_val = p["shares"] * pr
-            market_value += current_val
-            if p["side"] == "long":
-                cumulative_pnl += current_val - p["total_cost"]
-            else:
-                cumulative_pnl += p["total_cost"] - current_val
-        date_snapshots[date] = {
-            "date": date,
-            "market_value": str(round(market_value)),
-            "cumulative_pnl": str(round(cumulative_pnl)),
-        }
-
-    # Aggregate to monthly: keep last snapshot per month
+    # Keep last snapshot per month
     monthly: dict[str, dict[str, Any]] = {}
-    for date in sorted(date_snapshots.keys()):
-        month_key = date[:7]
-        monthly[month_key] = date_snapshots[date]
+    for row in daily:
+        month_key = row["date"][:7]
+        monthly[month_key] = {
+            "date": row["date"],
+            "market_value": row["market_value"],
+            "cumulative_pnl": row["cumulative_pnl"],
+        }
 
     return list(monthly.values())
 
@@ -1749,7 +1717,6 @@ def _compute_daily_pnl_series(portfolio_name: str) -> list[dict[str, str]]:
         num_sells = 0
         buy_amount = 0.0
         sell_amount = 0.0
-        day_long_buy_cost = 0.0  # buy+long cost on this day
 
         # Apply trades for this date
         for trade in trades_by_date.get(date, []):
@@ -1769,8 +1736,6 @@ def _compute_daily_pnl_series(portfolio_name: str) -> list[dict[str, str]]:
 
             # Opening: buy+long or sell+short
             if (action == "buy" and side == "long") or (action == "sell" and side == "short"):
-                if action == "buy":
-                    day_long_buy_cost += cost
                 if ticker not in positions:
                     positions[ticker] = {"side": side, "shares": 0.0, "total_cost": 0.0}
                 positions[ticker]["shares"] += shares
@@ -1804,9 +1769,9 @@ def _compute_daily_pnl_series(portfolio_name: str) -> list[dict[str, str]]:
         total_trades = num_buys + num_sells
 
         if i == start_idx:
-            # Initial capital = long equity deployed on day 1 (investor cash).
-            # Short proceeds are generated by the portfolio, not deposited.
-            initial_capital = day_long_buy_cost or market_value
+            # Initial capital = gross market value on day 1 (total capital
+            # deployed across both long and short positions).
+            initial_capital = market_value
             # Day 1 PnL = intraday move from trade prices to EOD
             daily_pnl = (signed_mv - 0.0) - net_capital_flow
             cumulative_pnl = daily_pnl
@@ -1864,6 +1829,8 @@ def _compute_daily_pnl_by_group(
     start_idx = bisect.bisect_left(all_dates, first_trade_date)
 
     positions: dict[str, dict[str, Any]] = {}  # ticker -> {side, shares, total_cost}
+    realized_pnl_by_group: dict[str, float] = {}  # group -> accumulated realized PnL
+    initial_gross_mv = 0.0  # set on day 1 for consistent % denominator
     series: list[dict[str, Any]] = []
 
     for i in range(start_idx, len(all_dates)):
@@ -1886,16 +1853,32 @@ def _compute_daily_pnl_by_group(
             elif (action == "sell" and side == "long") or (action == "buy" and side == "short"):
                 if ticker in positions and positions[ticker]["shares"] > 0:
                     pos = positions[ticker]
-                    ratio = min(shares / pos["shares"], 1.0)
+                    avg_cost = pos["total_cost"] / pos["shares"]
+                    close_shares = min(shares, pos["shares"])
+                    # Track realized PnL by group
+                    if side == "long":
+                        realized = (price - avg_cost) * close_shares
+                    else:
+                        realized = (avg_cost - price) * close_shares
+                    group = group_map.get(ticker, "Unknown")
+                    realized_pnl_by_group[group] = realized_pnl_by_group.get(group, 0.0) + realized
+                    ratio = close_shares / pos["shares"]
                     pos["total_cost"] *= 1 - ratio
-                    pos["shares"] -= shares
+                    pos["shares"] -= close_shares
                     if pos["shares"] <= 0.5:
                         del positions[ticker]
 
-        # Compute per-group PnL
+        # Compute gross market value for initial_capital on day 1
+        if i == start_idx:
+            for ticker, pos in positions.items():
+                pr = _price_on_date(ticker, date)
+                if pr is None:
+                    pr = pos["total_cost"] / pos["shares"] if pos["shares"] > 0 else 0
+                initial_gross_mv += pos["shares"] * pr
+
+        # Compute per-group PnL (unrealized + realized)
         group_pnl: dict[str, float] = {}
         total_pnl = 0.0
-        total_cost_basis = sum(p["total_cost"] for p in positions.values())
 
         for ticker, pos in positions.items():
             pr = _price_on_date(ticker, date)
@@ -1903,23 +1886,28 @@ def _compute_daily_pnl_by_group(
                 pr = pos["total_cost"] / pos["shares"] if pos["shares"] > 0 else 0
             current_val = pos["shares"] * pr
             if pos["side"] == "long":
-                pnl = current_val - pos["total_cost"]
+                unrealized = current_val - pos["total_cost"]
             else:
-                pnl = pos["total_cost"] - current_val
-            total_pnl += pnl
+                unrealized = pos["total_cost"] - current_val
 
             group = group_map.get(ticker, "Unknown")
-            group_pnl[group] = group_pnl.get(group, 0.0) + pnl
+            group_pnl[group] = group_pnl.get(group, 0.0) + unrealized
 
-        # Store both percentage and dollar values
-        total_pnl_pct = (total_pnl / total_cost_basis * 100) if total_cost_basis else 0.0
+        # Add realized PnL from closed positions to each group
+        for group, realized in realized_pnl_by_group.items():
+            group_pnl[group] = group_pnl.get(group, 0.0) + realized
+
+        total_pnl = sum(group_pnl.values())
+
+        # Store both percentage and dollar values using initial gross MV
+        total_pnl_pct = (total_pnl / initial_gross_mv * 100) if initial_gross_mv else 0.0
         point: dict[str, Any] = {
             "date": date,
             "Total": round(total_pnl_pct, 2),
             "Total_dollars": round(total_pnl),
         }
         for group, pnl in group_pnl.items():
-            point[group] = round((pnl / total_cost_basis * 100) if total_cost_basis else 0.0, 2)
+            point[group] = round((pnl / initial_gross_mv * 100) if initial_gross_mv else 0.0, 2)
             point[f"{group}_dollars"] = round(pnl)
         series.append(point)
 

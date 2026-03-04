@@ -1,23 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColDef, GridApi } from "ag-grid-community";
-import {
-  ComposedChart,
-  LineChart,
-  Line,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ReferenceArea,
-  ResponsiveContainer,
-} from "recharts";
+import ReactECharts from "echarts-for-react";
+import type { EChartsOption } from "echarts";
 import { Layout } from "../components/Layout";
 import { AppGrid } from "../components/ag-grid/AppGrid";
 import { createEntityLinkRenderer } from "../components/ag-grid/EntityLinkRenderer";
 import { useGridColumnManager } from "../hooks/useGridColumnManager";
-import { useChartZoom } from "../hooks/useChartZoom";
 import api from "../config/api";
 import type {
   EntityDetail,
@@ -25,7 +13,6 @@ import type {
   PaginatedResponse,
 } from "../types/entities";
 import {
-  ToggleableLegend,
   useToggleableLegend,
 } from "../components/ToggleableLegend";
 import { ResearchSearchBar } from "../components/ResearchSearchBar";
@@ -40,6 +27,8 @@ interface PositionRow {
   current_price: string;
   exposure_dollars: string;
   exposure_pct: string;
+  return_dollar: string;
+  return_pct: string;
   pnl: string;
   pnl_pct: string;
   sector: string;
@@ -131,9 +120,8 @@ export function PortfoliosPage() {
   const [groupBy, setGroupBy] = useState<"sector" | "industry">("sector");
   const [breakdownData, setBreakdownData] = useState<ComparisonDataPoint[]>([]);
   const [breakdownGroups, setBreakdownGroups] = useState<string[]>([]);
-  const { hiddenKeys: perfHidden, handleToggle: perfToggle, handleSolo: perfSolo } = useToggleableLegend();
-  const { hiddenKeys: breakdownHidden, handleToggle: breakdownToggle, handleSolo: breakdownSolo } = useToggleableLegend();
-  const perfZoom = useChartZoom();
+  const { hiddenKeys: perfHidden, handleToggle: perfToggle } = useToggleableLegend();
+  const { hiddenKeys: breakdownHidden, handleToggle: breakdownToggle } = useToggleableLegend();
   const [perfMode, setPerfMode] = useState<"$" | "%">("%");
   const [breakdownMode, setBreakdownMode] = useState<"$" | "%">("%");
   const [startDate, setStartDate] = useState<string>("2022-01-01");
@@ -220,7 +208,6 @@ export function PortfoliosPage() {
         const series = pnlResp.data.data;
         if (series.length > 0) {
           const lastCum = parseFloat(series[series.length - 1].cumulative_pnl) || 0;
-          // Find Dec 31 of the previous year or the last data point before Jan 1
           const yearStart = `${new Date().getFullYear()}-01-01`;
           let eoyValue = 0;
           for (let i = series.length - 1; i >= 0; i--) {
@@ -304,6 +291,35 @@ export function PortfoliosPage() {
             : "",
       },
       { field: "exposure_pct", headerName: "Exposure (%)", width: 120 },
+      {
+        field: "return_dollar",
+        headerName: "Return ($)",
+        type: "numericColumn",
+        valueGetter: (p) =>
+          p.data ? parseFloat(p.data.return_dollar.replace(/,/g, "")) : null,
+        valueFormatter: (p) =>
+          p.value != null
+            ? `$${Number(p.value).toLocaleString()}`
+            : "",
+        cellStyle: (params) => {
+          if (params.value > 0) return { color: "var(--color-success)" };
+          if (params.value < 0) return { color: "var(--color-error)" };
+          return null;
+        },
+      },
+      {
+        field: "return_pct",
+        headerName: "Return (%)",
+        width: 110,
+        type: "numericColumn",
+        valueGetter: (p) => (p.data ? parseFloat(p.data.return_pct) : null),
+        valueFormatter: (p) => (p.value != null ? `${Number(p.value).toFixed(1)}%` : ""),
+        cellStyle: (params) => {
+          if (params.value > 0) return { color: "var(--color-success)" };
+          if (params.value < 0) return { color: "var(--color-error)" };
+          return null;
+        },
+      },
       {
         field: "pnl",
         headerName: "PnL ($)",
@@ -392,7 +408,7 @@ export function PortfoliosPage() {
   const defaultVisibleFields = useMemo(
     () => [
       "ticker", "side", "shares", "cost_basis", "current_price",
-      "exposure_dollars", "exposure_pct", "pnl", "pnl_pct", "sector", "industry",
+      "exposure_dollars", "exposure_pct", "return_dollar", "return_pct", "pnl", "pnl_pct", "sector", "industry",
     ],
     []
   );
@@ -420,14 +436,12 @@ export function PortfoliosPage() {
   const pnlPct = totalCost ? totalPnl / totalCost * 100 : 0;
   const ytdPnlPct = totalCost && ytdPnl !== null ? ytdPnl / totalCost * 100 : null;
 
-  // Transform chart data: in $ mode, remap _dollars keys to base names;
-  // in % mode, strip _dollars keys. This way Lines always use clean base names.
+  // Transform chart data
   const chartComparisonData = useMemo(() => {
     return comparisonData.map((point) => {
       const out: ComparisonDataPoint = { date: point.date };
       for (const [key, value] of Object.entries(point)) {
         if (key === "date") continue;
-        // Always carry through market value under a stable key
         if (key.endsWith("_mv")) {
           out[key] = value;
           continue;
@@ -457,24 +471,286 @@ export function PortfoliosPage() {
     });
   }, [breakdownData, breakdownMode]);
 
-  // All dataKeys for each chart (for solo / double-click behavior)
-  const perfAllKeys = useMemo(() => {
-    const keys: string[] = [];
+  // Perf chart legend name <-> data key mappings
+  const perfLegendNames = useMemo(() => {
+    const names: string[] = [];
     if (selected) {
-      keys.push(selected);
-      keys.push(`${selected}_mv`);
+      names.push("Portfolio Value");
+      names.push(selected);
     }
-    if (selected !== "Flagship" && perfMode === "%") keys.push("S&P 500");
-    return keys;
+    if (selected !== "Flagship" && perfMode === "%") names.push("S&P 500");
+    return names;
   }, [selected, perfMode]);
 
-  const breakdownAllKeys = useMemo(() => {
-    const keys: string[] = ["Total"];
-    for (const g of breakdownGroups) {
-      keys.push(g);
+  const perfNameToKey = useMemo(() => {
+    const m: Record<string, string> = {};
+    if (selected) {
+      m["Portfolio Value"] = `${selected}_mv`;
+      m[selected] = selected;
     }
-    return keys;
-  }, [breakdownGroups]);
+    if (selected !== "Flagship" && perfMode === "%") m["S&P 500"] = "S&P 500";
+    return m;
+  }, [selected, perfMode]);
+
+  // --- Cumulative Performance ECharts option ---
+  const perfOption: EChartsOption = useMemo(() => {
+    if (chartComparisonData.length === 0 || !selected) return {};
+
+    const xData = chartComparisonData.map((d) => d.date as string);
+    const mvKey = `${selected}_mv`;
+
+    const legendSelected: Record<string, boolean> = {};
+    for (const name of perfLegendNames) {
+      const dataKey = perfNameToKey[name];
+      legendSelected[name] = !perfHidden.has(dataKey);
+    }
+
+    const series: EChartsOption["series"] = [];
+
+    // Market value area
+    series.push({
+      type: "line",
+      name: "Portfolio Value",
+      yAxisIndex: 0,
+      data: chartComparisonData.map((d) => {
+        const v = d[mvKey];
+        return v != null ? Number(v) : null;
+      }),
+      lineStyle: { color: MV_AREA_COLOR, width: 1, opacity: 0.4 },
+      itemStyle: { color: MV_AREA_COLOR },
+      areaStyle: { color: MV_AREA_COLOR, opacity: 0.15 },
+      showSymbol: false,
+      connectNulls: true,
+      animation: false,
+    });
+
+    // Portfolio return line
+    series.push({
+      type: "line",
+      name: selected,
+      yAxisIndex: 1,
+      data: chartComparisonData.map((d) => {
+        const v = d[selected];
+        return v != null ? Number(v) : null;
+      }),
+      lineStyle: { color: PORTFOLIO_COLORS[selected] || "#805ad5", width: 2 },
+      itemStyle: { color: PORTFOLIO_COLORS[selected] || "#805ad5" },
+      showSymbol: false,
+      connectNulls: true,
+      animation: false,
+    });
+
+    // S&P 500 (only in % mode and not Flagship)
+    if (selected !== "Flagship" && perfMode === "%") {
+      series.push({
+        type: "line",
+        name: "S&P 500",
+        yAxisIndex: 1,
+        data: chartComparisonData.map((d) => {
+          const v = d["S&P 500"];
+          return v != null ? Number(v) : null;
+        }),
+        lineStyle: { color: SP500_COLOR, width: 2, type: "dashed" },
+        itemStyle: { color: SP500_COLOR },
+        showSymbol: false,
+        connectNulls: true,
+        animation: false,
+      });
+    }
+
+    return {
+      grid: { left: 60, right: 60, top: 30, bottom: 60 },
+      legend: {
+        data: perfLegendNames,
+        selected: legendSelected,
+        top: 0,
+        textStyle: { fontSize: 11 },
+      },
+      xAxis: {
+        type: "category",
+        data: xData,
+        axisLabel: {
+          fontSize: 11,
+          formatter: (d: string) => d.slice(0, 7),
+        },
+        axisPointer: { show: true },
+      },
+      yAxis: [
+        {
+          type: "value",
+          axisLabel: { fontSize: 11, formatter: (v: number) => formatCurrency(v) },
+          scale: true,
+          splitLine: { lineStyle: { type: "dashed" as const, color: "#e2e8f0" } },
+        },
+        {
+          type: "value",
+          position: "right",
+          axisLabel: {
+            fontSize: 11,
+            formatter: perfMode === "%"
+              ? (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`
+              : (v: number) => formatCurrency(v),
+          },
+          scale: true,
+          splitLine: { show: false },
+        },
+      ],
+      tooltip: {
+        trigger: "axis",
+        formatter: (params: unknown) => {
+          const items = (Array.isArray(params) ? params : [params]) as { axisValue: string; seriesName: string; value: number | null; marker: string }[];
+          let html = `<div style="font-weight:600;margin-bottom:4px">${items[0]?.axisValue ?? ""}</div>`;
+          for (const item of items) {
+            if (item.value == null) continue;
+            let formatted: string;
+            if (item.seriesName === "Portfolio Value") {
+              formatted = formatCurrency(item.value);
+            } else if (perfMode === "%") {
+              formatted = `${item.value >= 0 ? "+" : ""}${item.value.toFixed(1)}%`;
+            } else {
+              formatted = formatCurrency(item.value);
+            }
+            html += `<div>${item.marker} ${item.seriesName}: ${formatted}</div>`;
+          }
+          return html;
+        },
+      },
+      dataZoom: [
+        { type: "inside", xAxisIndex: 0 },
+        { type: "slider", xAxisIndex: 0, height: 20, bottom: 5 },
+      ],
+      series,
+    };
+  }, [chartComparisonData, selected, perfMode, perfLegendNames, perfNameToKey, perfHidden]);
+
+  const perfOnEvents = useMemo(() => ({
+    legendselectchanged: (params: { name: string }) => {
+      const dataKey = perfNameToKey[params.name];
+      if (dataKey) perfToggle(dataKey);
+    },
+  }), [perfNameToKey, perfToggle]);
+
+  // --- PnL Breakdown ECharts option ---
+  const breakdownOption: EChartsOption = useMemo(() => {
+    if (chartBreakdownData.length === 0) return {};
+
+    const xData = chartBreakdownData.map((d) => d.date as string);
+    const series: EChartsOption["series"] = [];
+
+    const legendNames: string[] = [];
+    const legendSelected: Record<string, boolean> = {};
+
+    // Total line
+    legendNames.push("Total");
+    legendSelected["Total"] = !breakdownHidden.has("Total");
+    series.push({
+      type: "line",
+      name: "Total",
+      data: chartBreakdownData.map((d) => {
+        const v = d["Total"];
+        return v != null ? Number(v) : null;
+      }),
+      lineStyle: { color: PORTFOLIO_COLORS[selected ?? ""] || "#805ad5", width: 2.5 },
+      itemStyle: { color: PORTFOLIO_COLORS[selected ?? ""] || "#805ad5" },
+      showSymbol: false,
+      connectNulls: true,
+      animation: false,
+    });
+
+    // Group lines (excluding "Other")
+    const nonOtherGroups = breakdownGroups.filter((g) => g !== "Other");
+    nonOtherGroups.forEach((group, idx) => {
+      legendNames.push(group);
+      legendSelected[group] = !breakdownHidden.has(group);
+      series.push({
+        type: "line",
+        name: group,
+        data: chartBreakdownData.map((d) => {
+          const v = d[group];
+          return v != null ? Number(v) : null;
+        }),
+        lineStyle: {
+          color: INDUSTRY_PALETTE[idx % INDUSTRY_PALETTE.length],
+          width: 1.5,
+          type: "dashed",
+          opacity: 0.7,
+        },
+        itemStyle: { color: INDUSTRY_PALETTE[idx % INDUSTRY_PALETTE.length] },
+        showSymbol: false,
+        connectNulls: true,
+        animation: false,
+      });
+    });
+
+    // "Other" group
+    if (breakdownGroups.includes("Other")) {
+      legendNames.push("Other");
+      legendSelected["Other"] = !breakdownHidden.has("Other");
+      series.push({
+        type: "line",
+        name: "Other",
+        data: chartBreakdownData.map((d) => {
+          const v = d["Other"];
+          return v != null ? Number(v) : null;
+        }),
+        lineStyle: { color: "#a0aec0", width: 1.5, type: "dashed", opacity: 0.7 },
+        itemStyle: { color: "#a0aec0" },
+        showSymbol: false,
+        connectNulls: true,
+        animation: false,
+      });
+    }
+
+    return {
+      grid: { left: 55, right: 16, top: 30, bottom: 30 },
+      legend: {
+        data: legendNames,
+        selected: legendSelected,
+        top: 0,
+        textStyle: { fontSize: 11 },
+      },
+      xAxis: {
+        type: "category",
+        data: xData,
+        axisLabel: {
+          fontSize: 11,
+          formatter: (d: string) => d.slice(0, 7),
+        },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: {
+          fontSize: 11,
+          formatter: breakdownMode === "%"
+            ? (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`
+            : (v: number) => formatCurrency(v),
+        },
+        splitLine: { lineStyle: { type: "dashed" as const, color: "#e2e8f0" } },
+      },
+      tooltip: {
+        trigger: "axis",
+        formatter: (params: unknown) => {
+          const items = (Array.isArray(params) ? params : [params]) as { axisValue: string; seriesName: string; value: number | null; marker: string }[];
+          let html = `<div style="font-weight:600;margin-bottom:4px">${items[0]?.axisValue ?? ""}</div>`;
+          for (const item of items) {
+            if (item.value == null) continue;
+            const formatted = breakdownMode === "%"
+              ? `${item.value >= 0 ? "+" : ""}${item.value.toFixed(1)}%`
+              : formatCurrency(item.value);
+            html += `<div>${item.marker} ${item.seriesName}: ${formatted}</div>`;
+          }
+          return html;
+        },
+      },
+      series,
+    };
+  }, [chartBreakdownData, breakdownGroups, breakdownMode, breakdownHidden, selected]);
+
+  const breakdownOnEvents = useMemo(() => ({
+    legendselectchanged: (params: { name: string }) => {
+      breakdownToggle(params.name);
+    },
+  }), [breakdownToggle]);
 
   return (
     <Layout>
@@ -523,9 +799,7 @@ export function PortfoliosPage() {
         {/* Charts row */}
         <div className="portfolios-page__charts-row">
           {/* Cumulative performance chart */}
-          {comparisonData.length > 0 && (() => {
-            const perfData = perfZoom.zoomData(chartComparisonData, "date");
-            return (
+          {comparisonData.length > 0 && selected && (
             <div className="portfolios-page__chart-section">
               <div className="portfolios-page__chart-header">
                 <div className="portfolios-page__chart-title">Cumulative Performance</div>
@@ -544,121 +818,16 @@ export function PortfoliosPage() {
                       $
                     </button>
                   </div>
-                  {perfZoom.isZoomed && (
-                    <button className="portfolio-chart__zoom-reset" onClick={perfZoom.handleResetZoom}>
-                      Reset Zoom
-                    </button>
-                  )}
                 </div>
               </div>
-              <div
-                className={`portfolio-chart__container${perfZoom.isZoomed ? " portfolio-chart__container--zoomed" : " portfolio-chart__container--zoomable"}`}
-                onDoubleClick={perfZoom.isZoomed ? perfZoom.handleResetZoom : undefined}
-              >
-              <ResponsiveContainer width="100%" height={350}>
-                <ComposedChart
-                  data={perfData}
-                  onMouseDown={perfZoom.handleMouseDown as (e: unknown) => void}
-                  onMouseMove={perfZoom.handleMouseMove as (e: unknown) => void}
-                  onMouseUp={perfZoom.handleMouseUp}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(d: string) => d.slice(0, 7)}
-                    interval="preserveStartEnd"
-                    minTickGap={60}
-                  />
-                  <YAxis
-                    yAxisId="mv"
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(v: number) => formatCurrency(v)}
-                    domain={["auto", "auto"]}
-                  />
-                  <YAxis
-                    yAxisId="perf"
-                    orientation="right"
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={perfMode === "%"
-                      ? (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`
-                      : (v: number) => formatCurrency(v)
-                    }
-                    domain={["auto", "auto"]}
-                  />
-                  <Tooltip
-                    formatter={((value: number, name: string) => {
-                      if (name === "Portfolio Value") return [formatCurrency(value), name];
-                      if (perfMode === "%") return [`${value >= 0 ? "+" : ""}${value.toFixed(1)}%`, name];
-                      return [formatCurrency(value), name];
-                    }) as never}
-                  />
-                  <Legend
-                    content={(props) => (
-                      <ToggleableLegend
-                        payload={props.payload as never}
-                        hiddenKeys={perfHidden}
-                        onToggle={perfToggle}
-                        onSolo={(key) => perfSolo(key, perfAllKeys)}
-                      />
-                    )}
-                  />
-                  {selected && (
-                    <Area
-                      yAxisId="mv"
-                      type="monotone"
-                      dataKey={`${selected}_mv`}
-                      name="Portfolio Value"
-                      fill={MV_AREA_COLOR}
-                      stroke={MV_AREA_COLOR}
-                      fillOpacity={0.15}
-                      strokeWidth={1}
-                      strokeOpacity={0.4}
-                      connectNulls
-                      hide={perfHidden.has(`${selected}_mv`)}
-                    />
-                  )}
-                  {selected && (
-                    <Line
-                      yAxisId="perf"
-                      type="monotone"
-                      dataKey={selected}
-                      stroke={PORTFOLIO_COLORS[selected] || "#805ad5"}
-                      dot={false}
-                      strokeWidth={2}
-                      connectNulls
-                      hide={perfHidden.has(selected)}
-                    />
-                  )}
-                  {selected !== "Flagship" && perfMode === "%" && (
-                    <Line
-                      yAxisId="perf"
-                      type="monotone"
-                      dataKey="S&P 500"
-                      stroke={SP500_COLOR}
-                      dot={false}
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      connectNulls
-                      hide={perfHidden.has("S&P 500")}
-                    />
-                  )}
-                  {perfZoom.selectingLeft && perfZoom.selectingRight && (
-                    <ReferenceArea
-                      yAxisId="mv"
-                      x1={perfZoom.selectingLeft}
-                      x2={perfZoom.selectingRight}
-                      strokeOpacity={0.3}
-                      fill="#3182ce"
-                      fillOpacity={0.15}
-                    />
-                  )}
-                </ComposedChart>
-              </ResponsiveContainer>
-              </div>
+              <ReactECharts
+                option={perfOption}
+                style={{ height: 350 }}
+                notMerge
+                onEvents={perfOnEvents}
+              />
             </div>
-            );
-          })()}
+          )}
 
           {/* Breakdown by sector/industry chart */}
           {breakdownData.length > 0 && (
@@ -696,85 +865,12 @@ export function PortfoliosPage() {
                   </div>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={350}>
-                <LineChart data={chartBreakdownData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(d: string) => d.slice(0, 7)}
-                    interval="preserveStartEnd"
-                    minTickGap={60}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={breakdownMode === "%"
-                      ? (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`
-                      : (v: number) => formatCurrency(v)
-                    }
-                  />
-                  <Tooltip
-                    formatter={breakdownMode === "%"
-                      ? ((value: number, name: string) => [
-                          `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`,
-                          name,
-                        ]) as never
-                      : ((value: number, name: string) => [
-                          formatCurrency(value),
-                          name,
-                        ]) as never
-                    }
-                  />
-                  <Legend
-                    content={(props) => (
-                      <ToggleableLegend
-                        payload={props.payload as never}
-                        hiddenKeys={breakdownHidden}
-                        onToggle={breakdownToggle}
-                        onSolo={(key) => breakdownSolo(key, breakdownAllKeys)}
-                      />
-                    )}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="Total"
-                    stroke={PORTFOLIO_COLORS[selected ?? ""] || "#805ad5"}
-                    dot={false}
-                    strokeWidth={2.5}
-                    connectNulls
-                    hide={breakdownHidden.has("Total")}
-                  />
-                  {breakdownGroups
-                    .filter((g) => g !== "Other")
-                    .map((group, idx) => (
-                      <Line
-                        key={group}
-                        type="monotone"
-                        dataKey={group}
-                        stroke={INDUSTRY_PALETTE[idx % INDUSTRY_PALETTE.length]}
-                        dot={false}
-                        strokeWidth={1.5}
-                        strokeDasharray="4 3"
-                        strokeOpacity={0.7}
-                        connectNulls
-                        hide={breakdownHidden.has(group)}
-                      />
-                    ))}
-                  {breakdownGroups.includes("Other") && (
-                    <Line
-                      type="monotone"
-                      dataKey="Other"
-                      stroke="#a0aec0"
-                      dot={false}
-                      strokeWidth={1.5}
-                      strokeDasharray="4 3"
-                      strokeOpacity={0.7}
-                      connectNulls
-                      hide={breakdownHidden.has("Other")}
-                    />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
+              <ReactECharts
+                option={breakdownOption}
+                style={{ height: 350 }}
+                notMerge
+                onEvents={breakdownOnEvents}
+              />
             </div>
           )}
         </div>

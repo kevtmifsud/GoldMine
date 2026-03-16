@@ -26,5 +26,23 @@
     "row_descriptions": [],
     "entity_type": "portfolio",
     "entity_id": "Flagship"
+  },
+  {
+    "pack_id": "7687472b-7557-43c6-b0bb-ea465c7503ab",
+    "name": "stocks Pack",
+    "owner": "analyst1",
+    "owner_display_name": "",
+    "description": "",
+    "widgets": [],
+    "is_shared": false,
+    "created_at": "2026-03-12T00:32:34.967233+00:00",
+    "updated_at": "2026-03-12T00:32:34.967233+00:00",
+    "row_columns": [
+      2
+    ],
+    "row_heights": [],
+    "row_descriptions": [],
+    "entity_type": "dataset",
+    "entity_id": "stocks"
   }
 ]

@@ -258,5 +258,45 @@
     "recipients": [
       "kevintdonadio@gmail.com"
     ]
+  },
+  {
+    "log_id": "e019f2ee-47ba-44ea-836e-73bb2e94eb19",
+    "schedule_id": "a47af85c-035a-4c92-b851-fbcf8fb24c5d",
+    "sent_at": "2026-03-11T22:27:36.062712+00:00",
+    "status": "sent",
+    "error": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ]
+  },
+  {
+    "log_id": "2b4795d0-874c-4217-ac0c-1725381133a4",
+    "schedule_id": "a47af85c-035a-4c92-b851-fbcf8fb24c5d",
+    "sent_at": "2026-03-11T22:27:37.234831+00:00",
+    "status": "sent",
+    "error": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ]
+  },
+  {
+    "log_id": "d25ca93e-5779-49ca-aa62-2618a584b3ac",
+    "schedule_id": "d4d85725-7454-4965-aaad-9f4c959dc149",
+    "sent_at": "2026-03-11T22:27:37.551393+00:00",
+    "status": "sent",
+    "error": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ]
+  },
+  {
+    "log_id": "9a9dac4c-0bd5-49c2-9c7f-d2d7232212f3",
+    "schedule_id": "d4d85725-7454-4965-aaad-9f4c959dc149",
+    "sent_at": "2026-03-11T22:27:39.974774+00:00",
+    "status": "sent",
+    "error": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ]
   }
 ]

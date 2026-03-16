@@ -1,0 +1,633 @@
+"""DS-03: FastAPI endpoints for Mode 2 API.
+
+All endpoints under /api/v1/ as specified in the architecture.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import uuid
+from datetime import datetime
+
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
+
+from .classifier import classify_query
+from .ticker_resolver import resolve_tickers
+from .retrieval import retrieve_context
+from .generator import generate_response
+from .sessions import (
+    create_conversation,
+    create_session,
+    get_session,
+    get_session_history,
+    get_rolling_summary,
+    save_user_message,
+    maybe_compress_session,
+    auto_title_conversation,
+    list_conversations,
+)
+from .qa_library import submit_feedback
+from .sharing import share_conversation, share_insight, get_shared_conversations
+from .db import get_conn
+from .models import (
+    ChatMessageRequest,
+    CreateConversationRequest,
+    CreateConversationResponse,
+    CreateSessionRequest,
+    CreateSessionResponse,
+    CreateInsightRequest,
+    CreateTickerListRequest,
+    ConversationSummary,
+    FeedbackRequest,
+    FeedbackResponse,
+    FeatureRequestAck,
+    InsightSummary,
+    SessionResponse,
+    ShareRequest,
+    TickerList,
+    CostSummary,
+    ModelConfigEntry,
+    UpdateModelRequest,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/v1", tags=["mode2"])
+
+
+def _get_user_id(request: Request) -> str:
+    """Extract user ID from authenticated request."""
+    user = getattr(request.state, "user", None)
+    if user and hasattr(user, "username"):
+        return user.username
+    return "anonymous"
+
+
+# ---------------------------------------------------------------------------
+# Chat endpoints
+# ---------------------------------------------------------------------------
+@router.post("/chat/message")
+async def chat_message(request: Request, body: ChatMessageRequest):
+    """Main chat endpoint — streams response via SSE."""
+    user_id = _get_user_id(request)
+
+    # Handle /request slash command
+    if body.content.strip().startswith("/request"):
+        return await _handle_feature_request(body, user_id)
+
+    # Save user message
+    user_msg_id = str(uuid.uuid4())
+    await save_user_message(body.session_id, user_id, body.content, user_msg_id)
+
+    # Generate assistant message ID
+    assistant_msg_id = str(uuid.uuid4())
+
+    async def event_stream():
+        try:
+            # WF-06: Classify query
+            history = await get_session_history(body.session_id)
+            classified = await classify_query(
+                body.content,
+                history=history,
+                user_id=user_id,
+                session_id=body.session_id,
+                message_id=assistant_msg_id,
+            )
+
+            # Inject context tickers if provided
+            if body.context_tickers:
+                for t in body.context_tickers:
+                    if t not in classified.tickers:
+                        classified.tickers.append(t)
+
+            # WF-07: Resolve tickers
+            universe = await resolve_tickers(classified, user_id=user_id)
+
+            # WF-08: Retrieve context
+            context = await retrieve_context(
+                classified, universe, body.content,
+                session_id=body.session_id,
+                message_id=assistant_msg_id,
+                user_id=user_id,
+            )
+
+            # WF-09: Generate response (streaming)
+            rolling_summary = await get_rolling_summary(body.session_id)
+
+            async for event in generate_response(
+                body.content, context, classified,
+                history=history,
+                rolling_summary=rolling_summary,
+                session_id=body.session_id,
+                message_id=assistant_msg_id,
+                user_id=user_id,
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
+
+            # WF-10: Async compression check (fire-and-forget)
+            asyncio.create_task(
+                maybe_compress_session(body.session_id, user_id)
+            )
+
+            # Auto-title conversation if this is the first exchange
+            session = await get_session(body.session_id)
+            if session and session["turn_count"] <= 2:
+                # Check if conversation needs title
+                async with get_conn() as conn:
+                    conv = await conn.fetchrow(
+                        "SELECT title FROM conversations WHERE id = $1",
+                        body.conversation_id,
+                    )
+                    if conv and not conv["title"]:
+                        msgs = session["messages"]
+                        if len(msgs) >= 2:
+                            asyncio.create_task(
+                                auto_title_conversation(
+                                    body.conversation_id,
+                                    msgs[-2]["content"],
+                                    msgs[-1]["content"],
+                                    user_id,
+                                )
+                            )
+
+        except Exception as e:
+            logger.exception("Error in chat stream")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+async def _handle_feature_request(body: ChatMessageRequest, user_id: str) -> FeatureRequestAck:
+    """Handle /request slash command."""
+    request_text = body.content.strip().removeprefix("/request").strip()
+    request_id = str(uuid.uuid4())
+
+    async with get_conn() as conn:
+        await conn.execute(
+            """INSERT INTO feature_requests (id, user_id, session_id, request_text)
+               VALUES ($1, $2, $3, $4)""",
+            request_id, user_id, body.session_id, request_text,
+        )
+
+    return FeatureRequestAck(
+        message=f"Feature request received. We'll review it shortly.",
+        request_id=request_id,
+    )
+
+
+@router.post("/chat/session", status_code=201)
+async def create_chat_session(
+    request: Request, body: CreateSessionRequest
+) -> CreateSessionResponse:
+    """Create a new session in a conversation."""
+    user_id = _get_user_id(request)
+    session_id = await create_session(body.conversation_id, user_id)
+    return CreateSessionResponse(
+        session_id=session_id,
+        conversation_id=body.conversation_id,
+        created_at=datetime.utcnow(),
+    )
+
+
+@router.get("/chat/session/{session_id}")
+async def get_chat_session(session_id: str) -> SessionResponse:
+    """Get session with full message history."""
+    session = await get_session(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    return SessionResponse(
+        session_id=session["session_id"],
+        conversation_id=session["conversation_id"],
+        messages=[
+            {
+                "message_id": m["message_id"],
+                "role": m["role"],
+                "content": m["content"],
+                "query_type": m.get("query_type"),
+                "tickers_referenced": m.get("tickers_referenced", []),
+                "source_chunks": m.get("source_chunks", []),
+                "feedback": None,
+                "created_at": m["created_at"],
+            }
+            for m in session["messages"]
+        ],
+        turn_count=session["turn_count"],
+        created_at=session["created_at"],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Feedback
+# ---------------------------------------------------------------------------
+@router.post("/messages/{message_id}/feedback", status_code=201)
+async def post_feedback(
+    request: Request, message_id: str, body: FeedbackRequest
+) -> FeedbackResponse:
+    """Submit feedback on a message."""
+    user_id = _get_user_id(request)
+    result = await submit_feedback(
+        message_id, body.feedback_type, body.edited_content, user_id
+    )
+    return FeedbackResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Conversations
+# ---------------------------------------------------------------------------
+@router.get("/conversations")
+async def get_conversations(
+    request: Request,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    ticker: str | None = None,
+    search: str | None = None,
+) -> list[ConversationSummary]:
+    """List user's conversations."""
+    user_id = _get_user_id(request)
+    convs = await list_conversations(user_id, limit, offset, ticker, search)
+    return [ConversationSummary(**c) for c in convs]
+
+
+@router.post("/conversations", status_code=201)
+async def create_new_conversation(
+    request: Request, body: CreateConversationRequest
+) -> CreateConversationResponse:
+    """Create a new conversation."""
+    user_id = _get_user_id(request)
+    result = await create_conversation(user_id, body.title, body.ticker_context)
+    return CreateConversationResponse(
+        id=result["conversation_id"],
+        title=body.title,
+        ticker_context=body.ticker_context,
+        created_at=datetime.utcnow(),
+    )
+
+
+@router.post("/conversations/{conversation_id}/share")
+async def share_conv(
+    request: Request, conversation_id: str, body: ShareRequest
+):
+    """Share a conversation."""
+    user_id = _get_user_id(request)
+    share_id = await share_conversation(
+        conversation_id, user_id, body.share_with_user_id, body.share_with_team
+    )
+    return {"share_id": share_id}
+
+
+@router.get("/conversations/search")
+async def search_conversations(
+    request: Request,
+    q: str = Query(..., min_length=2),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """Semantic search across conversation history."""
+    user_id = _get_user_id(request)
+
+    # Embed the search query
+    from .retrieval import _embed_query
+    query_embedding = await _embed_query(q, user_id=user_id)
+    emb_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
+
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            """SELECT m.id as message_id, m.content, m.created_at,
+                      c.id as conversation_id, c.title as conversation_title,
+                      1 - (m.content_embedding <=> $1::vector) AS similarity
+               FROM messages m
+               JOIN sessions s ON m.session_id = s.id
+               JOIN conversations c ON s.conversation_id = c.id
+               WHERE c.user_id = $2
+               AND m.content_embedding IS NOT NULL
+               AND 1 - (m.content_embedding <=> $1::vector) > 0.7
+               ORDER BY similarity DESC
+               LIMIT $3""",
+            emb_str, user_id, limit,
+        )
+
+    return [
+        {
+            "message_id": str(r["message_id"]),
+            "conversation_id": str(r["conversation_id"]),
+            "conversation_title": r["conversation_title"],
+            "excerpt": r["content"][:300],
+            "similarity_score": float(r["similarity"]),
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Insights
+# ---------------------------------------------------------------------------
+@router.get("/insights")
+async def get_insights(
+    request: Request,
+    ticker: str | None = None,
+    tag: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> list[InsightSummary]:
+    """Get saved insights."""
+    user_id = _get_user_id(request)
+
+    conditions = ["i.user_id = $1"]
+    params: list = [user_id]
+    idx = 2
+
+    if ticker:
+        conditions.append(f"${idx} = ANY(i.ticker_context)")
+        params.append(ticker)
+        idx += 1
+    if tag:
+        conditions.append(f"${idx} = ANY(i.tags)")
+        params.append(tag)
+        idx += 1
+
+    where = " AND ".join(conditions)
+
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            f"""SELECT i.id, i.title, i.content, i.ticker_context, i.tags, i.created_at,
+                       EXISTS(SELECT 1 FROM insight_shares s WHERE s.insight_id = i.id) as is_shared
+                FROM insights i
+                WHERE {where}
+                ORDER BY i.created_at DESC
+                LIMIT ${idx} OFFSET ${idx + 1}""",
+            *params, limit, offset,
+        )
+
+    return [
+        InsightSummary(
+            insight_id=str(r["id"]),
+            title=r["title"],
+            content=r["content"],
+            ticker_context=r["ticker_context"] or [],
+            tags=r["tags"] or [],
+            created_at=r["created_at"],
+            is_shared=r["is_shared"],
+        )
+        for r in rows
+    ]
+
+
+@router.post("/insights", status_code=201)
+async def create_insight(request: Request, body: CreateInsightRequest) -> InsightSummary:
+    """Save an insight from a session."""
+    user_id = _get_user_id(request)
+    insight_id = str(uuid.uuid4())
+
+    async with get_conn() as conn:
+        await conn.execute(
+            """INSERT INTO insights
+               (id, user_id, message_id, session_id, title, content, ticker_context, tags)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
+            insight_id, user_id, body.message_id, body.session_id,
+            body.title, body.content, body.ticker_context, body.tags,
+        )
+
+    return InsightSummary(
+        insight_id=insight_id,
+        title=body.title,
+        content=body.content,
+        ticker_context=body.ticker_context,
+        tags=body.tags,
+        created_at=datetime.utcnow(),
+    )
+
+
+@router.post("/insights/{insight_id}/share")
+async def share_ins(request: Request, insight_id: str, body: ShareRequest):
+    """Share an insight."""
+    user_id = _get_user_id(request)
+    share_id = await share_insight(
+        insight_id, user_id, body.share_with_user_id, body.share_with_team
+    )
+    return {"share_id": share_id}
+
+
+# ---------------------------------------------------------------------------
+# Ticker Lists
+# ---------------------------------------------------------------------------
+@router.get("/lists")
+async def get_ticker_lists(request: Request) -> list[TickerList]:
+    """Get all user's ticker lists."""
+    user_id = _get_user_id(request)
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            "SELECT list_name, tickers FROM user_ticker_lists WHERE user_id = $1",
+            user_id,
+        )
+    return [
+        TickerList(
+            list_name=r["list_name"],
+            tickers=r["tickers"] or [],
+            ticker_count=len(r["tickers"] or []),
+        )
+        for r in rows
+    ]
+
+
+@router.post("/lists", status_code=201)
+async def create_ticker_list(request: Request, body: CreateTickerListRequest) -> TickerList:
+    """Create or update a ticker list."""
+    user_id = _get_user_id(request)
+    async with get_conn() as conn:
+        await conn.execute(
+            """INSERT INTO user_ticker_lists (user_id, list_name, tickers)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (user_id, list_name)
+               DO UPDATE SET tickers = $3, updated_at = NOW()""",
+            user_id, body.list_name, body.tickers,
+        )
+    return TickerList(
+        list_name=body.list_name,
+        tickers=body.tickers,
+        ticker_count=len(body.tickers),
+    )
+
+
+@router.delete("/lists/{list_name}", status_code=204)
+async def delete_ticker_list(request: Request, list_name: str):
+    """Delete a ticker list."""
+    user_id = _get_user_id(request)
+    async with get_conn() as conn:
+        await conn.execute(
+            "DELETE FROM user_ticker_lists WHERE user_id = $1 AND list_name = $2",
+            user_id, list_name,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Admin: Feature Requests
+# ---------------------------------------------------------------------------
+@router.get("/admin/feature-requests")
+async def get_feature_requests(
+    status: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """List all feature requests (admin only)."""
+    conditions = []
+    params: list = []
+    idx = 1
+
+    if status:
+        conditions.append(f"status = ${idx}")
+        params.append(status)
+        idx += 1
+
+    where = " AND ".join(conditions) if conditions else "TRUE"
+
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            f"""SELECT id, user_id, session_id, request_text, status,
+                       priority, admin_notes, created_at
+                FROM feature_requests
+                WHERE {where}
+                ORDER BY created_at DESC
+                LIMIT ${idx} OFFSET ${idx + 1}""",
+            *params, limit, offset,
+        )
+
+    return [dict(r) for r in rows]
+
+
+@router.patch("/admin/feature-requests/{request_id}")
+async def update_feature_request(request_id: str, status: str | None = None, priority: str | None = None, admin_notes: str | None = None):
+    """Update a feature request."""
+    updates = []
+    params: list = []
+    idx = 1
+
+    if status:
+        updates.append(f"status = ${idx}")
+        params.append(status)
+        idx += 1
+    if priority:
+        updates.append(f"priority = ${idx}")
+        params.append(priority)
+        idx += 1
+    if admin_notes is not None:
+        updates.append(f"admin_notes = ${idx}")
+        params.append(admin_notes)
+        idx += 1
+
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+
+    params.append(request_id)
+    set_clause = ", ".join(updates)
+
+    async with get_conn() as conn:
+        await conn.execute(
+            f"UPDATE feature_requests SET {set_clause}, updated_at = NOW() WHERE id = ${idx}",
+            *params,
+        )
+    return {"status": "updated"}
+
+
+# ---------------------------------------------------------------------------
+# Admin: Costs
+# ---------------------------------------------------------------------------
+@router.get("/admin/costs/summary")
+async def get_cost_summary(
+    request: Request,
+    from_date: str | None = Query(None, alias="from"),
+    to_date: str | None = Query(None, alias="to"),
+    group_by: str = Query("component"),
+) -> CostSummary:
+    """Get cost summary."""
+    conditions = []
+    params: list = []
+    idx = 1
+
+    if from_date:
+        conditions.append(f"created_at >= ${idx}::timestamp")
+        params.append(from_date)
+        idx += 1
+    if to_date:
+        conditions.append(f"created_at <= ${idx}::timestamp")
+        params.append(to_date)
+        idx += 1
+
+    where = " AND ".join(conditions) if conditions else "TRUE"
+
+    valid_groups = {"component", "mode", "model", "query_type", "user_id"}
+    if group_by not in valid_groups:
+        group_by = "component"
+
+    async with get_conn() as conn:
+        total_row = await conn.fetchrow(
+            f"SELECT COALESCE(SUM(cost_usd), 0) as total FROM api_cost_events WHERE {where}",
+            *params,
+        )
+
+        breakdown_rows = await conn.fetch(
+            f"""SELECT {group_by}, COUNT(*) as calls,
+                       SUM(cost_usd) as total_cost,
+                       SUM(input_tokens) as total_input_tokens,
+                       SUM(output_tokens) as total_output_tokens
+                FROM api_cost_events
+                WHERE {where}
+                GROUP BY {group_by}
+                ORDER BY total_cost DESC""",
+            *params,
+        )
+
+    return CostSummary(
+        total_cost_usd=float(total_row["total"]),
+        period={"from": from_date or "all", "to": to_date or "now"},
+        breakdown=[dict(r) for r in breakdown_rows],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Admin: Models
+# ---------------------------------------------------------------------------
+@router.get("/admin/models")
+async def get_models() -> list[ModelConfigEntry]:
+    """Get current model configuration."""
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            "SELECT component, model, provider, previous_model, switched_at FROM model_config ORDER BY component"
+        )
+    return [
+        ModelConfigEntry(
+            component=r["component"],
+            model=r["model"],
+            provider=r["provider"],
+            previous_model=r["previous_model"],
+            switched_at=r["switched_at"],
+        )
+        for r in rows
+    ]
+
+
+@router.put("/admin/models/{component}")
+async def update_model(component: str, body: UpdateModelRequest):
+    """Update model assignment for a component."""
+    async with get_conn() as conn:
+        await conn.execute(
+            """UPDATE model_config
+               SET previous_model = model,
+                   model = $1,
+                   provider = $2,
+                   switched_at = NOW(),
+                   updated_at = NOW()
+               WHERE component = $3""",
+            body.model, body.provider, component,
+        )
+    return {"status": "updated", "component": component, "model": body.model}

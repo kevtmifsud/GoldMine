@@ -128,6 +128,18 @@ class ConversationSummary(BaseModel):
     session_count: int = 0
     last_active: datetime | None = None
     is_shared: bool = False
+    first_message: str | None = None
+
+
+class ConversationDetail(BaseModel):
+    id: str
+    title: str | None = None
+    ticker_context: list[str] = Field(default_factory=list)
+    messages: list[SessionMessage] = Field(default_factory=list)
+    turn_count: int = 0
+    is_shared: bool = False
+    created_at: datetime
+    last_active: datetime | None = None
 
 
 class CreateConversationRequest(BaseModel):

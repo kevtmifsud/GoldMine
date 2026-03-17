@@ -12,6 +12,8 @@ import logging
 import os
 from datetime import datetime
 
+import time
+
 import anthropic
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -25,6 +27,7 @@ from .models import (
     ResolvedUniverse,
     RetrievalContext,
 )
+from .steps import StepCollector
 
 logger = logging.getLogger(__name__)
 
@@ -36,17 +39,30 @@ async def _embed_query(
     session_id: str | None = None,
     message_id: str | None = None,
     user_id: str | None = None,
+    steps: StepCollector | None = None,
 ) -> list[float]:
     """Embed a query string using the query_embedder model from config."""
     config = await get_model_config("query_embedder")
     model = config["model"]
 
     client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+    t0 = time.time()
     response = client.embeddings.create(model=model, input=[text], dimensions=1536)
+    embed_duration_ms = int((time.time() - t0) * 1000)
     embedding = response.data[0].embedding
     tokens = response.usage.total_tokens
 
     cost = await calculate_cost(model, tokens)
+    if steps:
+        steps.add(
+            label="Embedding your query",
+            detail=f"OpenAI embeddings ({tokens} tokens)",
+            source="openai",
+            model=model,
+            cost_usd=cost,
+            duration_ms=embed_duration_ms,
+            result_summary=f"{len(embedding)}-dim vector",
+        )
     emit_cost_event(
         mode="mode_2",
         component="query_embedder",
@@ -62,8 +78,10 @@ async def _embed_query(
 
 async def _lookup_qa_library(
     query_embedding: list[float],
+    steps: StepCollector | None = None,
 ) -> list[QALibraryEntry]:
     """Search Q&A library for validated entries similar to the query."""
+    t0 = time.time()
     emb_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
     async with get_conn() as conn:
         rows = await conn.fetch(
@@ -77,7 +95,8 @@ async def _lookup_qa_library(
                LIMIT 2""",
             emb_str,
         )
-    return [
+    qa_duration_ms = int((time.time() - t0) * 1000)
+    results = [
         QALibraryEntry(
             id=str(r["id"]),
             question=r["question"],
@@ -91,6 +110,15 @@ async def _lookup_qa_library(
         )
         for r in rows
     ]
+    if steps:
+        steps.add(
+            label="Checking Q&A library",
+            detail="pgvector similarity on qa_library table",
+            source="supabase",
+            duration_ms=qa_duration_ms,
+            result_summary=f"{len(results)} hits" if results else "no matches",
+        )
+    return results
 
 
 async def _check_screening_cache(query: str, fiscal_periods: list[str]) -> dict | None:
@@ -129,8 +157,10 @@ async def _vector_search(
     limit_per_ticker: int = 6,
     section_type: str | None = None,
     fiscal_periods: list[str] | None = None,
+    steps: StepCollector | None = None,
 ) -> list[ChunkResult]:
     """Perform pgvector cosine similarity search."""
+    t0 = time.time()
     emb_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
 
     conditions = ["is_active = TRUE"]
@@ -182,7 +212,8 @@ async def _vector_search(
     async with get_conn() as conn:
         rows = await conn.fetch(query, *params)
 
-    return [
+    search_duration_ms = int((time.time() - t0) * 1000)
+    results = [
         ChunkResult(
             chunk_id=str(r["chunk_id"]) if r["chunk_id"] else None,
             document_id=str(r["document_id"]) if r["document_id"] else None,
@@ -197,14 +228,26 @@ async def _vector_search(
         )
         for r in rows
     ]
+    if steps:
+        ticker_str = ", ".join(tickers[:3]) + ("..." if len(tickers) > 3 else "")
+        steps.add(
+            label=f"Searching {ticker_str} documents" if tickers else "Searching documents",
+            detail="pgvector cosine similarity on chunks table",
+            source="supabase",
+            duration_ms=search_duration_ms,
+            result_summary=f"{len(results)} chunks found",
+        )
+    return results
 
 
 async def _structured_query(
     tickers: list[str],
     topic: str,
     fiscal_periods: list[str] | None = None,
+    steps: StepCollector | None = None,
 ) -> list[dict]:
     """Query structured financial tables for quantitative answers."""
+    t0 = time.time()
     results = []
     ticker = tickers[0] if tickers else None
     if not ticker:
@@ -245,6 +288,15 @@ async def _structured_query(
                 row_dict["_table"] = table
                 results.append(row_dict)
 
+    structured_duration_ms = int((time.time() - t0) * 1000)
+    if steps:
+        steps.add(
+            label=f"Fetching {ticker} financial data",
+            detail=f"SQL query on {', '.join(tables_to_query)}",
+            source="supabase",
+            duration_ms=structured_duration_ms,
+            result_summary=f"{len(results)} rows",
+        )
     return results
 
 
@@ -254,6 +306,7 @@ async def _screening_prefilter(
     session_id: str | None = None,
     message_id: str | None = None,
     user_id: str | None = None,
+    steps: StepCollector | None = None,
 ) -> list[ChunkResult]:
     """Use Haiku to pre-filter large screening results down to top 20."""
     if len(chunks) <= 20:
@@ -278,14 +331,26 @@ Below are {len(chunks)} chunks. Return a JSON array of the indices (numbers in b
 
     api_key = os.environ.get("GOLDMINE_ANTHROPIC_API_KEY", "")
     client = anthropic.Anthropic(api_key=api_key)
+    t0 = time.time()
     response = client.messages.create(
         model=model,
         max_tokens=256,
         messages=[{"role": "user", "content": prompt}],
     )
+    prefilter_duration_ms = int((time.time() - t0) * 1000)
 
     raw = response.content[0].text.strip()
     cost = await calculate_cost(model, response.usage.input_tokens, response.usage.output_tokens)
+    if steps:
+        steps.add(
+            label="Filtering screening results",
+            detail=f"Haiku prefilter ({len(chunks)} → 20 chunks)",
+            source="anthropic",
+            model=model,
+            cost_usd=cost,
+            duration_ms=prefilter_duration_ms,
+            result_summary="",
+        )
     emit_cost_event(
         mode="mode_2",
         component="screening_prefilter",
@@ -302,7 +367,10 @@ Below are {len(chunks)} chunks. Return a JSON array of the indices (numbers in b
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
         indices = json.loads(raw)
-        return [chunks[i] for i in indices if 0 <= i < len(chunks)]
+        filtered = [chunks[i] for i in indices if 0 <= i < len(chunks)]
+        if steps:
+            steps.steps[-1]["result_summary"] = f"{len(filtered)} chunks kept"
+        return filtered
     except Exception:
         logger.warning("Screening prefilter returned invalid JSON: %s", raw[:200])
         return chunks[:20]
@@ -330,16 +398,18 @@ async def retrieve_context(
     session_id: str | None = None,
     message_id: str | None = None,
     user_id: str | None = None,
+    steps: StepCollector | None = None,
 ) -> RetrievalContext:
     """Assemble retrieval context based on query type and resolved tickers."""
 
     # Embed the user query
     query_embedding = await _embed_query(
-        user_query, session_id=session_id, message_id=message_id, user_id=user_id
+        user_query, session_id=session_id, message_id=message_id, user_id=user_id,
+        steps=steps,
     )
 
     # Q&A library lookup (runs on every query)
-    qa_hits = await _lookup_qa_library(query_embedding)
+    qa_hits = await _lookup_qa_library(query_embedding, steps=steps)
 
     structured_data = None
     chunks: list[ChunkResult] = []
@@ -354,12 +424,14 @@ async def retrieve_context(
             limit_per_ticker=6,
             section_type=classified.section_type_hint,
             fiscal_periods=classified.fiscal_periods or None,
+            steps=steps,
         )
 
     elif qt == "single_ticker_quantitative":
         if classified.needs_structured_data:
             structured_data = await _structured_query(
-                universe.tickers, classified.topic, classified.fiscal_periods or None
+                universe.tickers, classified.topic, classified.fiscal_periods or None,
+                steps=steps,
             )
         if classified.needs_vector_search:
             chunks = await _vector_search(
@@ -368,6 +440,7 @@ async def retrieve_context(
                 limit_per_ticker=4,
                 section_type=classified.section_type_hint,
                 fiscal_periods=classified.fiscal_periods or None,
+                steps=steps,
             )
 
     elif qt == "cross_ticker":
@@ -378,6 +451,7 @@ async def retrieve_context(
             limit_per_ticker=per_ticker,
             section_type=classified.section_type_hint,
             fiscal_periods=classified.fiscal_periods or None,
+            steps=steps,
         )
 
     elif qt == "screening":
@@ -386,6 +460,13 @@ async def retrieve_context(
         if cached:
             cache_hit = True
             chunks = [ChunkResult(**c) for c in cached.get("chunks", [])]
+            if steps:
+                steps.add(
+                    label="Screening cache hit",
+                    detail="MD5 cache lookup",
+                    source="cache",
+                    result_summary=f"{len(chunks)} cached chunks",
+                )
         else:
             # Broad retrieval
             raw_chunks = await _vector_search(
@@ -393,11 +474,13 @@ async def retrieve_context(
                 tickers=universe.tickers,
                 limit_per_ticker=3,
                 section_type=classified.section_type_hint,
+                steps=steps,
             )
             # Haiku pre-filter if too many
             chunks = await _screening_prefilter(
                 raw_chunks, user_query,
                 session_id=session_id, message_id=message_id, user_id=user_id,
+                steps=steps,
             )
             # Cache the result
             await _write_screening_cache(
@@ -414,6 +497,7 @@ async def retrieve_context(
             limit_per_ticker=3 * (classified.time_range_quarters or 4),
             section_type=classified.section_type_hint,
             fiscal_periods=periods or None,
+            steps=steps,
         )
 
     token_est = _estimate_tokens(chunks, structured_data)

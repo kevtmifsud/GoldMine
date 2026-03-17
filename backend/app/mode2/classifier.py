@@ -9,11 +9,14 @@ import json
 import logging
 from datetime import datetime
 
+import time
+
 import anthropic
 
 from .cost import get_model_config, calculate_cost, emit_cost_event
 from .db import get_conn
 from .models import ClassifiedQuery
+from .steps import StepCollector
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +64,7 @@ async def classify_query(
     user_id: str | None = None,
     session_id: str | None = None,
     message_id: str | None = None,
+    steps: StepCollector | None = None,
 ) -> ClassifiedQuery:
     """Classify a user message. Returns ClassifiedQuery."""
     import os
@@ -98,12 +102,14 @@ async def classify_query(
     api_key = os.environ.get("GOLDMINE_ANTHROPIC_API_KEY", "")
     client = anthropic.Anthropic(api_key=api_key)
 
+    t0 = time.time()
     response = client.messages.create(
         model=model,
         max_tokens=512,
         system=system,
         messages=messages,
     )
+    classify_duration_ms = int((time.time() - t0) * 1000)
 
     raw = response.content[0].text.strip()
     input_tokens = response.usage.input_tokens
@@ -111,6 +117,16 @@ async def classify_query(
 
     # Calculate and log cost
     cost = await calculate_cost(model, input_tokens, output_tokens)
+    if steps:
+        steps.add(
+            label="Classifying your question",
+            detail=f"Haiku classification ({input_tokens}+{output_tokens} tokens)",
+            source="anthropic",
+            model=model,
+            cost_usd=cost,
+            duration_ms=classify_duration_ms,
+            result_summary="",
+        )
     emit_cost_event(
         mode="mode_2",
         component="query_classifier",

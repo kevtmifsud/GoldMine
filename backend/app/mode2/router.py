@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import uuid
 from datetime import datetime
 
@@ -17,6 +18,7 @@ from .classifier import classify_query
 from .ticker_resolver import resolve_tickers
 from .retrieval import retrieve_context
 from .generator import generate_response
+from .steps import StepCollector
 from .sessions import (
     create_conversation,
     create_session,
@@ -39,11 +41,13 @@ from .models import (
     CreateSessionResponse,
     CreateInsightRequest,
     CreateTickerListRequest,
+    ConversationDetail,
     ConversationSummary,
     FeedbackRequest,
     FeedbackResponse,
     FeatureRequestAck,
     InsightSummary,
+    SessionMessage,
     SessionResponse,
     ShareRequest,
     TickerList,
@@ -86,6 +90,8 @@ async def chat_message(request: Request, body: ChatMessageRequest):
 
     async def event_stream():
         try:
+            steps = StepCollector()
+
             # WF-06: Classify query
             history = await get_session_history(body.session_id)
             classified = await classify_query(
@@ -94,7 +100,12 @@ async def chat_message(request: Request, body: ChatMessageRequest):
                 user_id=user_id,
                 session_id=body.session_id,
                 message_id=assistant_msg_id,
+                steps=steps,
             )
+
+            # Emit classify steps
+            for step in steps.drain():
+                yield f"data: {json.dumps(step)}\n\n"
 
             # Inject context tickers if provided
             if body.context_tickers:
@@ -103,7 +114,11 @@ async def chat_message(request: Request, body: ChatMessageRequest):
                         classified.tickers.append(t)
 
             # WF-07: Resolve tickers
+            t0 = time.time()
             universe = await resolve_tickers(classified, user_id=user_id)
+            resolve_ms = int((time.time() - t0) * 1000)
+            ticker_str = ", ".join(universe.tickers[:5]) + ("..." if len(universe.tickers) > 5 else "")
+            yield f"data: {json.dumps({'type': 'step', 'label': f'Resolving tickers: {ticker_str}' if universe.tickers else 'Resolving tickers', 'detail': 'Ticker lookup and list expansion', 'source': 'supabase', 'model': None, 'cost_usd': 0.0, 'duration_ms': resolve_ms, 'result_summary': f'{len(universe.tickers)} tickers'})}\n\n"
 
             # WF-08: Retrieve context
             context = await retrieve_context(
@@ -111,10 +126,17 @@ async def chat_message(request: Request, body: ChatMessageRequest):
                 session_id=body.session_id,
                 message_id=assistant_msg_id,
                 user_id=user_id,
+                steps=steps,
             )
+
+            # Emit retrieval steps
+            for step in steps.drain():
+                yield f"data: {json.dumps(step)}\n\n"
 
             # WF-09: Generate response (streaming)
             rolling_summary = await get_rolling_summary(body.session_id)
+
+            yield f"data: {json.dumps({'type': 'step', 'label': 'Generating response', 'detail': 'Streaming LLM completion', 'source': 'anthropic', 'model': None, 'cost_usd': 0.0, 'duration_ms': 0, 'result_summary': ''})}\n\n"
 
             async for event in generate_response(
                 body.content, context, classified,
@@ -271,6 +293,58 @@ async def create_new_conversation(
         title=body.title,
         ticker_context=body.ticker_context,
         created_at=datetime.utcnow(),
+    )
+
+
+@router.get("/conversations/{conversation_id}")
+async def get_conversation_detail(
+    request: Request, conversation_id: str
+) -> ConversationDetail:
+    """Get conversation with all messages across sessions."""
+    user_id = _get_user_id(request)
+
+    async with get_conn() as conn:
+        conv = await conn.fetchrow(
+            """SELECT id, title, ticker_context, created_at, updated_at,
+                      EXISTS(SELECT 1 FROM conversation_shares cs WHERE cs.conversation_id = c.id) as is_shared
+               FROM conversations c
+               WHERE id = $1 AND user_id = $2""",
+            conversation_id, user_id,
+        )
+        if not conv:
+            raise HTTPException(404, "Conversation not found")
+
+        messages = await conn.fetch(
+            """SELECT m.id, m.role, m.content, m.query_type,
+                      m.tickers_referenced, m.source_chunks, m.created_at
+               FROM messages m
+               JOIN sessions s ON m.session_id = s.id
+               WHERE s.conversation_id = $1
+               ORDER BY m.created_at""",
+            conversation_id,
+        )
+
+    return ConversationDetail(
+        id=str(conv["id"]),
+        title=conv["title"],
+        ticker_context=conv["ticker_context"] or [],
+        messages=[
+            SessionMessage(
+                message_id=str(m["id"]),
+                role=m["role"],
+                content=m["content"],
+                query_type=m["query_type"],
+                tickers_referenced=m["tickers_referenced"] or [],
+                source_chunks=json.loads(m["source_chunks"]) if m["source_chunks"] else [],
+                feedback=None,
+                created_at=m["created_at"],
+            )
+            for m in messages
+        ],
+        turn_count=len(messages),
+        is_shared=conv["is_shared"],
+        created_at=conv["created_at"],
+        last_active=conv["updated_at"],
     )
 
 

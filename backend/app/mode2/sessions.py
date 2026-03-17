@@ -316,18 +316,34 @@ async def list_conversations(
     ticker: str | None = None,
     search: str | None = None,
 ) -> list[dict]:
-    """List user's conversations."""
+    """List user's conversations with tickers aggregated from messages."""
     conditions = ["c.user_id = $1"]
     params: list = [user_id]
     idx = 2
 
     if ticker:
-        conditions.append(f"${{idx}} = ANY(c.ticker_context)")
+        # Filter by tickers found in messages, not just conversation-level ticker_context
+        conditions.append(
+            f"""EXISTS (
+                SELECT 1 FROM messages m
+                JOIN sessions s ON m.session_id = s.id
+                WHERE s.conversation_id = c.id
+                AND ${idx} = ANY(m.tickers_referenced)
+            )"""
+        )
         params.append(ticker)
         idx += 1
 
     if search:
-        conditions.append(f"c.title ILIKE ${idx}")
+        # Search both title and message content
+        conditions.append(
+            f"""(c.title ILIKE ${idx} OR EXISTS (
+                SELECT 1 FROM messages m
+                JOIN sessions s ON m.session_id = s.id
+                WHERE s.conversation_id = c.id
+                AND m.content ILIKE ${idx}
+            ))"""
+        )
         params.append(f"%{search}%")
         idx += 1
 
@@ -337,7 +353,19 @@ async def list_conversations(
         rows = await conn.fetch(
             f"""SELECT c.id, c.title, c.ticker_context, c.updated_at,
                        (SELECT COUNT(*) FROM sessions s WHERE s.conversation_id = c.id) as session_count,
-                       EXISTS(SELECT 1 FROM conversation_shares cs WHERE cs.conversation_id = c.id) as is_shared
+                       EXISTS(SELECT 1 FROM conversation_shares cs WHERE cs.conversation_id = c.id) as is_shared,
+                       (SELECT content FROM messages m
+                        JOIN sessions s ON m.session_id = s.id
+                        WHERE s.conversation_id = c.id AND m.role = 'user'
+                        ORDER BY m.created_at LIMIT 1) as first_message,
+                       (SELECT array_agg(DISTINCT ticker ORDER BY ticker)
+                        FROM (
+                            SELECT unnest(m.tickers_referenced) as ticker
+                            FROM messages m
+                            JOIN sessions s ON m.session_id = s.id
+                            WHERE s.conversation_id = c.id
+                            AND m.tickers_referenced IS NOT NULL
+                        ) t) as tickers_mentioned
                 FROM conversations c
                 WHERE {where}
                 AND c.is_archived = FALSE
@@ -350,10 +378,11 @@ async def list_conversations(
         {
             "id": str(r["id"]),
             "title": r["title"],
-            "ticker_context": r["ticker_context"] or [],
+            "ticker_context": r["tickers_mentioned"] or r["ticker_context"] or [],
             "session_count": r["session_count"],
             "last_active": r["updated_at"],
             "is_shared": r["is_shared"],
+            "first_message": r["first_message"],
         }
         for r in rows
     ]

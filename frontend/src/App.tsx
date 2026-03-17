@@ -30,8 +30,9 @@ import { AlertsPage } from "./pages/AlertsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { PublicPacksPage } from "./pages/PublicPacksPage";
 import { PortfoliosPage } from "./pages/PortfoliosPage";
-import { StudiosListPage } from "./pages/StudiosListPage";
-import { StudioPage } from "./pages/StudioPage";
+import { ChatPage } from "./pages/ChatPage";
+import { ChatHistoryPage } from "./pages/ChatHistoryPage";
+import { ChatDetailPage } from "./pages/ChatDetailPage";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -204,18 +205,26 @@ function App() {
           element={<Navigate to=".." replace />}
         />
         <Route
-          path="/studios"
+          path="/chat"
           element={
             <AuthGuard>
-              <StudiosListPage />
+              <ChatPage />
             </AuthGuard>
           }
         />
         <Route
-          path="/studio/:studioId"
+          path="/chat/history"
           element={
             <AuthGuard>
-              <StudioPage />
+              <ChatHistoryPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/chat/history/:conversationId"
+          element={
+            <AuthGuard>
+              <ChatDetailPage />
             </AuthGuard>
           }
         />

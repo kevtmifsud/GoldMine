@@ -1,6 +1,6 @@
 """WF-01: Document Ingestion & Change Detection.
 
-Scans the local transcripts directory for new or changed documents.
+Scans the transcripts_list table in Supabase for new or changed documents.
 Computes content hashes and checks against processing_registry in Supabase.
 """
 from __future__ import annotations
@@ -8,11 +8,6 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
-
-import psycopg2
-
-from .config import TRANSCRIPTS_DIR
 
 
 @dataclass
@@ -22,16 +17,15 @@ class DocumentJob:
     ticker: str
     fiscal_period: str
     file_hash: str
+    content: str | None = None
     document_type: str = "earnings_transcript"
     is_update: bool = False
     document_id: str | None = None  # set for updates
 
 
-def compute_file_hash(path: Path) -> str:
-    """MD5 hash of file contents."""
-    h = hashlib.md5()
-    h.update(path.read_bytes())
-    return h.hexdigest()
+def compute_content_hash(content: str) -> str:
+    """MD5 hash of text content."""
+    return hashlib.md5(content.encode("utf-8")).hexdigest()
 
 
 def extract_fiscal_period(filename: str) -> str | None:
@@ -58,59 +52,61 @@ def reset_stuck_jobs(cur) -> int:
     return cur.rowcount
 
 
-def scan_for_documents(cur, transcripts_dir: Path | None = None) -> list[DocumentJob]:
-    """Scan transcripts directory and return list of documents needing processing.
+def scan_for_documents(cur) -> list[DocumentJob]:
+    """Query transcripts_list for documents needing processing.
 
     Returns:
         List of DocumentJob for new or changed documents.
     """
-    base_dir = transcripts_dir or TRANSCRIPTS_DIR
-    if not base_dir.exists():
-        return []
+    cur.execute(
+        "SELECT symbol, fiscal_year, fiscal_quarter, transcripts "
+        "FROM transcripts_list WHERE transcripts IS NOT NULL"
+    )
+    rows = cur.fetchall()
 
     jobs: list[DocumentJob] = []
 
-    # Iterate ticker folders
-    for ticker_dir in sorted(base_dir.iterdir()):
-        if not ticker_dir.is_dir():
+    for symbol, fiscal_year, fiscal_quarter, transcripts_text in rows:
+        if not transcripts_text or not transcripts_text.strip():
             continue
-        ticker = ticker_dir.name
 
-        for txt_file in sorted(ticker_dir.glob("*.txt")):
-            file_path = f"/transcripts/{ticker}/{txt_file.name}"
-            file_hash = compute_file_hash(txt_file)
-            fiscal_period = extract_fiscal_period(txt_file.name)
+        ticker = symbol
+        year = str(fiscal_year)
+        quarter = str(fiscal_quarter)
+        filename = f"{year}_Q{quarter}.txt"
+        file_path = f"/transcripts/{ticker}/{filename}"
+        content_hash = compute_content_hash(transcripts_text)
+        fiscal_period = f"Q{quarter}_{year}"
 
-            if fiscal_period is None:
-                continue
+        # Check processing registry
+        cur.execute(
+            "SELECT document_id, file_hash, processing_status FROM processing_registry WHERE file_path = %s",
+            (file_path,),
+        )
+        row = cur.fetchone()
 
-            # Check processing registry
-            cur.execute(
-                "SELECT document_id, file_hash, processing_status FROM processing_registry WHERE file_path = %s",
-                (file_path,),
-            )
-            row = cur.fetchone()
-
-            if row is None:
-                # New document
-                jobs.append(DocumentJob(
-                    file_path=file_path,
-                    ticker=ticker,
-                    fiscal_period=fiscal_period,
-                    file_hash=file_hash,
-                    is_update=False,
-                ))
-            elif row[1] != file_hash:
-                # Changed document
-                jobs.append(DocumentJob(
-                    file_path=file_path,
-                    ticker=ticker,
-                    fiscal_period=fiscal_period,
-                    file_hash=file_hash,
-                    is_update=True,
-                    document_id=str(row[0]),
-                ))
-            # else: unchanged, skip
+        if row is None:
+            # New document
+            jobs.append(DocumentJob(
+                file_path=file_path,
+                ticker=ticker,
+                fiscal_period=fiscal_period,
+                file_hash=content_hash,
+                content=transcripts_text,
+                is_update=False,
+            ))
+        elif row[1] != content_hash:
+            # Changed document
+            jobs.append(DocumentJob(
+                file_path=file_path,
+                ticker=ticker,
+                fiscal_period=fiscal_period,
+                file_hash=content_hash,
+                content=transcripts_text,
+                is_update=True,
+                document_id=str(row[0]),
+            ))
+        # else: unchanged, skip
 
     return jobs
 

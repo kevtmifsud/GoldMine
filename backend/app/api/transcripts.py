@@ -1,20 +1,19 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
 
-from app.config.settings import settings
+from app.data_access.db import get_sync_conn
 from app.exceptions import NotFoundError
 
 router = APIRouter(prefix="/api/transcripts", tags=["transcripts"])
 
 
-def _resolve_transcript_path(symbol: str, year: int, quarter: int) -> Path:
-    """Validate inputs and return the resolved transcript file path."""
+def _fetch_transcript_text(symbol: str, year: int, quarter: int) -> str:
+    """Validate inputs and fetch transcript text from Supabase."""
     clean_symbol = re.sub(r"[^A-Za-z0-9_\-]", "", symbol).upper()
     if not clean_symbol:
         raise NotFoundError("Invalid symbol")
@@ -22,16 +21,20 @@ def _resolve_transcript_path(symbol: str, year: int, quarter: int) -> Path:
     if quarter < 1 or quarter > 4:
         raise NotFoundError("Quarter must be between 1 and 4")
 
-    data_dir = Path(settings.DATA_DIR).resolve()
-    transcript_path = (data_dir / "transcripts" / clean_symbol / f"{year}_Q{quarter}.txt").resolve()
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT transcripts FROM transcripts_list "
+        "WHERE symbol = %s AND fiscal_year = %s AND fiscal_quarter = %s",
+        (clean_symbol, str(year), str(quarter)),
+    )
+    row = cur.fetchone()
+    cur.close()
 
-    if not str(transcript_path).startswith(str(data_dir)):
-        raise NotFoundError("Invalid path")
-
-    if not transcript_path.is_file():
+    if row is None or not row[0]:
         raise NotFoundError(f"Transcript not found for {clean_symbol} {year} Q{quarter}")
 
-    return transcript_path
+    return row[0]
 
 
 def _parse_transcript_table(text: str) -> list[dict[str, Any]]:
@@ -90,14 +93,12 @@ def _parse_transcript_table(text: str) -> list[dict[str, Any]]:
 @router.get("/{symbol}/{year}/{quarter}")
 async def get_transcript(symbol: str, year: int, quarter: int) -> list[dict[str, Any]]:
     """Return transcript as structured JSON with speaker paragraphs."""
-    transcript_path = _resolve_transcript_path(symbol, year, quarter)
-    text = transcript_path.read_text(encoding="utf-8")
+    text = _fetch_transcript_text(symbol, year, quarter)
     return _parse_transcript_table(text)
 
 
 @router.get("/{symbol}/{year}/{quarter}/raw")
 async def get_transcript_raw(symbol: str, year: int, quarter: int) -> PlainTextResponse:
     """Return the raw transcript text file (original table format)."""
-    transcript_path = _resolve_transcript_path(symbol, year, quarter)
-    text = transcript_path.read_text(encoding="utf-8")
+    text = _fetch_transcript_text(symbol, year, quarter)
     return PlainTextResponse(text)

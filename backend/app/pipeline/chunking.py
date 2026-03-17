@@ -9,9 +9,8 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 
-from .config import TRANSCRIPTS_DIR, MIN_CHUNK_TOKENS, MAX_CHUNK_TOKENS, TARGET_CHUNK_TOKENS
+from .config import MIN_CHUNK_TOKENS, MAX_CHUNK_TOKENS, TARGET_CHUNK_TOKENS
 
 
 @dataclass
@@ -63,9 +62,8 @@ def _is_boilerplate(text: str) -> bool:
 # ---------------------------------------------------------------------------
 # Parse tabular transcript format
 # ---------------------------------------------------------------------------
-def parse_transcript_table(file_path: Path) -> list[Paragraph]:
+def parse_transcript_table(text: str) -> list[Paragraph]:
     """Parse a pipe-delimited transcript table into paragraphs."""
-    text = file_path.read_text(encoding="utf-8", errors="replace")
     paragraphs: list[Paragraph] = []
 
     for line in text.split("\n"):
@@ -375,12 +373,12 @@ def _chunk_qa_section(
 # ---------------------------------------------------------------------------
 # Main chunking entry point
 # ---------------------------------------------------------------------------
-def chunk_transcript(file_path: Path) -> list[Chunk]:
-    """Parse and chunk an earnings transcript file.
+def chunk_transcript(text: str) -> list[Chunk]:
+    """Parse and chunk an earnings transcript.
 
     Returns a list of Chunks with section metadata.
     """
-    paragraphs = parse_transcript_table(file_path)
+    paragraphs = parse_transcript_table(text)
     if not paragraphs:
         return []
 

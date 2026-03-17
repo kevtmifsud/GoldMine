@@ -1,3 +1,0 @@
-portfolio_id,name,strategy,aum,long_exposure,short_exposure,num_positions,max_position_pct,inception_date,rebalance_frequency,total_trades,unique_tickers,status
-PF-001,Flagship,Long/Short Market-Neutral,600000000,299998725,300000031,100,10,2022-01-03,Monthly,1302,295,Active
-PF-002,Long Only,Long Only,500000000,499996539,0,80,15,2022-01-03,Monthly,956,216,Active

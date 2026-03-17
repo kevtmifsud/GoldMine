@@ -8,22 +8,17 @@ from __future__ import annotations
 import time
 import traceback
 from datetime import datetime
-from pathlib import Path
 
 import psycopg2
 
-from .config import DATABASE_URL, TRANSCRIPTS_DIR
+from .config import DATABASE_URL
 from .ingestion import scan_for_documents, register_document, reset_stuck_jobs, DocumentJob
 from .classification import classify_document
 from .chunking import chunk_transcript
 from .embedding import generate_embeddings, store_chunks, get_embedding_cost
 
 
-def process_single_document(
-    cur,
-    job: DocumentJob,
-    transcripts_dir: Path,
-) -> dict:
+def process_single_document(cur, job: DocumentJob) -> dict:
     """Process one document through WF-02 → WF-03 → WF-04.
 
     Returns a result dict with status and metrics.
@@ -36,14 +31,8 @@ def process_single_document(
         "error": None,
     }
 
-    # Resolve local file path
-    # job.file_path is like /transcripts/AAPL/2024_Q4.txt
-    parts = job.file_path.strip("/").split("/")
-    # parts = ["transcripts", "AAPL", "2024_Q4.txt"]
-    local_path = transcripts_dir / parts[1] / parts[2]
-
-    if not local_path.exists():
-        result["error"] = f"File not found: {local_path}"
+    if not job.content:
+        result["error"] = f"No content for {job.file_path}"
         return result
 
     # Register document in processing_registry
@@ -69,7 +58,7 @@ def process_single_document(
         )
 
         # WF-03: Chunking
-        chunks = chunk_transcript(local_path)
+        chunks = chunk_transcript(job.content)
         if not chunks:
             # Mark as skipped rather than failed — document may have an unsupported format
             cur.execute(
@@ -131,19 +120,16 @@ def process_single_document(
 def run_pipeline(
     test_tickers: list[str] | None = None,
     test_limit: int | None = None,
-    transcripts_dir: Path | None = None,
 ) -> dict:
     """Run the full Mode 1 pipeline.
 
     Args:
         test_tickers: If provided, only process these tickers.
         test_limit: If provided, only process this many documents.
-        transcripts_dir: Override default transcripts directory.
 
     Returns:
         Summary dict with run metrics.
     """
-    base_dir = transcripts_dir or TRANSCRIPTS_DIR
     run_started = time.time()
 
     conn = psycopg2.connect(DATABASE_URL)
@@ -167,7 +153,7 @@ def run_pipeline(
 
     # WF-01: Scan for documents
     print("\nPhase 1: Scanning for new/changed documents...")
-    jobs = scan_for_documents(cur, base_dir)
+    jobs = scan_for_documents(cur)
 
     # Filter by test tickers if specified
     if test_tickers:
@@ -217,7 +203,7 @@ def run_pipeline(
     for i, job in enumerate(jobs):
         label = f"  [{i + 1}/{len(jobs)}] {job.ticker} {job.fiscal_period}"
         try:
-            result = process_single_document(cur, job, base_dir)
+            result = process_single_document(cur, job)
             if result["status"] == "complete":
                 print(f"{label} — {result['chunks']} chunks")
                 succeeded += 1

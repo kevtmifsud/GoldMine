@@ -14,10 +14,6 @@ DATABASE_URL: str = os.environ["SUPABASE_DATABASE_URL"]
 OPENAI_API_KEY: str = os.environ["OPENAI_API_KEY"]
 ANTHROPIC_API_KEY: str = os.environ.get("GOLDMINE_ANTHROPIC_API_KEY", "")
 
-# Paths
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-TRANSCRIPTS_DIR = PROJECT_ROOT / "data" / "structured" / "transcripts"
-
 # Embedding settings
 EMBEDDING_MODEL = "text-embedding-3-large"
 EMBEDDING_DIMENSIONS = 1536

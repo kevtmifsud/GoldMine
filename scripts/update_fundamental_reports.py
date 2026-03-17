@@ -7,12 +7,8 @@ Runs four phases:
   Phase 3 — SEC Filings:    US domestic filings for whitelist tickers
   Phase 4 — Transcripts:    Earnings call transcripts for whitelist tickers
 
-Output files:
-  data/structured/stocks.csv (info fields merged)
-  data/structured/people.csv (officers merged)
-  data/structured/sec_filings.csv
-  data/structured/transcripts_list.csv
-  data/structured/transcripts/{TICKER}/{YYYY}_Q{N}.txt
+Output:
+  Supabase tables: stocks, people, sec_filings, transcripts_list
 
 CLI flags:
   --info-only              Only run Phase 1 (stock info)
@@ -30,6 +26,7 @@ import argparse
 import csv
 import json
 import logging
+import os
 import sys
 import threading
 import time
@@ -37,18 +34,22 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+import psycopg2
+from psycopg2.extras import execute_values
 from tabulate import tabulate
 
 from defeatbeta_api.data.ticker import Ticker
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
-STOCKS_CSV = ROOT / "data" / "structured" / "stocks.csv"
-STRUCTURED_DIR = ROOT / "data" / "structured"
-TRANSCRIPTS_DIR = STRUCTURED_DIR / "transcripts"
+load_dotenv(ROOT / "backend" / ".env")
 
-PEOPLE_CSV = STRUCTURED_DIR / "people.csv"
-FILINGS_CSV = STRUCTURED_DIR / "sec_filings.csv"
-TRANSCRIPTS_LIST_CSV = STRUCTURED_DIR / "transcripts_list.csv"
+STRUCTURED_DIR = ROOT / "data" / "structured"
+
+DATABASE_URL = os.environ.get(
+    "SUPABASE_DATABASE_URL",
+    "postgresql://postgres:sC.g6Wf#9h.Bf_f@db.ybjvfeevaxujenwvoewg.supabase.co:5432/postgres",
+)
 
 INFO_CHECKPOINT = ROOT / "scripts" / ".info_checkpoint.json"
 OFFICERS_CHECKPOINT = ROOT / "scripts" / ".officers_checkpoint.json"
@@ -86,13 +87,14 @@ _checkpoint_lock = threading.Lock()
 # ---------------------------------------------------------------------------
 
 def load_tickers() -> list[str]:
-    """Read tickers from stocks.csv."""
-    tickers: list[str] = []
-    with open(STOCKS_CSV, newline="") as f:
-        for row in csv.DictReader(f):
-            ticker = row["ticker"].strip()
-            if ticker:
-                tickers.append(ticker)
+    """Read tickers from the stocks Supabase table."""
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+    cur.execute("SELECT ticker FROM stocks ORDER BY ticker")
+    tickers = [row[0] for row in cur.fetchall()]
+    cur.close()
+    conn.close()
     return tickers
 
 
@@ -210,39 +212,33 @@ def run_phase_info(tickers: list[str], workers: int, fresh: bool) -> None:
         print("No stock info data to merge")
         return
 
-    # Read existing stocks.csv
-    stocks: list[dict] = []
-    with open(STOCKS_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        stock_fields = list(reader.fieldnames or [])
-        for row in reader:
-            stocks.append(row)
+    # Update stocks table in Supabase with info fields
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
 
-    # Ensure info columns are in the field list
-    merged_fields = list(stock_fields)
-    for col in INFO_COLUMNS:
-        if col not in merged_fields:
-            merged_fields.append(col)
-
-    # Merge fetched info into stock rows
     merged_count = 0
-    for stock in stocks:
-        ticker = stock["ticker"].strip()
-        info = checkpoint.get(ticker)
-        if info:
-            merged_count += 1
-            for col in INFO_COLUMNS:
-                stock[col] = info.get(col, "")
+    for ticker, info in checkpoint.items():
+        cur.execute(
+            """UPDATE stocks SET
+                   address = %s, city = %s, phone = %s, zip = %s,
+                   long_business_summary = %s, full_time_employees = %s,
+                   web_site = %s, report_date = %s
+               WHERE ticker = %s""",
+            (
+                info.get("address", ""), info.get("city", ""),
+                info.get("phone", ""), info.get("zip", ""),
+                info.get("long_business_summary", ""),
+                info.get("full_time_employees", ""),
+                info.get("web_site", ""), info.get("report_date", ""),
+                ticker,
+            ),
+        )
+        merged_count += 1
 
-    # Write merged stocks.csv
-    STRUCTURED_DIR.mkdir(parents=True, exist_ok=True)
-    with open(STOCKS_CSV, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=merged_fields)
-        writer.writeheader()
-        for stock in stocks:
-            writer.writerow({col: stock.get(col, "") for col in merged_fields})
-
-    print(f"Merged info for {merged_count}/{len(stocks)} tickers into {STOCKS_CSV}")
+    cur.close()
+    conn.close()
+    print(f"Merged info for {merged_count} tickers into stocks table")
 
     # Clean up checkpoint if all tickers done
     if len(checkpoint) >= len(tickers) and INFO_CHECKPOINT.exists():
@@ -351,12 +347,18 @@ def run_phase_officers(tickers: list[str], workers: int, fresh: bool) -> None:
         print("No officers data to merge")
         return
 
-    # Read existing people.csv
-    people: list[dict] = []
-    if PEOPLE_CSV.exists():
-        with open(PEOPLE_CSV, newline="") as f:
-            for row in csv.DictReader(f):
-                people.append(row)
+    # Read existing people from Supabase
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+
+    cur.execute("SELECT person_id, name, title, organization, type, tickers, "
+                "age, born, pay, exercised, unexercised FROM people")
+    columns = [desc[0] for desc in cur.description]
+    people: list[dict] = [
+        {col: str(val) if val is not None else "" for col, val in zip(columns, row)}
+        for row in cur.fetchall()
+    ]
 
     # Build name index for matching
     name_to_person: dict[str, dict] = {}
@@ -411,18 +413,29 @@ def run_phase_officers(tickers: list[str], workers: int, fresh: bool) -> None:
             people.append(new_person)
             name_to_person[norm] = new_person
 
-    # Write merged people.csv
-    people.sort(key=lambda p: p.get("name", "").strip().lower())
+    # Upsert all people into Supabase
+    db_rows = [
+        tuple(p.get(col, "") for col in PEOPLE_COLUMNS)
+        for p in people
+    ]
+    if db_rows:
+        execute_values(cur,
+            """INSERT INTO people (person_id, name, title, organization, type,
+                                   tickers, age, born, pay, exercised, unexercised)
+               VALUES %s
+               ON CONFLICT (person_id) DO UPDATE SET
+                   name = EXCLUDED.name, title = EXCLUDED.title,
+                   organization = EXCLUDED.organization, type = EXCLUDED.type,
+                   tickers = EXCLUDED.tickers, age = EXCLUDED.age,
+                   born = EXCLUDED.born, pay = EXCLUDED.pay,
+                   exercised = EXCLUDED.exercised, unexercised = EXCLUDED.unexercised""",
+            db_rows, page_size=1000,
+        )
 
-    STRUCTURED_DIR.mkdir(parents=True, exist_ok=True)
-    with open(PEOPLE_CSV, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=PEOPLE_COLUMNS)
-        writer.writeheader()
-        for row in people:
-            writer.writerow({col: row.get(col, "") for col in PEOPLE_COLUMNS})
-
+    cur.close()
+    conn.close()
     print(f"Merged {matched} matched + {new_records} new officer records "
-          f"into {len(people)} total people rows -> {PEOPLE_CSV}")
+          f"into {len(people)} total people rows -> people table")
 
     # Clean up checkpoint if all tickers done
     if len(checkpoint) >= len(tickers) and OFFICERS_CHECKPOINT.exists():
@@ -589,25 +602,49 @@ def run_phase_filings(whitelist: list[str], workers: int) -> None:
     # Enrich with primary document URLs from EDGAR submissions API
     _enrich_filings_with_primary_doc(all_filings)
 
-    # Ensure symbol is the first column, primary_document is last
-    if "symbol" in filing_columns:
-        filing_columns.remove("symbol")
-    filing_columns.insert(0, "symbol")
-    if "primary_document" not in filing_columns:
-        filing_columns.append("primary_document")
+    # Upsert into Supabase sec_filings table
+    _SEC_COLS = [
+        "accession_number", "symbol", "cik", "company_name", "form_type",
+        "form_type_description", "filing_date", "report_date",
+        "acceptance_date_time", "filing_url", "primary_document",
+    ]
 
-    STRUCTURED_DIR.mkdir(parents=True, exist_ok=True)
-    with open(FILINGS_CSV, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=filing_columns)
-        writer.writeheader()
-        for row in sorted(all_filings, key=lambda r: (
-            r.get("symbol", ""), r.get("filing_date", ""),
-        )):
-            writer.writerow({col: row.get(col, "") for col in filing_columns})
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+
+    db_rows = [
+        tuple(f.get(col, "") for col in _SEC_COLS)
+        for f in all_filings
+        if f.get("accession_number")  # skip rows without PK
+    ]
+
+    if db_rows:
+        execute_values(cur,
+            """INSERT INTO sec_filings (accession_number, symbol, cik, company_name,
+                                        form_type, form_type_description, filing_date,
+                                        report_date, acceptance_date_time, filing_url,
+                                        primary_document)
+               VALUES %s
+               ON CONFLICT (accession_number) DO UPDATE SET
+                   symbol = EXCLUDED.symbol, cik = EXCLUDED.cik,
+                   company_name = EXCLUDED.company_name,
+                   form_type = EXCLUDED.form_type,
+                   form_type_description = EXCLUDED.form_type_description,
+                   filing_date = EXCLUDED.filing_date,
+                   report_date = EXCLUDED.report_date,
+                   acceptance_date_time = EXCLUDED.acceptance_date_time,
+                   filing_url = EXCLUDED.filing_url,
+                   primary_document = EXCLUDED.primary_document""",
+            db_rows, page_size=1000,
+        )
+
+    cur.close()
+    conn.close()
 
     unique_tickers = {r["symbol"] for r in all_filings}
-    print(f"Wrote {len(all_filings)} filing rows ({len(unique_tickers)} tickers) "
-          f"to {FILINGS_CSV}")
+    print(f"Upserted {len(db_rows)} filing rows ({len(unique_tickers)} tickers) "
+          f"into sec_filings table")
 
 
 # ---------------------------------------------------------------------------
@@ -647,16 +684,12 @@ def run_phase_transcripts(whitelist: list[str]) -> None:
 
             print(f"    Found {len(index_df)} transcripts")
 
-            # Fetch individual transcripts
-            ticker_dir = TRANSCRIPTS_DIR / ticker
-            ticker_dir.mkdir(parents=True, exist_ok=True)
+            # Fetch individual transcripts and store formatted text in index rows
             fetched = 0
 
             for _, row in index_df.iterrows():
                 year = int(row["fiscal_year"])
                 quarter = int(row["fiscal_quarter"])
-                filename = f"{year}_Q{quarter}.txt"
-                filepath = ticker_dir / filename
 
                 try:
                     transcript_df = transcripts_obj.get_transcript(year, quarter)
@@ -669,42 +702,71 @@ def run_phase_transcripts(whitelist: list[str]) -> None:
                         tablefmt="grid",
                         showindex=False,
                     )
-                    filepath.write_text(formatted, encoding="utf-8")
+
+                    # Find the matching index row and store the formatted text
+                    for idx_row in all_transcript_index:
+                        if (idx_row["symbol"] == ticker
+                                and str(idx_row.get("fiscal_year")) == str(year)
+                                and str(idx_row.get("fiscal_quarter")) == str(quarter)):
+                            idx_row["transcripts"] = formatted
+                            break
+
                     fetched += 1
                 except Exception as e:
                     print(f"    WARNING: Failed to fetch {ticker} {year} Q{quarter}: {e}",
                           file=sys.stderr, flush=True)
 
-            print(f"    Saved {fetched} transcript files to {ticker_dir}")
+            print(f"    Fetched {fetched} transcripts for {ticker}")
 
         except Exception as e:
             print(f"    ERROR fetching transcripts for {ticker}: {e}",
                   file=sys.stderr, flush=True)
 
-    # Write transcripts index CSV
+    # Upsert transcripts index into Supabase
     if not all_transcript_index or index_columns is None:
         print("\nNo transcript index data to write")
         return
 
-    # Ensure symbol is the first column
-    if "symbol" in index_columns:
-        index_columns.remove("symbol")
-    index_columns.insert(0, "symbol")
+    _TL_COLS = [
+        "transcripts_id", "symbol", "fiscal_year", "fiscal_quarter",
+        "report_date", "transcripts",
+    ]
 
-    STRUCTURED_DIR.mkdir(parents=True, exist_ok=True)
-    with open(TRANSCRIPTS_LIST_CSV, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=index_columns)
-        writer.writeheader()
-        for row in sorted(all_transcript_index, key=lambda r: (
-            r.get("symbol", ""),
-            r.get("fiscal_year", ""),
-            r.get("fiscal_quarter", ""),
-        )):
-            writer.writerow({col: row.get(col, "") for col in index_columns})
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+
+    # Generate synthetic IDs for rows where the API returned <NA> or empty
+    for r in all_transcript_index:
+        tid = r.get("transcripts_id", "")
+        if not tid or tid == "<NA>" or tid == "nan":
+            r["transcripts_id"] = f"{r['symbol']}-{r['fiscal_year']}-Q{r['fiscal_quarter']}"
+
+    db_rows = [
+        tuple(r.get(col, "") for col in _TL_COLS)
+        for r in all_transcript_index
+        if r.get("transcripts_id")
+    ]
+
+    if db_rows:
+        execute_values(cur,
+            """INSERT INTO transcripts_list (transcripts_id, symbol, fiscal_year,
+                                             fiscal_quarter, report_date, transcripts)
+               VALUES %s
+               ON CONFLICT (transcripts_id) DO UPDATE SET
+                   symbol = EXCLUDED.symbol, fiscal_year = EXCLUDED.fiscal_year,
+                   fiscal_quarter = EXCLUDED.fiscal_quarter,
+                   report_date = EXCLUDED.report_date,
+                   transcripts = EXCLUDED.transcripts""",
+            db_rows, page_size=1000,
+        )
+
+    cur.close()
+    conn.close()
 
     unique_tickers = {r["symbol"] for r in all_transcript_index}
-    print(f"\nWrote {len(all_transcript_index)} transcript index rows "
-          f"({len(unique_tickers)} tickers) to {TRANSCRIPTS_LIST_CSV}")
+    print(f"\nUpserted {len(db_rows)} transcript index rows "
+          f"({len(unique_tickers)} tickers) into transcripts_list table")
 
 
 # ---------------------------------------------------------------------------
@@ -741,7 +803,7 @@ def main() -> None:
     # Validate whitelist tickers exist in the universe
     whitelist = [t for t in whitelist if t in set(tickers)]
     if args.whitelist and not whitelist:
-        print("ERROR: None of the whitelist tickers found in stocks.csv",
+        print("ERROR: None of the whitelist tickers found in stocks table",
               file=sys.stderr)
         sys.exit(1)
 

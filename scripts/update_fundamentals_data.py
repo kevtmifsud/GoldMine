@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Download stock prices, EPS, earnings calendar, financial statements, and beta.
 
-Runs seven phases sequentially:
-  Phase 1 — Prices:      Per-ticker defeatbeta-api price() calls
-  Phase 2 — EPS:         Per-ticker defeatbeta-api ttm_eps() calls with
-                          checkpoint/resume + synthetic fallback
-  Phase 3 — Write:       Writes data/structured/stock_history.csv
-  Phase 4 — Stocks:      Updates stocks.csv with computed financials
-  Phase 5 — Calendar:    Bulk DuckDB query → data/structured/earnings_calendar.csv
-  Phase 6 — Statements:  Bulk DuckDB queries → 6 CSVs in data/structured/financials/
-  Phase 7 — Beta:        Bulk DuckDB query + local computation →
-                          data/structured/stock_betas.csv
+Runs eight phases sequentially:
+  Phase 0 — Tickers:    Upsert stocks.csv tickers into Supabase tickers table
+  Phase 1 — Prices:     Per-ticker defeatbeta-api price() calls
+  Phase 2 — EPS:        Per-ticker defeatbeta-api ttm_eps() calls with
+                         checkpoint/resume + synthetic fallback
+  Phase 3 — Write:      Writes data/structured/stock_history.csv
+  Phase 4 — Stocks:     Updates stocks.csv with computed financials
+  Phase 5 — Calendar:   Bulk DuckDB query → data/structured/earnings_calendar.csv
+  Phase 6 — Statements: Bulk DuckDB queries → Supabase financial_metrics table
+  Phase 7 — Beta:       Bulk DuckDB query + local computation →
+                         data/structured/stock_betas.csv
 
 Phases 5-7 use bulk SQL queries against the HuggingFace parquet files via DuckDB,
 fetching all tickers in a single query per data type instead of per-ticker calls.
@@ -23,6 +24,7 @@ CLI flags:
   --skip-calendar      Skip earnings calendar phase
   --skip-statements    Skip financial statements phase
   --skip-beta          Skip stock beta phase
+  --skip-tickers       Skip tickers upsert phase
   --start-date DATE    Price history start date (default: 2015-01-01)
 """
 
@@ -46,6 +48,8 @@ from pathlib import Path
 import finnhub
 import numpy as np
 import pandas as pd
+import psycopg2
+from psycopg2.extras import execute_values
 from defeatbeta_api.client.duckdb_client import get_duckdb_client
 from defeatbeta_api.client.hugging_face_client import HuggingFaceClient
 from defeatbeta_api.data.ticker import Ticker
@@ -64,7 +68,11 @@ BETA_CSV = ROOT / "data" / "structured" / "stock_betas.csv"
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 FINNHUB_LOOKAHEAD_DAYS = 90  # ~3 months of future earnings
 FINNHUB_CHUNK_DAYS = 7       # query in weekly chunks to avoid 1500-row API cap
-STATEMENTS_DIR = ROOT / "data" / "structured" / "financials"
+
+DATABASE_URL = os.environ.get(
+    "SUPABASE_DATABASE_URL",
+    "postgresql://postgres:sC.g6Wf#9h.Bf_f@db.ybjvfeevaxujenwvoewg.supabase.co:5432/postgres",
+)
 
 PRICE_WORKERS = 10
 EPS_WORKERS = 10
@@ -110,22 +118,26 @@ _checkpoint_lock = threading.Lock()
 # ---------------------------------------------------------------------------
 
 def load_tickers() -> list[str]:
-    """Read tickers from stocks.csv."""
-    tickers: list[str] = []
-    with open(STOCKS_CSV, newline="") as f:
-        for row in csv.DictReader(f):
-            ticker = row["ticker"].strip()
-            if ticker:
-                tickers.append(ticker)
+    """Read tickers from the stocks Supabase table."""
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+    cur.execute("SELECT ticker FROM stocks ORDER BY ticker")
+    tickers = [row[0] for row in cur.fetchall()]
+    cur.close()
+    conn.close()
     return tickers
 
 
 def load_sectors() -> dict[str, str]:
-    """Load ticker -> sector mapping from stocks.csv."""
-    sectors: dict[str, str] = {}
-    with open(STOCKS_CSV, newline="") as f:
-        for row in csv.DictReader(f):
-            sectors[row["ticker"].strip()] = row.get("sector", "")
+    """Load ticker -> sector mapping from the stocks Supabase table."""
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+    cur.execute("SELECT ticker, sector FROM stocks")
+    sectors = {row[0]: row[1] or "" for row in cur.fetchall()}
+    cur.close()
+    conn.close()
     return sectors
 
 
@@ -618,16 +630,34 @@ def fetch_earnings_calendars(tickers: list[str]) -> None:
 
     merged.sort(key=lambda r: (r["ticker"], r["report_date"]))
 
-    CALENDAR_CSV.parent.mkdir(parents=True, exist_ok=True)
-    with open(CALENDAR_CSV, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CALENDAR_COLUMNS)
-        writer.writeheader()
-        writer.writerows(merged)
+    # Upsert into Supabase
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+
+    db_rows = [
+        (r["ticker"], r["report_date"], r.get("time", ""), r.get("fiscal_quarter_ending", ""))
+        for r in merged
+    ]
+    batch_size = 2000
+    for i in range(0, len(db_rows), batch_size):
+        batch = db_rows[i : i + batch_size]
+        execute_values(cur,
+            """INSERT INTO earnings_calendar (ticker, report_date, time, fiscal_quarter_ending)
+               VALUES %s
+               ON CONFLICT (ticker, report_date) DO UPDATE SET
+                   time = EXCLUDED.time,
+                   fiscal_quarter_ending = EXCLUDED.fiscal_quarter_ending""",
+            batch, page_size=batch_size,
+        )
+
+    cur.close()
+    conn.close()
 
     unique_tickers = len({r["ticker"] for r in merged})
     hist_count = len(historical)
     future_only = len(merged) - hist_count
-    print(f"Wrote {len(merged)} rows to {CALENDAR_CSV} "
+    print(f"Upserted {len(merged)} rows into earnings_calendar table "
           f"({unique_tickers} tickers, {hist_count} historical + "
           f"{future_only} new from Finnhub)")
 
@@ -637,18 +667,22 @@ def fetch_earnings_calendars(tickers: list[str]) -> None:
 # ---------------------------------------------------------------------------
 
 def fetch_financial_statements(tickers: list[str]) -> None:
-    """Bulk-fetch all financial statements with one DuckDB query per type.
+    """Bulk-fetch all financial statements and upsert into Supabase.
 
     Queries the raw stock_statement parquet directly (6 queries total: one per
-    finance_type + period_type combination) instead of 507 × 6 per-ticker calls.
+    finance_type + period_type combination) and upserts rows into the
+    financial_metrics table.
     """
     print(f"Downloading financial statements for {len(tickers)} tickers "
-          f"(6 bulk queries)...")
+          f"(6 bulk queries → Supabase)...")
 
     symbols_clause = _build_symbol_in_clause(tickers)
     url = _get_parquet_url("stock_statement")
-    STATEMENTS_DIR.mkdir(parents=True, exist_ok=True)
     total_rows = 0
+
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
 
     for finance_type, period_type, csv_name in STATEMENT_TYPES:
         sql = (
@@ -661,29 +695,40 @@ def fetch_financial_statements(tickers: list[str]) -> None:
         )
         df = _bulk_query(sql)
 
-        csv_path = STATEMENTS_DIR / csv_name
-        row_count = 0
-        with open(csv_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=STATEMENT_COLUMNS)
-            writer.writeheader()
-            if df is not None and not df.empty:
-                for _, row in df.iterrows():
-                    val = row["item_value"]
-                    if pd.isna(val):
-                        continue
-                    writer.writerow({
-                        "ticker": from_api_ticker(str(row["symbol"])),
-                        "metric": str(row["item_name"]),
-                        "date": str(row["report_date"])[:10],
-                        "value": str(val),
-                    })
-                    row_count += 1
+        rows = []
+        if df is not None and not df.empty:
+            for _, row in df.iterrows():
+                val = row["item_value"]
+                if pd.isna(val):
+                    continue
+                date_str = str(row["report_date"])[:10]
+                if date_str == "TTM":
+                    continue
+                rows.append((
+                    from_api_ticker(str(row["symbol"])),
+                    str(row["item_name"]),
+                    date_str,
+                    period_type,
+                    float(val),
+                ))
+
+        if rows:
+            execute_values(cur,
+                """INSERT INTO financial_metrics (ticker, metric_name, period_end, period_type, value)
+                   VALUES %s
+                   ON CONFLICT (ticker, metric_name, period_end, period_type)
+                   DO UPDATE SET value = EXCLUDED.value""",
+                rows, page_size=1000,
+            )
 
         unique = df["symbol"].nunique() if df is not None and not df.empty else 0
-        print(f"  {csv_name}: {row_count} rows ({unique} tickers)")
-        total_rows += row_count
+        label = f"{finance_type}/{period_type}"
+        print(f"  {label}: {len(rows)} rows upserted ({unique} tickers)")
+        total_rows += len(rows)
 
-    print(f"Total financial statement rows: {total_rows}")
+    cur.close()
+    conn.close()
+    print(f"Total financial statement rows upserted: {total_rows}")
 
 
 # ---------------------------------------------------------------------------
@@ -758,9 +803,6 @@ def fetch_betas(tickers: list[str]) -> None:
 
     if df is None or df.empty:
         print("WARNING: No price data returned for beta", file=sys.stderr)
-        BETA_CSV.parent.mkdir(parents=True, exist_ok=True)
-        with open(BETA_CSV, "w", newline="") as f:
-            csv.DictWriter(f, fieldnames=BETA_COLUMNS).writeheader()
         return
 
     # Extract benchmark prices
@@ -788,29 +830,38 @@ def fetch_betas(tickers: list[str]) -> None:
 
     rows.sort(key=lambda r: r["ticker"])
 
-    BETA_CSV.parent.mkdir(parents=True, exist_ok=True)
-    with open(BETA_CSV, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=BETA_COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
+    # Upsert into Supabase
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
 
-    print(f"Wrote {len(rows)} rows to {BETA_CSV}")
+    db_rows = [(r["ticker"], r["beta"]) for r in rows]
+    if db_rows:
+        execute_values(cur,
+            """INSERT INTO stock_betas (ticker, beta)
+               VALUES %s
+               ON CONFLICT (ticker) DO UPDATE SET beta = EXCLUDED.beta""",
+            db_rows, page_size=1000,
+        )
+
+    cur.close()
+    conn.close()
+    print(f"Upserted {len(rows)} rows into stock_betas table")
 
 
 # ---------------------------------------------------------------------------
 # Phase 3 — Update stocks.csv with computed financial values
 # ---------------------------------------------------------------------------
 
-def update_stocks_csv(
+def update_stocks_financials(
     price_rows: list[tuple[str, str, float]],
     eps_lookup: dict[str, dict[str, tuple[float, float]]],
 ) -> None:
-    """Update stocks.csv with financial values computed from stock_history data.
+    """Update the stocks Supabase table with computed financial values.
 
     Computes from price_rows: price (latest close), 52w_high, 52w_low
     Computes from eps_lookup: eps (TTM), pe_ratio (price / TTM EPS)
     Clears dividend_yield (no dividend data available from stock history)
-    Preserves static fields: ticker, company_name, sector, industry, market_cap_b, etc.
     """
     # Build per-ticker sorted price lists
     ticker_prices: dict[str, list[tuple[str, float]]] = {}
@@ -819,91 +870,112 @@ def update_stocks_csv(
     for prices in ticker_prices.values():
         prices.sort(key=lambda x: x[0])
 
-    # Read existing stocks.csv
-    rows: list[dict[str, str]] = []
-    fieldnames: list[str] = []
-    with open(STOCKS_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        fieldnames = list(reader.fieldnames or [])
-        for row in reader:
-            rows.append(dict(row))
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
 
     updated = 0
-    for row in rows:
-        ticker = row["ticker"]
-        if ticker not in ticker_prices:
-            continue
-
-        prices = ticker_prices[ticker]
-
-        # Latest price
+    for ticker, prices in ticker_prices.items():
         latest_close = prices[-1][1]
-        row["price"] = str(round(latest_close, 2))
+        price_str = str(round(latest_close, 2))
 
-        # 52W High/Low (last 252 trading days ≈ 1 year)
         recent = [p for _, p in prices[-252:]]
-        row["52w_high"] = str(round(max(recent), 2))
-        row["52w_low"] = str(round(min(recent), 2))
+        high_52w = str(round(max(recent), 2))
+        low_52w = str(round(min(recent), 2))
 
-        # TTM EPS: sum of last 4 quarterly eps_actual values
         ticker_eps = eps_lookup.get(ticker, {})
         if ticker_eps:
             sorted_dates = sorted(ticker_eps.keys(), reverse=True)
             last_4 = sorted_dates[:4]
             ttm_eps = sum(ticker_eps[d][1] for d in last_4)
-            row["eps"] = str(round(ttm_eps, 2))
-
-            # PE Ratio
+            eps_str = str(round(ttm_eps, 2))
             if ttm_eps > 0:
-                row["pe_ratio"] = str(round(latest_close / ttm_eps, 1))
-            elif ttm_eps < 0:
-                row["pe_ratio"] = ""  # Negative earnings → no meaningful PE
+                pe_str = str(round(latest_close / ttm_eps, 1))
             else:
-                row["pe_ratio"] = ""
+                pe_str = ""
         else:
-            # No EPS data — clear stale values
-            row["eps"] = ""
-            row["pe_ratio"] = ""
+            eps_str = ""
+            pe_str = ""
 
-        # Clear dividend_yield — not available from stock history data
-        row["dividend_yield"] = ""
-
+        cur.execute(
+            """UPDATE stocks SET
+                   price = %s, "52w_high" = %s, "52w_low" = %s,
+                   eps = %s, pe_ratio = %s, dividend_yield = ''
+               WHERE ticker = %s""",
+            (price_str, high_52w, low_52w, eps_str, pe_str, ticker),
+        )
         updated += 1
 
-    # Write back
-    with open(STOCKS_CSV, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
-
-    print(f"Updated {STOCKS_CSV} — {updated} tickers with computed financials")
+    cur.close()
+    conn.close()
+    print(f"Updated stocks table — {updated} tickers with computed financials")
 
 
 # ---------------------------------------------------------------------------
 # Write output
 # ---------------------------------------------------------------------------
 
-def write_csv(
+def write_stock_history(
     price_rows: list[tuple[str, str, float]],
     eps_lookup: dict[str, dict[str, tuple[float, float]]],
 ) -> None:
-    """Write the final stock_history.csv."""
-    OUTPUT_CSV.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_CSV, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["date", "ticker", "close", "eps_estimate", "eps_actual"])
-        for date_str, ticker, close in price_rows:
-            ticker_eps = eps_lookup.get(ticker, {})
-            eps_entry = ticker_eps.get(date_str)
-            if eps_entry:
-                writer.writerow([date_str, ticker, close, eps_entry[0], eps_entry[1]])
-            else:
-                writer.writerow([date_str, ticker, close, "", ""])
+    """Upsert stock_history rows into Supabase."""
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+
+    db_rows = []
+    for date_str, ticker, close in price_rows:
+        ticker_eps = eps_lookup.get(ticker, {})
+        eps_entry = ticker_eps.get(date_str)
+        if eps_entry:
+            db_rows.append((date_str, ticker, str(close), str(eps_entry[0]), str(eps_entry[1])))
+        else:
+            db_rows.append((date_str, ticker, str(close), "", ""))
+
+    # Bulk upsert in batches
+    batch_size = 5000
+    for i in range(0, len(db_rows), batch_size):
+        batch = db_rows[i : i + batch_size]
+        execute_values(cur,
+            """INSERT INTO stock_history (date, ticker, close, eps_estimate, eps_actual)
+               VALUES %s
+               ON CONFLICT (date, ticker) DO UPDATE SET
+                   close = EXCLUDED.close,
+                   eps_estimate = EXCLUDED.eps_estimate,
+                   eps_actual = EXCLUDED.eps_actual""",
+            batch, page_size=batch_size,
+        )
+        if len(db_rows) > batch_size:
+            print(f"  ... stock_history: upserted {min(i + batch_size, len(db_rows))}/{len(db_rows)} rows")
+
+    cur.close()
+    conn.close()
 
     unique_tickers = {r[1] for r in price_rows}
     dates = {r[0] for r in price_rows}
-    print(f"\nWrote {len(price_rows)} rows to {OUTPUT_CSV}")
+    print(f"\nUpserted {len(price_rows)} rows into stock_history table")
     print(f"Tickers: {len(unique_tickers)}, Date range: {min(dates)} to {max(dates)}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 0 — Load tickers into Supabase
+# ---------------------------------------------------------------------------
+
+def load_tickers_to_db(tickers_list: list[str]) -> None:
+    """Verify tickers exist in the Supabase stocks table.
+
+    Previously this read from stocks.csv and upserted into Supabase.
+    Now that data lives in Supabase natively, this just verifies the table.
+    """
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM stocks")
+    count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    print(f"Verified {count} tickers in Supabase stocks table")
 
 
 # ---------------------------------------------------------------------------
@@ -926,6 +998,8 @@ def parse_args() -> argparse.Namespace:
                         help="Skip financial statements phase")
     parser.add_argument("--skip-beta", action="store_true",
                         help="Skip stock beta phase")
+    parser.add_argument("--skip-tickers", action="store_true",
+                        help="Skip tickers DB upsert phase")
     parser.add_argument("--start-date", default="2015-01-01",
                         help="Price history start date (default: 2015-01-01)")
     return parser.parse_args()
@@ -934,12 +1008,22 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    # --- Phase 1: Prices ---
-    print("=" * 60)
-    print("Phase 1: Downloading prices")
-    print("=" * 60)
+    # --- Phase 0: Load tickers into Supabase ---
     tickers = load_tickers()
     print(f"Found {len(tickers)} tickers in stocks.csv")
+
+    if args.skip_tickers:
+        print("\n--skip-tickers: skipping tickers DB upsert")
+    else:
+        print("=" * 60)
+        print("Phase 0: Loading tickers into Supabase")
+        print("=" * 60)
+        load_tickers_to_db(tickers)
+
+    # --- Phase 1: Prices ---
+    print("\n" + "=" * 60)
+    print("Phase 1: Downloading prices")
+    print("=" * 60)
     price_rows = fetch_prices(tickers, args.start_date)
 
     # --- Phase 2: EPS ---
@@ -981,15 +1065,15 @@ def main() -> None:
 
     # --- Write output ---
     print("\n" + "=" * 60)
-    print("Phase 3: Writing output")
+    print("Phase 3: Writing stock_history to Supabase")
     print("=" * 60)
-    write_csv(price_rows, eps_lookup)
+    write_stock_history(price_rows, eps_lookup)
 
-    # --- Update stocks.csv with computed financials ---
+    # --- Update stocks table with computed financials ---
     print("\n" + "=" * 60)
-    print("Phase 4: Updating stocks.csv with computed financials")
+    print("Phase 4: Updating stocks table with computed financials")
     print("=" * 60)
-    update_stocks_csv(price_rows, eps_lookup)
+    update_stocks_financials(price_rows, eps_lookup)
 
     # --- Phase 5: Earnings Calendar ---
     if args.skip_calendar:
@@ -1000,12 +1084,12 @@ def main() -> None:
         print("=" * 60)
         fetch_earnings_calendars(tickers)
 
-    # --- Phase 6: Financial Statements ---
+    # --- Phase 6: Financial Statements (Supabase upsert) ---
     if args.skip_statements:
         print("\n--skip-statements: skipping financial statements")
     else:
         print("\n" + "=" * 60)
-        print("Phase 6: Downloading financial statements")
+        print("Phase 6: Downloading financial statements → Supabase")
         print("=" * 60)
         fetch_financial_statements(tickers)
 

@@ -34,6 +34,9 @@ from .qa_library import submit_feedback
 from .sharing import share_conversation, share_insight, get_shared_conversations
 from .db import get_conn
 from .models import (
+    BugReportRequest,
+    BugReportResponse,
+    BugReportSummary,
     ChatMessageRequest,
     CreateConversationRequest,
     CreateConversationResponse,
@@ -542,6 +545,132 @@ async def delete_ticker_list(request: Request, list_name: str):
             "DELETE FROM user_ticker_lists WHERE user_id = $1 AND list_name = $2",
             user_id, list_name,
         )
+
+
+# ---------------------------------------------------------------------------
+# Bug Reports
+# ---------------------------------------------------------------------------
+@router.post("/bug-reports", status_code=201)
+async def create_bug_report(
+    request: Request, body: BugReportRequest
+) -> BugReportResponse:
+    """Submit a bug report for a bad LLM response."""
+    user_id = _get_user_id(request)
+    bug_id = str(uuid.uuid4())
+
+    async with get_conn() as conn:
+        await conn.execute(
+            """INSERT INTO llm_bug_reports
+               (id, conversation_id, session_id, message_id, user_id, category,
+                description, user_query, llm_response, error_message,
+                tickers_referenced, query_type)
+               VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, $8, $9, $10, $11, $12)""",
+            bug_id,
+            body.conversation_id,
+            body.session_id,
+            body.message_id,
+            user_id,
+            body.category,
+            body.description,
+            body.user_query,
+            body.llm_response,
+            body.error_message,
+            body.tickers_referenced,
+            body.query_type,
+        )
+
+    logger.info("bug_report_created", bug_id=bug_id, category=body.category, user_id=user_id)
+    return BugReportResponse(bug_id=bug_id)
+
+
+@router.get("/bug-reports")
+async def list_bug_reports(
+    status: str | None = None,
+    category: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> list[BugReportSummary]:
+    """List bug reports (admin)."""
+    conditions: list[str] = []
+    params: list = []
+    idx = 1
+
+    if status:
+        conditions.append(f"status = ${idx}")
+        params.append(status)
+        idx += 1
+    if category:
+        conditions.append(f"category = ${idx}")
+        params.append(category)
+        idx += 1
+
+    where = " WHERE " + " AND ".join(conditions) if conditions else ""
+
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            f"""SELECT id, category, description, user_query, llm_response,
+                       error_message, tickers_referenced, query_type, status,
+                       resolution, user_id, created_at, resolved_at
+                FROM llm_bug_reports{where}
+                ORDER BY created_at DESC
+                LIMIT ${idx} OFFSET ${idx + 1}""",
+            *params, limit, offset,
+        )
+
+    return [
+        BugReportSummary(
+            id=str(r["id"]),
+            category=r["category"],
+            description=r["description"],
+            user_query=r["user_query"],
+            llm_response=r["llm_response"][:500],
+            error_message=r["error_message"],
+            tickers_referenced=r["tickers_referenced"] or [],
+            query_type=r["query_type"],
+            status=r["status"],
+            resolution=r["resolution"],
+            user_id=r["user_id"],
+            created_at=r["created_at"],
+            resolved_at=r["resolved_at"],
+        )
+        for r in rows
+    ]
+
+
+@router.patch("/bug-reports/{bug_id}")
+async def update_bug_report(
+    bug_id: str,
+    status: str | None = None,
+    resolution: str | None = None,
+):
+    """Update a bug report status/resolution."""
+    updates: list[str] = []
+    params: list = []
+    idx = 1
+
+    if status:
+        updates.append(f"status = ${idx}")
+        params.append(status)
+        idx += 1
+        if status == "resolved":
+            updates.append("resolved_at = NOW()")
+    if resolution is not None:
+        updates.append(f"resolution = ${idx}")
+        params.append(resolution)
+        idx += 1
+
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+
+    params.append(bug_id)
+    set_clause = ", ".join(updates)
+
+    async with get_conn() as conn:
+        await conn.execute(
+            f"UPDATE llm_bug_reports SET {set_clause} WHERE id = ${idx}::uuid",
+            *params,
+        )
+    return {"status": "updated"}
 
 
 # ---------------------------------------------------------------------------

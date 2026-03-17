@@ -90,68 +90,138 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 -- DS-01: Structured Financial Data tables
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS tickers (
-    ticker          VARCHAR(20) PRIMARY KEY,
-    company_name    TEXT,
-    sector          VARCHAR(100),
-    industry        VARCHAR(100),
-    market_cap_tier VARCHAR(20),
-    country         VARCHAR(50),
-    currency        VARCHAR(10),
-    first_seen_at   TIMESTAMP DEFAULT NOW(),
-    is_active       BOOLEAN DEFAULT TRUE
+-- stocks (primary structured data table — replaces old tickers table)
+CREATE TABLE IF NOT EXISTS stocks (
+    ticker              VARCHAR(20) PRIMARY KEY,
+    company_name        TEXT,
+    sector              VARCHAR(100),
+    industry            VARCHAR(200),
+    market_cap_b        VARCHAR(20),
+    pe_ratio            VARCHAR(20),
+    price               VARCHAR(20),
+    "52w_high"          VARCHAR(20),
+    "52w_low"           VARCHAR(20),
+    dividend_yield      VARCHAR(20),
+    eps                 VARCHAR(20),
+    revenue_b           VARCHAR(20),
+    country             VARCHAR(50),
+    exchange            VARCHAR(50),
+    address             TEXT,
+    city                VARCHAR(100),
+    phone               VARCHAR(50),
+    zip                 VARCHAR(20),
+    long_business_summary TEXT,
+    full_time_employees VARCHAR(20),
+    web_site            TEXT,
+    report_date         VARCHAR(20)
 );
 
-CREATE TABLE IF NOT EXISTS income_statement (
+CREATE TABLE IF NOT EXISTS people (
+    person_id           VARCHAR(20) PRIMARY KEY,
+    name                TEXT,
+    title               TEXT,
+    organization        TEXT,
+    type                VARCHAR(50),
+    tickers             TEXT,
+    age                 VARCHAR(10),
+    born                VARCHAR(20),
+    pay                 VARCHAR(30),
+    exercised           VARCHAR(30),
+    unexercised         VARCHAR(30)
+);
+
+CREATE TABLE IF NOT EXISTS portfolios (
+    portfolio_id        VARCHAR(20) PRIMARY KEY,
+    name                VARCHAR(100),
+    strategy            TEXT,
+    aum                 VARCHAR(30),
+    long_exposure       VARCHAR(30),
+    short_exposure      VARCHAR(30),
+    num_positions       VARCHAR(10),
+    max_position_pct    VARCHAR(10),
+    inception_date      VARCHAR(20),
+    rebalance_frequency VARCHAR(50),
+    total_trades        VARCHAR(10),
+    unique_tickers      VARCHAR(10),
+    status              VARCHAR(20)
+);
+
+CREATE TABLE IF NOT EXISTS portfolio_trades (
+    date                VARCHAR(20) NOT NULL,
     ticker              VARCHAR(20) NOT NULL,
-    fiscal_period       VARCHAR(20) NOT NULL,
-    fiscal_period_end   DATE,
-    period_type         VARCHAR(10) CHECK (period_type IN ('quarterly', 'annual')),
-    revenue             NUMERIC,
-    gross_profit        NUMERIC,
-    operating_income    NUMERIC,
-    net_income          NUMERIC,
-    eps_diluted         NUMERIC,
-    gross_margin        NUMERIC,
-    operating_margin    NUMERIC,
-    net_margin          NUMERIC,
-    created_at          TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (ticker, fiscal_period, period_type)
+    action              VARCHAR(10) NOT NULL,
+    shares              VARCHAR(20),
+    price               VARCHAR(20),
+    portfolio           VARCHAR(100) NOT NULL,
+    side                VARCHAR(10),
+    PRIMARY KEY (date, ticker, portfolio, action)
 );
+CREATE INDEX IF NOT EXISTS idx_pt_ticker ON portfolio_trades (ticker);
+CREATE INDEX IF NOT EXISTS idx_pt_portfolio ON portfolio_trades (portfolio);
+CREATE INDEX IF NOT EXISTS idx_pt_date ON portfolio_trades (date);
 
-CREATE INDEX IF NOT EXISTS idx_income_ticker ON income_statement (ticker);
-
-CREATE TABLE IF NOT EXISTS balance_sheet (
+CREATE TABLE IF NOT EXISTS stock_history (
+    date                VARCHAR(20) NOT NULL,
     ticker              VARCHAR(20) NOT NULL,
-    fiscal_period       VARCHAR(20) NOT NULL,
-    fiscal_period_end   DATE,
-    period_type         VARCHAR(10) CHECK (period_type IN ('quarterly', 'annual')),
-    total_assets        NUMERIC,
-    total_liabilities   NUMERIC,
-    total_equity        NUMERIC,
-    total_debt          NUMERIC,
-    cash_and_equivalents NUMERIC,
-    created_at          TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (ticker, fiscal_period, period_type)
+    close               VARCHAR(20),
+    eps_estimate        VARCHAR(20),
+    eps_actual          VARCHAR(20),
+    PRIMARY KEY (date, ticker)
+);
+CREATE INDEX IF NOT EXISTS idx_sh_ticker ON stock_history (ticker);
+CREATE INDEX IF NOT EXISTS idx_sh_date ON stock_history (date);
+
+CREATE TABLE IF NOT EXISTS stock_betas (
+    ticker              VARCHAR(20) PRIMARY KEY,
+    beta                VARCHAR(20)
 );
 
-CREATE INDEX IF NOT EXISTS idx_balance_ticker ON balance_sheet (ticker);
-
-CREATE TABLE IF NOT EXISTS cash_flows (
-    ticker                  VARCHAR(20) NOT NULL,
-    fiscal_period           VARCHAR(20) NOT NULL,
-    fiscal_period_end       DATE,
-    period_type             VARCHAR(10) CHECK (period_type IN ('quarterly', 'annual')),
-    operating_cash_flow     NUMERIC,
-    investing_cash_flow     NUMERIC,
-    financing_cash_flow     NUMERIC,
-    capital_expenditures    NUMERIC,
-    free_cash_flow          NUMERIC,
-    created_at              TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (ticker, fiscal_period, period_type)
+CREATE TABLE IF NOT EXISTS earnings_calendar (
+    ticker              VARCHAR(20) NOT NULL,
+    report_date         VARCHAR(20) NOT NULL,
+    time                VARCHAR(20),
+    fiscal_quarter_ending VARCHAR(20),
+    PRIMARY KEY (ticker, report_date)
 );
 
-CREATE INDEX IF NOT EXISTS idx_cashflow_ticker ON cash_flows (ticker);
+CREATE TABLE IF NOT EXISTS sec_filings (
+    accession_number    VARCHAR(50) PRIMARY KEY,
+    symbol              VARCHAR(20),
+    cik                 VARCHAR(20),
+    company_name        TEXT,
+    form_type           VARCHAR(20),
+    form_type_description TEXT,
+    filing_date         VARCHAR(20),
+    report_date         VARCHAR(20),
+    acceptance_date_time TEXT,
+    filing_url          TEXT,
+    primary_document    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sf_symbol ON sec_filings (symbol);
+
+CREATE TABLE IF NOT EXISTS transcripts_list (
+    transcripts_id      VARCHAR(100) PRIMARY KEY,
+    symbol              VARCHAR(20),
+    fiscal_year         VARCHAR(10),
+    fiscal_quarter      VARCHAR(10),
+    report_date         VARCHAR(20),
+    transcripts         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_tl_symbol ON transcripts_list (symbol);
+
+CREATE TABLE IF NOT EXISTS financial_metrics (
+    ticker       VARCHAR(20) NOT NULL,
+    metric_name  VARCHAR(100) NOT NULL,
+    period_end   DATE NOT NULL,
+    period_type  VARCHAR(10) CHECK (period_type IN ('quarterly', 'annual')),
+    value        NUMERIC,
+    created_at   TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (ticker, metric_name, period_end, period_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fm_ticker ON financial_metrics (ticker);
+CREATE INDEX IF NOT EXISTS idx_fm_ticker_period ON financial_metrics (ticker, period_type);
+CREATE INDEX IF NOT EXISTS idx_fm_ticker_metric ON financial_metrics (ticker, metric_name);
 
 -- ============================================================
 -- DS-02: Mode 2 tables
@@ -415,6 +485,29 @@ CREATE TABLE IF NOT EXISTS model_config (
     switched_at         TIMESTAMP
 );
 
+-- LLM Bug Reports
+CREATE TABLE IF NOT EXISTS llm_bug_reports (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id     UUID REFERENCES conversations(id),
+    session_id          UUID REFERENCES sessions(id),
+    message_id          UUID,
+    user_id             VARCHAR(100) NOT NULL,
+    category            VARCHAR(50) NOT NULL,
+    description         TEXT,
+    user_query          TEXT NOT NULL,
+    llm_response        TEXT NOT NULL,
+    error_message       TEXT,
+    tickers_referenced  TEXT[],
+    query_type          VARCHAR(100),
+    status              VARCHAR(30) DEFAULT 'new',
+    resolution          TEXT,
+    created_at          TIMESTAMP DEFAULT NOW(),
+    resolved_at         TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_llm_bugs_status ON llm_bug_reports (status);
+CREATE INDEX IF NOT EXISTS idx_llm_bugs_category ON llm_bug_reports (category);
+CREATE INDEX IF NOT EXISTS idx_llm_bugs_created ON llm_bug_reports (created_at DESC);
+
 -- ============================================================
 -- Seed data
 -- ============================================================
@@ -462,13 +555,15 @@ def main():
     tables = [row[0] for row in cur.fetchall()]
 
     expected = [
-        "api_cost_events", "api_pricing", "balance_sheet", "cash_flows",
+        "api_cost_events", "api_pricing",
         "chunks", "conversation_shares", "conversations",
-        "feature_requests", "income_statement", "insight_shares",
-        "insights", "message_feedback", "messages", "model_config",
-        "pipeline_runs", "processing_registry", "qa_library",
-        "screening_cache", "sessions", "tickers", "user_profiles",
-        "user_ticker_lists",
+        "earnings_calendar", "feature_requests", "financial_metrics",
+        "insight_shares", "insights", "message_feedback", "messages",
+        "model_config", "people", "pipeline_runs", "portfolios",
+        "portfolio_trades", "processing_registry", "qa_library",
+        "screening_cache", "sec_filings", "sessions", "stocks",
+        "stock_betas", "stock_history", "transcripts_list",
+        "user_profiles", "user_ticker_lists",
     ]
 
     print(f"\nTables found in public schema: {len(tables)}")

@@ -1,21 +1,30 @@
 #!/usr/bin/env python3
-"""Enrich sec_filings.csv with primary_document field from EDGAR submissions API.
+"""Enrich sec_filings Supabase table with primary_document field from EDGAR submissions API.
 
-Reads the existing sec_filings.csv, fetches primaryDocument for each CIK from
-data.sec.gov, and writes the enriched CSV back.
+Reads existing sec_filings from Supabase, fetches primaryDocument for each CIK from
+data.sec.gov, and updates the table.
 
-No external dependencies — uses only the Python standard library.
+No external dependencies beyond psycopg2 — uses only the Python standard library
+for HTTP calls.
 """
 from __future__ import annotations
 
-import csv
 import json
+import os
 import time
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+import psycopg2
+from dotenv import load_dotenv
+
 ROOT = Path(__file__).resolve().parent.parent
-FILINGS_CSV = ROOT / "data" / "structured" / "sec_filings.csv"
+load_dotenv(ROOT / "backend" / ".env")
+
+DATABASE_URL = os.environ.get(
+    "SUPABASE_DATABASE_URL",
+    "postgresql://postgres:sC.g6Wf#9h.Bf_f@db.ybjvfeevaxujenwvoewg.supabase.co:5432/postgres",
+)
 
 EDGAR_UA = "GoldMine admin@goldmine.dev"
 
@@ -70,26 +79,20 @@ def fetch_edgar_submissions(cik: str) -> dict[str, str]:
 
 
 def main() -> None:
-    if not FILINGS_CSV.exists():
-        print(f"ERROR: {FILINGS_CSV} not found")
-        return
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
 
-    # Read existing CSV
-    rows: list[dict[str, str]] = []
-    with open(FILINGS_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        fieldnames = list(reader.fieldnames or [])
-        for row in reader:
-            rows.append(row)
-
-    print(f"Read {len(rows)} filings from {FILINGS_CSV}")
+    # Read existing filings from Supabase
+    cur.execute("SELECT accession_number, cik, symbol FROM sec_filings")
+    rows = cur.fetchall()
+    print(f"Read {len(rows)} filings from sec_filings table")
 
     # Collect unique CIKs
     cik_to_symbol: dict[str, str] = {}
-    for row in rows:
-        cik = row.get("cik", "")
+    for acc, cik, sym in rows:
         if cik and cik not in cik_to_symbol:
-            cik_to_symbol[cik] = row.get("symbol", "?")
+            cik_to_symbol[cik] = sym or "?"
 
     print(f"Fetching primary documents from EDGAR for {len(cik_to_symbol)} CIKs...")
 
@@ -102,28 +105,21 @@ def main() -> None:
         print(f"  [{i}/{len(cik_to_symbol)}] {sym} (CIK {cik}) -> "
               f"{len(lookup)} filings indexed", flush=True)
 
-    # Enrich rows
+    # Update rows in Supabase
     matched = 0
-    for row in rows:
-        acc = row.get("accession_number", "")
+    for acc, cik, sym in rows:
         pdoc = all_lookups.get(acc, "")
-        row["primary_document"] = pdoc
         if pdoc:
+            cur.execute(
+                "UPDATE sec_filings SET primary_document = %s "
+                "WHERE accession_number = %s",
+                (pdoc, acc),
+            )
             matched += 1
 
-    print(f"Matched primary documents for {matched}/{len(rows)} filings")
-
-    # Write enriched CSV
-    if "primary_document" not in fieldnames:
-        fieldnames.append("primary_document")
-
-    with open(FILINGS_CSV, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({col: row.get(col, "") for col in fieldnames})
-
-    print(f"Wrote enriched CSV to {FILINGS_CSV}")
+    cur.close()
+    conn.close()
+    print(f"Updated primary_document for {matched}/{len(rows)} filings in sec_filings table")
 
 
 if __name__ == "__main__":

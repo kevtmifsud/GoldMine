@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import csv
 from datetime import date, timedelta
-from pathlib import Path
 from typing import Any
 
 from app.api.entities import (
@@ -16,19 +14,17 @@ from app.api.entities import (
 from app.data_access.factory import get_data_provider
 from app.data_access.models import FilterParams
 
-_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "structured"
-_EARNINGS_CSV = _DATA_DIR / "earnings_calendar.csv"
-
 
 def _load_earnings_by_date() -> dict[str, str]:
     """Return {ticker: report_date} for all earnings entries."""
-    if not _EARNINGS_CSV.exists():
-        return {}
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT ticker, report_date FROM earnings_calendar")
     result: dict[str, str] = {}
-    with open(_EARNINGS_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            result[row["ticker"]] = row.get("report_date", "")
+    for ticker, report_date in cur.fetchall():
+        result[str(ticker)] = str(report_date) if report_date else ""
+    cur.close()
     return result
 
 
@@ -587,7 +583,7 @@ def render_daily_pnl_report(portfolio_name: str = "Flagship") -> tuple[str, str,
         f'<p style="font-size:11px;color:#718096;margin:0 0 4px 0;font-weight:600;text-transform:uppercase;">Report Notes</p>'
         f'<p style="font-size:12px;color:#718096;margin:0;">'
         f'Daily PnL computed as of <strong>{_escape(report_date)}</strong> vs prior day <strong>{_escape(prior_date)}</strong>. '
-        f'Data reflects the latest available prices in stock_history.csv. '
+        f'Data reflects the latest available prices in the stock_history table. '
         f'Report generated on {_escape(date.today().isoformat())}.</p>'
         f'</div>'
     )

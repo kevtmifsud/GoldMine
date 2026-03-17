@@ -31,7 +31,7 @@ async def resolve_tickers(
         if classified.tickers:
             placeholders = ", ".join(f"${i+1}" for i in range(len(classified.tickers)))
             rows = await conn.fetch(
-                f"SELECT ticker FROM tickers WHERE ticker IN ({placeholders})",
+                f"SELECT ticker FROM stocks WHERE ticker IN ({placeholders})",
                 *classified.tickers,
             )
             valid = {r["ticker"] for r in rows}
@@ -58,8 +58,8 @@ async def resolve_tickers(
                 if ref not in (await _get_user_list_names(conn, user_id)):
                     # Not a user list — try sector/industry
                     rows = await conn.fetch(
-                        """SELECT ticker FROM tickers
-                           WHERE sector ILIKE $1 OR industry ILIKE $1
+                        """SELECT ticker FROM stocks
+                           WHERE (sector ILIKE $1 OR industry ILIKE $1)
                            AND is_active = TRUE""",
                         f"%{ref}%",
                     )
@@ -70,7 +70,7 @@ async def resolve_tickers(
         # Screening without specified universe: default to all active
         if classified.query_type == "screening" and not resolved:
             rows = await conn.fetch(
-                "SELECT ticker FROM tickers WHERE is_active = TRUE ORDER BY ticker"
+                "SELECT ticker FROM stocks WHERE is_active = TRUE ORDER BY ticker"
             )
             for r in rows:
                 resolved[r["ticker"]] = "universe"

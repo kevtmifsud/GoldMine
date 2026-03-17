@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     ENV: str = "development"
     SECRET_KEY: str = "change-me-to-a-random-secret"
-    DATA_PROVIDER: str = "csv"
+    DATA_PROVIDER: str = "supabase"
     STORAGE_PROVIDER: str = "local"
     DATA_DIR: str = "../data/structured"
     STORAGE_DIR: str = "../data/unstructured"

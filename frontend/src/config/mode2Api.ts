@@ -113,6 +113,34 @@ export async function listConversations(
 }
 
 // ---------------------------------------------------------------------------
+// Bug Reports
+// ---------------------------------------------------------------------------
+export interface BugReportPayload {
+  conversation_id?: string | null;
+  session_id?: string | null;
+  message_id?: string | null;
+  category: string;
+  description?: string;
+  user_query: string;
+  llm_response: string;
+  error_message?: string;
+  tickers_referenced?: string[];
+  query_type?: string;
+}
+
+export interface BugReportResult {
+  bug_id: string;
+  status: string;
+}
+
+export async function submitBugReport(
+  payload: BugReportPayload
+): Promise<BugReportResult> {
+  const resp = await api.post<BugReportResult>("/api/v1/bug-reports", payload);
+  return resp.data;
+}
+
+// ---------------------------------------------------------------------------
 // SSE streaming (raw fetch — axios doesn't support ReadableStream)
 // ---------------------------------------------------------------------------
 export async function sendMessageStream(

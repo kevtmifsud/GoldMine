@@ -1,50 +1,46 @@
 from __future__ import annotations
 
-import csv
-import re
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Query
 
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+from app.mode2.db import get_conn
 
 router = APIRouter(prefix="/api/financials", tags=["financials"])
 
-_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "structured" / "financials"
 
-_CSV_FILES = {
-    ("income_statement", "annual"): _DATA_DIR / "annual_income_statements.csv",
-    ("income_statement", "quarterly"): _DATA_DIR / "quarterly_income_statements.csv",
-    ("balance_sheet", "annual"): _DATA_DIR / "annual_balance_sheets.csv",
-    ("balance_sheet", "quarterly"): _DATA_DIR / "quarterly_balance_sheets.csv",
-    ("cash_flow", "annual"): _DATA_DIR / "annual_cash_flows.csv",
-    ("cash_flow", "quarterly"): _DATA_DIR / "quarterly_cash_flows.csv",
-}
-
-
-def _read_financial_csv(path: Path, ticker: str) -> dict[str, dict[str, float | None]]:
-    """Read a financial CSV and return {metric: {date: value}} for a given ticker."""
+async def _read_financial_db(
+    ticker: str, period_type: str,
+) -> dict[str, dict[str, float | None]]:
+    """Read financial data from Supabase, returning {metric: {date: value}}."""
     result: dict[str, dict[str, float | None]] = {}
-    if not path.exists():
-        return result
-    with open(path, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["ticker"] != ticker:
-                continue
-            metric = row["metric"]
-            date = row["date"]
-            if not _DATE_RE.match(date):
-                continue
-            try:
-                value = float(row["value"])
-            except (ValueError, TypeError):
-                value = None
-            if metric not in result:
-                result[metric] = {}
-            result[metric][date] = value
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            """SELECT metric_name, period_end, value
+               FROM financial_metrics
+               WHERE ticker = $1 AND period_type = $2
+               ORDER BY period_end""",
+            ticker, period_type,
+        )
+    for row in rows:
+        metric = row["metric_name"]
+        date_str = str(row["period_end"])  # date → "YYYY-MM-DD"
+        result.setdefault(metric, {})[date_str] = (
+            float(row["value"]) if row["value"] is not None else None
+        )
     return result
+
+
+async def _get_fy_end_month(ticker: str) -> int:
+    """Determine fiscal year end month from annual income statement dates."""
+    async with get_conn() as conn:
+        row = await conn.fetchrow(
+            """SELECT period_end FROM financial_metrics
+               WHERE ticker = $1 AND period_type = 'annual'
+               ORDER BY period_end DESC LIMIT 1""",
+            ticker,
+        )
+    return row["period_end"].month if row and row["period_end"] else 12
 
 
 def _get_sorted_dates(data: dict[str, dict[str, float | None]]) -> list[str]:
@@ -129,25 +125,6 @@ def _build_line_item(
         "is_header": is_header,
         "format_type": format_type,
     }
-
-
-def _get_fy_end_month(ticker: str) -> int:
-    """Determine fiscal year end month from annual income statement dates."""
-    annual_path = _DATA_DIR / "annual_income_statements.csv"
-    if not annual_path.exists():
-        return 12
-    with open(annual_path, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["ticker"] != ticker:
-                continue
-            date_str = row["date"]
-            if _DATE_RE.match(date_str):
-                try:
-                    return int(date_str[5:7])
-                except ValueError:
-                    continue
-    return 12
 
 
 # ---- Line item definitions ----
@@ -324,8 +301,7 @@ async def get_income_statement(
     period: str = Query(default="annual", pattern="^(annual|quarterly)$"),
 ) -> dict[str, Any]:
     ticker_upper = ticker.upper()
-    csv_path = _CSV_FILES[("income_statement", period)]
-    data = _read_financial_csv(csv_path, ticker_upper)
+    data = await _read_financial_db(ticker_upper, period)
     dates = _get_sorted_dates(data)
     line_items = _build_income_statement_items(data, dates)
     return {
@@ -334,7 +310,7 @@ async def get_income_statement(
         "period": period,
         "dates": dates,
         "line_items": line_items,
-        "fy_end_month": _get_fy_end_month(ticker_upper),
+        "fy_end_month": await _get_fy_end_month(ticker_upper),
     }
 
 
@@ -344,8 +320,7 @@ async def get_balance_sheet(
     period: str = Query(default="annual", pattern="^(annual|quarterly)$"),
 ) -> dict[str, Any]:
     ticker_upper = ticker.upper()
-    csv_path = _CSV_FILES[("balance_sheet", period)]
-    data = _read_financial_csv(csv_path, ticker_upper)
+    data = await _read_financial_db(ticker_upper, period)
     dates = _get_sorted_dates(data)
     line_items = _build_balance_sheet_items(data, dates)
     return {
@@ -354,7 +329,7 @@ async def get_balance_sheet(
         "period": period,
         "dates": dates,
         "line_items": line_items,
-        "fy_end_month": _get_fy_end_month(ticker_upper),
+        "fy_end_month": await _get_fy_end_month(ticker_upper),
     }
 
 
@@ -364,19 +339,18 @@ async def get_cash_flow(
     period: str = Query(default="annual", pattern="^(annual|quarterly)$"),
 ) -> dict[str, Any]:
     ticker_upper = ticker.upper()
-    cf_path = _CSV_FILES[("cash_flow", period)]
-    is_path = _CSV_FILES[("income_statement", period)]
-    data = _read_financial_csv(cf_path, ticker_upper)
-    income_data = _read_financial_csv(is_path, ticker_upper)
+    # Single read returns all metrics — includes both cash flow and income data
+    data = await _read_financial_db(ticker_upper, period)
     dates = _get_sorted_dates(data)
-    line_items = _build_cash_flow_items(data, dates, income_data)
+    # Pass data as both cash flow and income data since it contains all metrics
+    line_items = _build_cash_flow_items(data, dates, income_data=data)
     return {
         "ticker": ticker_upper,
         "statement_type": "cash_flow",
         "period": period,
         "dates": dates,
         "line_items": line_items,
-        "fy_end_month": _get_fy_end_month(ticker_upper),
+        "fy_end_month": await _get_fy_end_month(ticker_upper),
     }
 
 
@@ -387,10 +361,14 @@ async def get_summary(
 ) -> dict[str, Any]:
     ticker_upper = ticker.upper()
 
+    # Single DB read gets all metrics for this ticker+period
+    all_metrics = await _read_financial_db(ticker_upper, period)
+
+    # Partition metrics into sections based on _SUMMARY_METRICS keys
     all_data: dict[str, dict[str, dict[str, float | None]]] = {}
     for section in ("income_statement", "balance_sheet", "cash_flow"):
-        csv_path = _CSV_FILES[(section, period)]
-        all_data[section] = _read_financial_csv(csv_path, ticker_upper)
+        section_keys = {m[0] for m in _SUMMARY_METRICS[section]}
+        all_data[section] = {k: v for k, v in all_metrics.items() if k in section_keys}
 
     all_dates_set: set[str] = set()
     for section_data in all_data.values():
@@ -428,5 +406,5 @@ async def get_summary(
         "period": period,
         "dates": dates,
         "metrics": metrics,
-        "fy_end_month": _get_fy_end_month(ticker_upper),
+        "fy_end_month": await _get_fy_end_month(ticker_upper),
     }

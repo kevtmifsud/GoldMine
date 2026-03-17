@@ -450,24 +450,24 @@ def _fetch_widget_data(
         return _apply_in_memory_overrides(filtered, filters, sort_by, sort_order)[:max_rows]
 
     if "/stock/" in endpoint and "price-history" in endpoint:
-        import csv
-        from pathlib import Path
+        from app.data_access.db import get_sync_conn
         ticker = entity_id.upper()
-        history_csv = Path(__file__).resolve().parent.parent.parent.parent / "data" / "structured" / "stock_history.csv"
-        if not history_csv.exists():
-            return []
+        conn = get_sync_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT date, close, eps_estimate, eps_actual FROM stock_history "
+            "WHERE ticker = %s ORDER BY date",
+            (ticker,),
+        )
         rows: list[dict[str, Any]] = []
-        with open(history_csv, newline="") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row["ticker"] == ticker:
-                    entry: dict[str, Any] = {"date": row["date"], "close": row["close"]}
-                    if row.get("eps_estimate"):
-                        entry["eps_estimate"] = row["eps_estimate"]
-                    if row.get("eps_actual"):
-                        entry["eps_actual"] = row["eps_actual"]
-                    rows.append(entry)
-        rows.sort(key=lambda r: r["date"])
+        for date_val, close_val, eps_est, eps_act in cur.fetchall():
+            entry: dict[str, Any] = {"date": str(date_val), "close": str(close_val)}
+            if eps_est:
+                entry["eps_estimate"] = str(eps_est)
+            if eps_act:
+                entry["eps_actual"] = str(eps_act)
+            rows.append(entry)
+        cur.close()
         return rows[:page_size]
 
     if "/stock/" in endpoint and endpoint.endswith("/peers"):

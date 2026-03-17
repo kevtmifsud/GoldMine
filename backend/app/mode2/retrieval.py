@@ -246,53 +246,45 @@ async def _structured_query(
     fiscal_periods: list[str] | None = None,
     steps: StepCollector | None = None,
 ) -> list[dict]:
-    """Query structured financial tables for quantitative answers."""
+    """Query financial_metrics table for quantitative answers."""
     t0 = time.time()
-    results = []
     ticker = tickers[0] if tickers else None
     if not ticker:
-        return results
+        return []
+
+    # Determine which metrics to fetch based on topic
+    topic_lower = topic.lower()
+    metrics: list[str] = []
+
+    if any(kw in topic_lower for kw in ["revenue", "margin", "income", "eps", "earnings", "profit", "sales"]):
+        metrics.extend(["total_revenue", "gross_profit", "operating_income", "net_income",
+                        "diluted_eps", "ebitda", "operating_expense", "cost_of_revenue"])
+    if any(kw in topic_lower for kw in ["debt", "asset", "equity", "balance", "cash and equivalents", "liabilities"]):
+        metrics.extend(["total_assets", "total_liabilities_net_minority_interest",
+                        "stockholders_equity", "total_debt", "cash_and_cash_equivalents"])
+    if any(kw in topic_lower for kw in ["cash flow", "capex", "capital expenditure", "free cash flow", "operating cash", "fcf"]):
+        metrics.extend(["operating_cash_flow", "free_cash_flow", "capital_expenditure",
+                        "investing_cash_flow", "financing_cash_flow"])
+
+    if not metrics:
+        metrics = ["total_revenue", "gross_profit", "operating_income", "net_income", "diluted_eps"]
 
     async with get_conn() as conn:
-        # Determine which table(s) to query based on topic
-        topic_lower = topic.lower()
+        rows = await conn.fetch(
+            """SELECT metric_name, period_end, period_type, value
+               FROM financial_metrics
+               WHERE ticker = $1 AND metric_name = ANY($2)
+               ORDER BY period_end DESC LIMIT 50""",
+            ticker, metrics,
+        )
 
-        tables_to_query = []
-        if any(kw in topic_lower for kw in ["revenue", "margin", "income", "eps", "earnings", "profit", "sales"]):
-            tables_to_query.append("income_statement")
-        if any(kw in topic_lower for kw in ["debt", "asset", "equity", "balance", "cash and equivalents", "liabilities"]):
-            tables_to_query.append("balance_sheet")
-        if any(kw in topic_lower for kw in ["cash flow", "capex", "capital expenditure", "free cash flow", "operating cash", "fcf"]):
-            tables_to_query.append("cash_flow_statement")
-
-        if not tables_to_query:
-            tables_to_query = ["income_statement"]
-
-        for table in tables_to_query:
-            conditions = ["ticker = $1"]
-            params: list = [ticker]
-            idx = 2
-
-            if fiscal_periods:
-                placeholders = ", ".join(f"${i}" for i in range(idx, idx + len(fiscal_periods)))
-                conditions.append(f"fiscal_period IN ({placeholders})")
-                params.extend(fiscal_periods)
-                idx += len(fiscal_periods)
-
-            where = " AND ".join(conditions)
-            query = f"SELECT * FROM {table} WHERE {where} ORDER BY fiscal_period DESC LIMIT 8"
-
-            rows = await conn.fetch(query, *params)
-            for r in rows:
-                row_dict = dict(r)
-                row_dict["_table"] = table
-                results.append(row_dict)
+    results = [dict(r) for r in rows]
 
     structured_duration_ms = int((time.time() - t0) * 1000)
     if steps:
         steps.add(
             label=f"Fetching {ticker} financial data",
-            detail=f"SQL query on {', '.join(tables_to_query)}",
+            detail=f"SQL query on financial_metrics ({len(metrics)} metrics)",
             source="supabase",
             duration_ms=structured_duration_ms,
             result_summary=f"{len(results)} rows",

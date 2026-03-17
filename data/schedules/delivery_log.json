@@ -298,5 +298,15 @@
     "recipients": [
       "kevintdonadio@gmail.com"
     ]
+  },
+  {
+    "log_id": "0df39f08-32b1-4037-b8df-4fede91c66fb",
+    "schedule_id": "a47af85c-035a-4c92-b851-fbcf8fb24c5d",
+    "sent_at": "2026-03-17T14:07:31.153339+00:00",
+    "status": "sent",
+    "error": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ]
   }
 ]

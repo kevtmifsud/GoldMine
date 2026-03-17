@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import bisect
-import csv
 import math
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
@@ -1050,10 +1048,6 @@ async def get_person_stocks(
 # Chart data endpoints
 # ---------------------------------------------------------------------------
 
-_STOCK_HISTORY_CSV = Path(__file__).resolve().parent.parent.parent.parent / "data" / "structured" / "stock_history.csv"
-_PORTFOLIO_TRADES_CSV = Path(__file__).resolve().parent.parent.parent.parent / "data" / "structured" / "portfolio_trades.csv"
-
-
 @router.get("/stock/{ticker}/price-history")
 async def get_stock_price_history(
     ticker: str,
@@ -1065,26 +1059,23 @@ async def get_stock_price_history(
     if stock is None:
         raise NotFoundError(f"Stock '{ticker}' not found")
 
-    if not _STOCK_HISTORY_CSV.exists():
-        return PaginatedResponse(
-            data=[], page=1, page_size=page_size,
-            total_records=0, total_pages=1, has_next=False, has_previous=False,
-        )
-
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute(
+        'SELECT date, close, eps_estimate, eps_actual FROM stock_history '
+        'WHERE ticker = %s ORDER BY date',
+        (ticker,),
+    )
     rows: list[dict[str, Any]] = []
-    with open(_STOCK_HISTORY_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["ticker"] == ticker:
-                entry: dict[str, Any] = {"date": row["date"], "close": row["close"]}
-                if row.get("eps_estimate"):
-                    entry["eps_estimate"] = row["eps_estimate"]
-                if row.get("eps_actual"):
-                    entry["eps_actual"] = row["eps_actual"]
-                rows.append(entry)
-
-    # Already sorted chronologically in the CSV, but ensure it
-    rows.sort(key=lambda r: r["date"])
+    for date, close, eps_est, eps_act in cur.fetchall():
+        entry: dict[str, Any] = {"date": str(date), "close": str(close)}
+        if eps_est:
+            entry["eps_estimate"] = str(eps_est)
+        if eps_act:
+            entry["eps_actual"] = str(eps_act)
+        rows.append(entry)
+    cur.close()
 
     return _paginate(rows, page, page_size, None, "asc")
 
@@ -1572,24 +1563,25 @@ _price_index_cache: dict[str, tuple[list[str], list[float]]] | None = None
 
 
 def _build_price_index() -> dict[str, tuple[list[str], list[float]]]:
-    """Read stock_history.csv once into {ticker: (sorted_dates, prices)} for fast lookups."""
+    """Load stock_history once into {ticker: (sorted_dates, prices)} for fast lookups."""
     global _price_index_cache
     if _price_index_cache is not None:
         return _price_index_cache
 
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT ticker, date, close FROM stock_history ORDER BY ticker, date")
+
     raw: dict[str, list[tuple[str, float]]] = {}
-    if _STOCK_HISTORY_CSV.exists():
-        with open(_STOCK_HISTORY_CSV, newline="") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                ticker = row["ticker"]
-                if ticker not in raw:
-                    raw[ticker] = []
-                raw[ticker].append((row["date"], float(row["close"])))
+    for ticker, date_val, close_val in cur.fetchall():
+        if ticker not in raw:
+            raw[ticker] = []
+        raw[ticker].append((str(date_val), float(close_val)))
+    cur.close()
 
     index: dict[str, tuple[list[str], list[float]]] = {}
     for ticker, entries in raw.items():
-        entries.sort(key=lambda e: e[0])
         index[ticker] = ([e[0] for e in entries], [e[1] for e in entries])
 
     _price_index_cache = index
@@ -1617,15 +1609,18 @@ def _get_latest_prices() -> dict[str, float]:
 
 def _load_portfolio_trades(portfolio_name: str) -> list[dict[str, str]]:
     """Load trades for a specific portfolio, sorted by date."""
-    if not _PORTFOLIO_TRADES_CSV.exists():
-        return []
-    rows: list[dict[str, str]] = []
-    with open(_PORTFOLIO_TRADES_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["portfolio"] == portfolio_name:
-                rows.append(row)
-    rows.sort(key=lambda r: r["date"])
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT date, ticker, action, shares, price, portfolio, side "
+        "FROM portfolio_trades WHERE portfolio = %s ORDER BY date",
+        (portfolio_name,),
+    )
+    columns = [desc[0] for desc in cur.description]
+    rows = [{col: str(val) if val is not None else "" for col, val in zip(columns, row)}
+            for row in cur.fetchall()]
+    cur.close()
     return rows
 
 

@@ -20,7 +20,6 @@ from app.api.portfolio import router as portfolio_router
 from app.api.earnings import router as earnings_router
 from app.api.reports import router as reports_router
 from app.api.financials import router as financials_router
-from app.api.studios import router as studios_router
 from app.email.scheduler import start_scheduler
 from app.mode2.router import router as mode2_router
 
@@ -56,7 +55,6 @@ def create_app() -> FastAPI:
     application.include_router(earnings_router)
     application.include_router(reports_router)
     application.include_router(financials_router)
-    application.include_router(studios_router)
     application.include_router(mode2_router)
 
     start_scheduler(application)

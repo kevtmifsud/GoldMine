@@ -1,18 +1,13 @@
 from __future__ import annotations
 
-import csv
 from datetime import date, datetime
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter
 
-router = APIRouter(prefix="/api/earnings", tags=["earnings"])
+from app.data_access.db import get_sync_conn
 
-_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "structured"
-_EARNINGS_CSV = _DATA_DIR / "earnings_calendar.csv"
-_TRANSCRIPTS_CSV = _DATA_DIR / "transcripts_list.csv"
-_SEC_FILINGS_CSV = _DATA_DIR / "sec_filings.csv"
+router = APIRouter(prefix="/api/earnings", tags=["earnings"])
 
 
 def _quarter_from_month(month: int) -> int:
@@ -30,45 +25,45 @@ def _parse_fiscal_quarter_ending(fqe: str) -> tuple[int, int] | None:
 
 
 def _has_transcript(symbol: str, year: int, quarter: int) -> bool:
-    if not _TRANSCRIPTS_CSV.exists():
-        return False
-    with open(_TRANSCRIPTS_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if (
-                row["symbol"] == symbol
-                and int(row["fiscal_year"]) == year
-                and int(row["fiscal_quarter"]) == quarter
-            ):
-                return True
-    return False
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM transcripts_list "
+        "WHERE symbol = %s AND fiscal_year = %s AND fiscal_quarter = %s LIMIT 1",
+        (symbol, str(year), str(quarter)),
+    )
+    found = cur.fetchone() is not None
+    cur.close()
+    return found
 
 
 def _find_filing_url(symbol: str, report_date_str: str) -> str | None:
     """Find the 10-Q filing URL for the given symbol closest to the report_date."""
-    if not _SEC_FILINGS_CSV.exists():
-        return None
     try:
         target = datetime.strptime(report_date_str, "%Y-%m-%d").date()
     except (ValueError, TypeError):
         return None
 
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT filing_url, report_date FROM sec_filings "
+        "WHERE symbol = %s AND form_type = '10-Q'",
+        (symbol,),
+    )
     best_url: str | None = None
     best_diff: int | None = None
-    with open(_SEC_FILINGS_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["symbol"] != symbol or row["form_type"] != "10-Q":
-                continue
-            try:
-                rd = datetime.strptime(row["report_date"], "%Y-%m-%d").date()
-            except (ValueError, TypeError):
-                continue
-            diff = abs((rd - target).days)
-            if best_diff is None or diff < best_diff:
-                best_diff = diff
-                best_url = row.get("filing_url") or None
-    # Only match if within ~120 days (one quarter)
+    for filing_url, rd_str in cur.fetchall():
+        try:
+            rd = datetime.strptime(str(rd_str), "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            continue
+        diff = abs((rd - target).days)
+        if best_diff is None or diff < best_diff:
+            best_diff = diff
+            best_url = filing_url or None
+    cur.close()
+
     if best_diff is not None and best_diff <= 120:
         return best_url
     return None
@@ -80,17 +75,17 @@ async def get_earnings(ticker: str) -> dict[str, Any]:
     ticker_upper = ticker.upper()
     today = date.today().isoformat()
 
-    if not _EARNINGS_CSV.exists():
-        return {"ticker": ticker_upper, "last_earnings": None, "next_earnings": None}
-
-    # Load all earnings rows for this ticker
-    rows: list[dict[str, str]] = []
-    with open(_EARNINGS_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["ticker"] == ticker_upper:
-                rows.append(row)
-    rows.sort(key=lambda r: r["report_date"])
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT ticker, report_date, time, fiscal_quarter_ending "
+        "FROM earnings_calendar WHERE ticker = %s ORDER BY report_date",
+        (ticker_upper,),
+    )
+    columns = [desc[0] for desc in cur.description]
+    rows = [{col: str(val) if val is not None else "" for col, val in zip(columns, row)}
+            for row in cur.fetchall()]
+    cur.close()
 
     last_row: dict[str, str] | None = None
     next_row: dict[str, str] | None = None

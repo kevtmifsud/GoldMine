@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import bisect
-import csv
 from datetime import date as _date_type
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Query
@@ -11,13 +9,6 @@ from fastapi import APIRouter, Query
 from app.api.entities import _build_price_index, _price_on_date
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
-
-_PORTFOLIO_TRADES_CSV = (
-    Path(__file__).resolve().parent.parent.parent.parent
-    / "data"
-    / "structured"
-    / "portfolio_trades.csv"
-)
 
 # Ticker alias map — bidirectional.  Extend as needed.
 _TICKER_ALIASES: dict[str, list[str]] = {
@@ -38,32 +29,44 @@ def _load_trades_for_ticker(
     ticker: str, portfolio: str | None = None
 ) -> list[dict[str, str]]:
     """Load all trades matching *ticker* (including aliases), sorted by date."""
-    if not _PORTFOLIO_TRADES_CSV.exists():
-        return []
-    variants = _ticker_variants(ticker)
-    rows: list[dict[str, str]] = []
-    with open(_PORTFOLIO_TRADES_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["ticker"] in variants:
-                if portfolio and row["portfolio"] != portfolio:
-                    continue
-                rows.append(row)
-    rows.sort(key=lambda r: r["date"])
+    from app.data_access.db import get_sync_conn
+    variants = list(_ticker_variants(ticker))
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    if portfolio:
+        cur.execute(
+            "SELECT date, ticker, action, shares, price, portfolio, side "
+            "FROM portfolio_trades "
+            "WHERE ticker = ANY(%s) AND portfolio = %s ORDER BY date",
+            (variants, portfolio),
+        )
+    else:
+        cur.execute(
+            "SELECT date, ticker, action, shares, price, portfolio, side "
+            "FROM portfolio_trades WHERE ticker = ANY(%s) ORDER BY date",
+            (variants,),
+        )
+    columns = [desc[0] for desc in cur.description]
+    rows = [{col: str(val) if val is not None else "" for col, val in zip(columns, row)}
+            for row in cur.fetchall()]
+    cur.close()
     return rows
 
 
 def _load_all_portfolio_trades(portfolio_name: str) -> list[dict[str, str]]:
     """Load *all* trades in a portfolio (every ticker), sorted by date."""
-    if not _PORTFOLIO_TRADES_CSV.exists():
-        return []
-    rows: list[dict[str, str]] = []
-    with open(_PORTFOLIO_TRADES_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["portfolio"] == portfolio_name:
-                rows.append(row)
-    rows.sort(key=lambda r: r["date"])
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT date, ticker, action, shares, price, portfolio, side "
+        "FROM portfolio_trades WHERE portfolio = %s ORDER BY date",
+        (portfolio_name,),
+    )
+    columns = [desc[0] for desc in cur.description]
+    rows = [{col: str(val) if val is not None else "" for col, val in zip(columns, row)}
+            for row in cur.fetchall()]
+    cur.close()
     return rows
 
 
@@ -87,16 +90,18 @@ def _get_price_for_ticker(ticker: str, date: str) -> float | None:
 
 def _distinct_portfolios_for_ticker(ticker: str) -> list[str]:
     """Return sorted list of distinct portfolio names that traded this ticker."""
-    if not _PORTFOLIO_TRADES_CSV.exists():
-        return []
-    variants = _ticker_variants(ticker)
-    names: set[str] = set()
-    with open(_PORTFOLIO_TRADES_CSV, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["ticker"] in variants:
-                names.add(row["portfolio"])
-    return sorted(names)
+    from app.data_access.db import get_sync_conn
+    variants = list(_ticker_variants(ticker))
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT DISTINCT portfolio FROM portfolio_trades "
+        "WHERE ticker = ANY(%s) ORDER BY portfolio",
+        (variants,),
+    )
+    names = [row[0] for row in cur.fetchall()]
+    cur.close()
+    return names
 
 
 def _is_opening(action: str, side: str) -> bool:

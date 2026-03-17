@@ -202,6 +202,51 @@ class CreateTickerListRequest(BaseModel):
     tickers: list[str]
 
 
+# -- Bug Reports --
+BugCategory = Literal[
+    "error_no_response",
+    "bad_response",
+    "wrong_data",
+    "missing_sources",
+    "hallucination",
+    "other",
+]
+
+
+class BugReportRequest(BaseModel):
+    conversation_id: str | None = None
+    session_id: str | None = None
+    message_id: str | None = None
+    category: BugCategory
+    description: str | None = None
+    user_query: str
+    llm_response: str
+    error_message: str | None = None
+    tickers_referenced: list[str] = Field(default_factory=list)
+    query_type: str | None = None
+
+
+class BugReportResponse(BaseModel):
+    bug_id: str
+    status: str = "new"
+
+
+class BugReportSummary(BaseModel):
+    id: str
+    category: str
+    description: str | None = None
+    user_query: str
+    llm_response: str
+    error_message: str | None = None
+    tickers_referenced: list[str] = Field(default_factory=list)
+    query_type: str | None = None
+    status: str
+    resolution: str | None = None
+    user_id: str
+    created_at: datetime
+    resolved_at: datetime | None = None
+
+
 # -- Feature Requests --
 class FeatureRequestAck(BaseModel):
     type: str = "feature_request_received"

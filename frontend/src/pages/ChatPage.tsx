@@ -5,6 +5,7 @@ import { useMode2Chat } from "../hooks/useMode2Chat";
 import { ChatMarkdown } from "../components/chat/ChatMarkdown";
 import { TranscriptViewerDialog } from "../components/research/TranscriptViewerDialog";
 import { FinancialDataDialog } from "../components/chat/FinancialDataDialog";
+import { ReportResponseDialog } from "../components/chat/ReportResponseDialog";
 import { PipelineSteps } from "../components/chat/PipelineSteps";
 import type { ParsedCitation } from "../utils/citationParser";
 import {
@@ -34,6 +35,11 @@ interface ViewingFinancials {
   statementType: "income-statement" | "balance-sheet" | "cash-flow";
 }
 
+interface ReportingMessage {
+  userQuery: string;
+  llmResponse: string;
+}
+
 export function ChatPage() {
   const chat = useMode2Chat();
   const navigate = useNavigate();
@@ -42,6 +48,7 @@ export function ChatPage() {
     useState<ViewingTranscript | null>(null);
   const [viewingFinancials, setViewingFinancials] =
     useState<ViewingFinancials | null>(null);
+  const [reporting, setReporting] = useState<ReportingMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -147,16 +154,34 @@ export function ChatPage() {
           )}
 
           {chat.messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`chat-page__msg chat-page__msg--${msg.role}`}
-            >
-              {msg.role === "assistant" ? (
-                <ChatMarkdown onCitationClick={handleCitationClick}>
-                  {msg.content}
-                </ChatMarkdown>
-              ) : (
-                msg.content
+            <div key={idx}>
+              <div
+                className={`chat-page__msg chat-page__msg--${msg.role}`}
+              >
+                {msg.role === "assistant" ? (
+                  <ChatMarkdown onCitationClick={handleCitationClick}>
+                    {msg.content}
+                  </ChatMarkdown>
+                ) : (
+                  msg.content
+                )}
+              </div>
+              {msg.role === "assistant" && (
+                <button
+                  className="chat-page__report-btn"
+                  onClick={() => {
+                    const prevUser = chat.messages
+                      .slice(0, idx)
+                      .reverse()
+                      .find((m) => m.role === "user");
+                    setReporting({
+                      userQuery: prevUser?.content ?? "",
+                      llmResponse: msg.content,
+                    });
+                  }}
+                >
+                  Report Response
+                </button>
               )}
             </div>
           ))}
@@ -183,7 +208,23 @@ export function ChatPage() {
           )}
 
           {chat.error && (
-            <div className="chat-page__error">{chat.error}</div>
+            <>
+              <div className="chat-page__error">{chat.error}</div>
+              <button
+                className="chat-page__report-btn"
+                onClick={() => {
+                  const lastUser = [...chat.messages]
+                    .reverse()
+                    .find((m) => m.role === "user");
+                  setReporting({
+                    userQuery: lastUser?.content ?? "",
+                    llmResponse: "",
+                  });
+                }}
+              >
+                Report Response
+              </button>
+            </>
           )}
 
           <div ref={messagesEndRef} />
@@ -236,6 +277,16 @@ export function ChatPage() {
           ticker={viewingFinancials.ticker}
           statementType={viewingFinancials.statementType}
           onClose={() => setViewingFinancials(null)}
+        />
+      )}
+
+      {reporting && (
+        <ReportResponseDialog
+          userQuery={reporting.userQuery}
+          llmResponse={reporting.llmResponse}
+          conversationId={chat.conversationId}
+          sessionId={chat.sessionId}
+          onClose={() => setReporting(null)}
         />
       )}
     </Layout>

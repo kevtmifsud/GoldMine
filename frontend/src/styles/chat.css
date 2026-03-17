@@ -819,3 +819,202 @@
   font-size: 0.7rem;
   color: var(--color-text-secondary);
 }
+
+/* =========================================================================
+   Report Response Button
+   ========================================================================= */
+.chat-page__report-btn {
+  background: none;
+  border: none;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  transition: color 0.15s, background-color 0.15s;
+  align-self: flex-start;
+  margin-top: 0.15rem;
+}
+
+.chat-page__report-btn:hover {
+  color: var(--color-error);
+  background: #fff5f5;
+}
+
+/* =========================================================================
+   Report Dialog
+   ========================================================================= */
+.report-dialog__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.report-dialog {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  width: 460px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.report-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.report-dialog__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.report-dialog__close {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 0.25rem;
+}
+
+.report-dialog__close:hover {
+  color: var(--color-text);
+}
+
+.report-dialog__body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.report-dialog__label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.report-dialog__categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.report-dialog__cat-btn {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  font-size: 0.78rem;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.report-dialog__cat-btn:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.report-dialog__cat-btn--selected {
+  border-color: var(--color-error);
+  background: #fff5f5;
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.report-dialog__textarea {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.82rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 60px;
+}
+
+.report-dialog__textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.report-dialog__context {
+  padding: 0.5rem 0.65rem;
+  background: var(--color-bg);
+  border-radius: var(--radius);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.report-dialog__context-label {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-right: 0.3rem;
+}
+
+.report-dialog__context-text {
+  color: var(--color-text);
+}
+
+.report-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+}
+
+.report-dialog__btn {
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition: border-color 0.15s;
+}
+
+.report-dialog__btn:hover {
+  border-color: var(--color-primary);
+}
+
+.report-dialog__btn--submit {
+  background: var(--color-error);
+  color: white;
+  border-color: var(--color-error);
+}
+
+.report-dialog__btn--submit:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.report-dialog__btn--submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.report-dialog__btn--cancel {
+  background: var(--color-surface);
+}
+
+.report-dialog__success {
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.88rem;
+  color: #059669;
+  font-weight: 500;
+}

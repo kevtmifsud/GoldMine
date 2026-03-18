@@ -202,12 +202,7 @@ export interface AnalystPackUpdate {
   row_descriptions?: string[];
 }
 
-// --- Documents & LLM ---
-
-export interface ConversationMessage {
-  role: "user" | "assistant";
-  content: string;
-}
+// --- Documents ---
 
 export interface EntityAssociation {
   entity_type: string;
@@ -246,20 +241,6 @@ export interface DocumentSearchResult {
   entities: EntityAssociation[];
   matching_chunks: DocumentChunk[];
   score: number;
-}
-
-export interface LLMSource {
-  file_id: string;
-  filename: string;
-  chunk_index: number;
-  excerpt: string;
-}
-
-export interface LLMQueryResponse {
-  answer: string;
-  sources: LLMSource[];
-  model: string;
-  token_usage: Record<string, number>;
 }
 
 // --- Email Schedules ---

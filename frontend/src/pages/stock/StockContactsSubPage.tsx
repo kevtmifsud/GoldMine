@@ -1,5 +1,5 @@
+import { EmbeddedChat } from "../../components/chat/EmbeddedChat";
 import { WidgetContainer } from "../../components/WidgetContainer";
-import { ResearchSearchBar } from "../../components/ResearchSearchBar";
 import { StockViewToolbar } from "../../components/StockViewToolbar";
 import { useStockEntity } from "./StockEntityPage";
 
@@ -12,7 +12,7 @@ export function StockContactsSubPage() {
 
   return (
     <>
-      <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
+      <EmbeddedChat />
       <StockViewToolbar pageWidgets={relatedPeople} />
       {relatedPeople.length > 0 ? (
         relatedPeople.map((widget) => (

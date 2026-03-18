@@ -49,6 +49,7 @@ from .models import (
     FeedbackRequest,
     FeedbackResponse,
     FeatureRequestAck,
+    RenameConversationRequest,
     InsightSummary,
     SessionMessage,
     SessionResponse,
@@ -168,14 +169,14 @@ async def chat_message(request: Request, body: ChatMessageRequest):
                     if conv and not conv["title"]:
                         msgs = session["messages"]
                         if len(msgs) >= 2:
-                            asyncio.create_task(
-                                auto_title_conversation(
-                                    body.conversation_id,
-                                    msgs[-2]["content"],
-                                    msgs[-1]["content"],
-                                    user_id,
-                                )
+                            title = await auto_title_conversation(
+                                body.conversation_id,
+                                msgs[-2]["content"],
+                                msgs[-1]["content"],
+                                user_id,
                             )
+                            if title:
+                                yield f"data: {json.dumps({'type': 'metadata', 'title': title})}\n\n"
 
         except Exception as e:
             logger.exception("Error in chat stream")
@@ -290,13 +291,28 @@ async def create_new_conversation(
 ) -> CreateConversationResponse:
     """Create a new conversation."""
     user_id = _get_user_id(request)
-    result = await create_conversation(user_id, body.title, body.ticker_context)
+    result = await create_conversation(user_id, body.title, body.ticker_context, body.origin_path)
     return CreateConversationResponse(
         id=result["conversation_id"],
         title=body.title,
         ticker_context=body.ticker_context,
         created_at=datetime.utcnow(),
+        origin_path=body.origin_path,
     )
+
+
+@router.patch("/conversations/{conversation_id}")
+async def rename_conversation(
+    request: Request, conversation_id: str, body: RenameConversationRequest
+):
+    """Rename a conversation."""
+    user_id = _get_user_id(request)
+    async with get_conn() as conn:
+        await conn.execute(
+            "UPDATE conversations SET title = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3",
+            body.title, conversation_id, user_id,
+        )
+    return {"status": "updated", "title": body.title}
 
 
 @router.get("/conversations/{conversation_id}")
@@ -308,7 +324,7 @@ async def get_conversation_detail(
 
     async with get_conn() as conn:
         conv = await conn.fetchrow(
-            """SELECT id, title, ticker_context, created_at, updated_at,
+            """SELECT id, title, ticker_context, created_at, updated_at, origin_path,
                       EXISTS(SELECT 1 FROM conversation_shares cs WHERE cs.conversation_id = c.id) as is_shared
                FROM conversations c
                WHERE id = $1 AND user_id = $2""",
@@ -348,6 +364,7 @@ async def get_conversation_detail(
         is_shared=conv["is_shared"],
         created_at=conv["created_at"],
         last_active=conv["updated_at"],
+        origin_path=conv["origin_path"],
     )
 
 

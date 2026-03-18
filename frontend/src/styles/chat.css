@@ -21,6 +21,49 @@
 .chat-page__title {
   font-size: 1.1rem;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50%;
+}
+
+.chat-page__title--editable {
+  cursor: pointer;
+  border-bottom: 1px dashed transparent;
+  transition: border-color 0.15s;
+}
+
+.chat-page__title--editable:hover {
+  border-bottom-color: var(--color-text-secondary);
+}
+
+.chat-page__title-input {
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
+  padding: 0.15rem 0.5rem;
+  outline: none;
+  max-width: 50%;
+  min-width: 120px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.chat-page__title-edit-icon {
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.chat-page__title--editable:hover .chat-page__title-edit-icon {
+  opacity: 1;
 }
 
 .chat-page__new-btn {
@@ -643,6 +686,21 @@
   font-weight: 600;
 }
 
+.chat-history__origin-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, monospace;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chat-history__error {
   padding: 0.75rem 1rem;
   background: #fff5f5;
@@ -818,6 +876,12 @@
 .chat-detail__chunk-count {
   font-size: 0.7rem;
   color: var(--color-text-secondary);
+}
+
+.chat-detail__origin {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, monospace;
 }
 
 /* =========================================================================

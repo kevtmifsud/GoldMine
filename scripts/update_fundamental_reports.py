@@ -14,7 +14,9 @@ CLI flags:
   --info-only              Only run Phase 1 (stock info)
   --officers-only          Only run Phase 2 (stock officers)
   --filings-only           Only run Phase 3 (SEC filings, whitelist)
-  --transcripts-only       Only run Phase 4 (transcripts, whitelist)
+  --transcripts-only       Only run Phase 4 (transcripts)
+  --transcripts-all        Phase 4: fetch for ALL tickers, not just whitelist
+  --min-year YEAR          Phase 4: only fetch transcripts >= this year (default 2015)
   --whitelist TICKER ...   Override default whitelist
   --workers N              Thread pool size (default 10)
   --fresh                  Ignore checkpoints, re-fetch all
@@ -53,6 +55,9 @@ DATABASE_URL = os.environ.get(
 
 INFO_CHECKPOINT = ROOT / "scripts" / ".info_checkpoint.json"
 OFFICERS_CHECKPOINT = ROOT / "scripts" / ".officers_checkpoint.json"
+TRANSCRIPTS_CHECKPOINT = ROOT / "scripts" / ".transcripts_checkpoint.json"
+
+DEFAULT_MIN_YEAR = 2015
 
 DEFAULT_WORKERS = 10
 
@@ -648,21 +653,111 @@ def run_phase_filings(whitelist: list[str], workers: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Phase 4 — Earnings Call Transcripts (whitelist only)
+# Phase 4 — Earnings Call Transcripts
 # ---------------------------------------------------------------------------
 
-def run_phase_transcripts(whitelist: list[str]) -> None:
-    """Phase 4: Download earnings call transcripts for whitelist tickers."""
+_TL_COLS = [
+    "transcripts_id", "symbol", "fiscal_year", "fiscal_quarter",
+    "report_date", "transcripts",
+]
+
+
+def _load_existing_transcript_tickers() -> set[str]:
+    """Return the set of tickers that already have transcripts in Supabase."""
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT symbol FROM transcripts_list WHERE transcripts IS NOT NULL AND transcripts != ''")
+    tickers = {row[0] for row in cur.fetchall()}
+    cur.close()
+    conn.close()
+    return tickers
+
+
+def _upsert_ticker_transcripts(rows: list[dict]) -> int:
+    """Upsert a batch of transcript rows into Supabase. Returns row count."""
+    if not rows:
+        return 0
+
+    # Generate synthetic IDs where needed
+    for r in rows:
+        tid = r.get("transcripts_id", "")
+        if not tid or tid == "<NA>" or tid == "nan":
+            r["transcripts_id"] = f"{r['symbol']}-{r['fiscal_year']}-Q{r['fiscal_quarter']}"
+
+    db_rows = [
+        tuple(r.get(col, "") for col in _TL_COLS)
+        for r in rows
+        if r.get("transcripts_id")
+    ]
+
+    if not db_rows:
+        return 0
+
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+    execute_values(cur,
+        """INSERT INTO transcripts_list (transcripts_id, symbol, fiscal_year,
+                                         fiscal_quarter, report_date, transcripts)
+           VALUES %s
+           ON CONFLICT (transcripts_id) DO UPDATE SET
+               symbol = EXCLUDED.symbol, fiscal_year = EXCLUDED.fiscal_year,
+               fiscal_quarter = EXCLUDED.fiscal_quarter,
+               report_date = EXCLUDED.report_date,
+               transcripts = EXCLUDED.transcripts""",
+        db_rows, page_size=1000,
+    )
+    cur.close()
+    conn.close()
+    return len(db_rows)
+
+
+def run_phase_transcripts(
+    tickers: list[str],
+    min_year: int,
+    fresh: bool,
+) -> None:
+    """Phase 4: Download earnings call transcripts.
+
+    Args:
+        tickers: List of ticker symbols to fetch transcripts for.
+        min_year: Only fetch transcripts with fiscal_year >= this value.
+        fresh: If True, ignore checkpoints and re-fetch tickers that already
+               have transcripts in Supabase.
+    """
     print("\n" + "=" * 60)
     print("Phase 4: Earnings Call Transcripts")
     print("=" * 60)
-    print(f"Whitelist: {', '.join(whitelist)}")
+    print(f"Tickers: {len(tickers)}, min_year: {min_year}, fresh: {fresh}")
 
-    all_transcript_index: list[dict] = []
-    index_columns: list[str] | None = None
+    # --- Incremental: skip tickers already in Supabase ---
+    checkpoint: dict[str, bool] = {} if fresh else load_checkpoint(TRANSCRIPTS_CHECKPOINT)
+    existing_tickers: set[str] = set() if fresh else _load_existing_transcript_tickers()
 
-    for i, ticker in enumerate(whitelist, 1):
-        print(f"\n  [{i}/{len(whitelist)}] {ticker}...")
+    skip_count = 0
+    remaining: list[str] = []
+    for t in tickers:
+        if t in checkpoint or t in existing_tickers:
+            skip_count += 1
+        else:
+            remaining.append(t)
+
+    if skip_count:
+        print(f"Skipping {skip_count} tickers already fetched "
+              f"(use --fresh to re-fetch)")
+
+    if not remaining:
+        print("All tickers already have transcripts")
+        return
+
+    print(f"Fetching transcripts for {len(remaining)} tickers...")
+
+    total_upserted = 0
+    failed: list[str] = []
+
+    for i, ticker in enumerate(remaining, 1):
+        print(f"\n  [{i}/{len(remaining)}] {ticker}...")
         api_ticker = to_api_ticker(ticker)
 
         try:
@@ -672,28 +767,36 @@ def run_phase_transcripts(whitelist: list[str]) -> None:
 
             if index_df is None or index_df.empty:
                 print(f"    No transcripts available for {ticker}")
+                # Mark as done so we don't retry a ticker with no data
+                checkpoint[ticker] = True
+                save_checkpoint(TRANSCRIPTS_CHECKPOINT, checkpoint)
                 continue
 
-            # Collect index rows
-            for _, row in index_df.iterrows():
-                index_row = {col: str(row.get(col, "")).strip() for col in index_df.columns}
-                index_row["symbol"] = ticker
-                all_transcript_index.append(index_row)
-                if index_columns is None:
-                    index_columns = list(index_df.columns)
+            # --- Filter by min_year ---
+            index_df = index_df[index_df["fiscal_year"].astype(int) >= min_year]
 
-            print(f"    Found {len(index_df)} transcripts")
+            if index_df.empty:
+                print(f"    No transcripts >= {min_year} for {ticker}")
+                checkpoint[ticker] = True
+                save_checkpoint(TRANSCRIPTS_CHECKPOINT, checkpoint)
+                continue
 
-            # Fetch individual transcripts and store formatted text in index rows
+            print(f"    Found {len(index_df)} transcripts (>= {min_year})")
+
+            # Collect and format transcripts for this ticker
+            ticker_rows: list[dict] = []
             fetched = 0
 
             for _, row in index_df.iterrows():
                 year = int(row["fiscal_year"])
                 quarter = int(row["fiscal_quarter"])
+                index_row = {col: str(row.get(col, "")).strip() for col in index_df.columns}
+                index_row["symbol"] = ticker
 
                 try:
                     transcript_df = transcripts_obj.get_transcript(year, quarter)
                     if transcript_df is None or transcript_df.empty:
+                        ticker_rows.append(index_row)
                         continue
 
                     formatted = tabulate(
@@ -702,71 +805,39 @@ def run_phase_transcripts(whitelist: list[str]) -> None:
                         tablefmt="grid",
                         showindex=False,
                     )
-
-                    # Find the matching index row and store the formatted text
-                    for idx_row in all_transcript_index:
-                        if (idx_row["symbol"] == ticker
-                                and str(idx_row.get("fiscal_year")) == str(year)
-                                and str(idx_row.get("fiscal_quarter")) == str(quarter)):
-                            idx_row["transcripts"] = formatted
-                            break
-
+                    index_row["transcripts"] = formatted
                     fetched += 1
                 except Exception as e:
                     print(f"    WARNING: Failed to fetch {ticker} {year} Q{quarter}: {e}",
                           file=sys.stderr, flush=True)
 
-            print(f"    Fetched {fetched} transcripts for {ticker}")
+                ticker_rows.append(index_row)
+
+            # Upsert this ticker's transcripts immediately
+            count = _upsert_ticker_transcripts(ticker_rows)
+            total_upserted += count
+            print(f"    Fetched {fetched} transcripts, upserted {count} rows")
+
+            # Update checkpoint
+            checkpoint[ticker] = True
+            save_checkpoint(TRANSCRIPTS_CHECKPOINT, checkpoint)
 
         except Exception as e:
+            failed.append(ticker)
             print(f"    ERROR fetching transcripts for {ticker}: {e}",
                   file=sys.stderr, flush=True)
 
-    # Upsert transcripts index into Supabase
-    if not all_transcript_index or index_columns is None:
-        print("\nNo transcript index data to write")
-        return
+    if failed:
+        print(f"\nWARNING: {len(failed)} tickers failed: "
+              f"{', '.join(sorted(failed)[:20])}", file=sys.stderr)
 
-    _TL_COLS = [
-        "transcripts_id", "symbol", "fiscal_year", "fiscal_quarter",
-        "report_date", "transcripts",
-    ]
+    print(f"\nPhase 4 complete: upserted {total_upserted} transcript rows "
+          f"for {len(remaining) - len(failed)} tickers")
 
-    conn = psycopg2.connect(DATABASE_URL)
-    conn.autocommit = True
-    cur = conn.cursor()
-
-    # Generate synthetic IDs for rows where the API returned <NA> or empty
-    for r in all_transcript_index:
-        tid = r.get("transcripts_id", "")
-        if not tid or tid == "<NA>" or tid == "nan":
-            r["transcripts_id"] = f"{r['symbol']}-{r['fiscal_year']}-Q{r['fiscal_quarter']}"
-
-    db_rows = [
-        tuple(r.get(col, "") for col in _TL_COLS)
-        for r in all_transcript_index
-        if r.get("transcripts_id")
-    ]
-
-    if db_rows:
-        execute_values(cur,
-            """INSERT INTO transcripts_list (transcripts_id, symbol, fiscal_year,
-                                             fiscal_quarter, report_date, transcripts)
-               VALUES %s
-               ON CONFLICT (transcripts_id) DO UPDATE SET
-                   symbol = EXCLUDED.symbol, fiscal_year = EXCLUDED.fiscal_year,
-                   fiscal_quarter = EXCLUDED.fiscal_quarter,
-                   report_date = EXCLUDED.report_date,
-                   transcripts = EXCLUDED.transcripts""",
-            db_rows, page_size=1000,
-        )
-
-    cur.close()
-    conn.close()
-
-    unique_tickers = {r["symbol"] for r in all_transcript_index}
-    print(f"\nUpserted {len(db_rows)} transcript index rows "
-          f"({len(unique_tickers)} tickers) into transcripts_list table")
+    # Clean up checkpoint if all tickers done
+    if not failed and len(checkpoint) >= len(tickers) and TRANSCRIPTS_CHECKPOINT.exists():
+        TRANSCRIPTS_CHECKPOINT.unlink()
+        print("Checkpoint removed (all tickers complete)")
 
 
 # ---------------------------------------------------------------------------
@@ -785,7 +856,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--filings-only", action="store_true",
                         help="Only run Phase 3 (SEC filings, whitelist)")
     parser.add_argument("--transcripts-only", action="store_true",
-                        help="Only run Phase 4 (transcripts, whitelist)")
+                        help="Only run Phase 4 (transcripts)")
+    parser.add_argument("--transcripts-all", action="store_true",
+                        help="Phase 4: fetch transcripts for ALL tickers, "
+                             "not just the whitelist")
+    parser.add_argument("--min-year", type=int, default=DEFAULT_MIN_YEAR,
+                        help=f"Phase 4: only fetch transcripts with "
+                             f"fiscal_year >= this value (default: {DEFAULT_MIN_YEAR})")
     parser.add_argument("--whitelist", nargs="+", metavar="TICKER",
                         help="Override default whitelist tickers")
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS,
@@ -825,7 +902,8 @@ def main() -> None:
         run_phase_filings(whitelist, args.workers)
 
     if not phase_filter or args.transcripts_only:
-        run_phase_transcripts(whitelist)
+        transcript_tickers = tickers if args.transcripts_all else whitelist
+        run_phase_transcripts(transcript_tickers, args.min_year, args.fresh)
 
     print("\nDone!")
 

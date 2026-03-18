@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import asyncio
-from typing import Any
-
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile
 
-from app.config.settings import settings
-from app.data_access.factory import get_data_provider
 from app.documents.extractor import extract_text
 from app.documents.factory import get_document_provider
+from app.data_access.factory import get_data_provider
 from app.data_access.models import FilterParams
 from app.documents.models import (
     DocumentListItem,
@@ -16,7 +12,6 @@ from app.documents.models import (
     EntityAssociation,
 )
 from app.exceptions import GoldMineError, NotFoundError
-from app.llm.models import LLMQueryRequest, LLMQueryResponse, LLMSource
 from app.logging_config import get_logger
 from app.object_storage.factory import get_storage_provider
 from app.object_storage.models import FileMetadata
@@ -199,64 +194,6 @@ async def delete_document(file_id: str, request: Request) -> dict:
     return {"deleted": True}
 
 
-@router.post("/query")
-async def llm_query(request: Request, body: LLMQueryRequest) -> LLMQueryResponse:
-    _ensure_existing_files_indexed()
-
-    if not settings.ANTHROPIC_API_KEY:
-        raise GoldMineError("LLM not configured", status_code=503)
-
-    source_refs: list[LLMSource] = []
-
-    if body.is_first_message:
-        # 1. Get entity structured data
-        context = _get_entity_context(body.entity_type, body.entity_id)
-
-        # 2. Search document chunks
-        doc_provider = get_document_provider()
-        search_results = doc_provider.search(
-            body.query,
-            entity_type=body.entity_type,
-            entity_id=body.entity_id,
-        )
-
-        # 3. Assemble document context (up to max chunks)
-        sources_parts: list[str] = []
-        chunk_count = 0
-        for result in search_results:
-            for chunk in result.matching_chunks:
-                if chunk_count >= settings.LLM_MAX_CONTEXT_CHUNKS:
-                    break
-                sources_parts.append(
-                    f"[{result.filename}, chunk {chunk.chunk_index}]\n{chunk.text}"
-                )
-                source_refs.append(
-                    LLMSource(
-                        file_id=result.file_id,
-                        filename=result.filename,
-                        chunk_index=chunk.chunk_index,
-                        excerpt=chunk.text[:200],
-                    )
-                )
-                chunk_count += 1
-            if chunk_count >= settings.LLM_MAX_CONTEXT_CHUNKS:
-                break
-
-        sources_context = "\n\n".join(sources_parts) if sources_parts else "(No relevant documents found)"
-    else:
-        # Follow-up messages: skip context and document search
-        context = ""
-        sources_context = ""
-
-    # 4. Call LLM via thread pool
-    from app.llm.factory import get_llm_provider
-
-    llm = get_llm_provider()
-    response = await asyncio.to_thread(llm.query, body, context, sources_context)
-
-    # 5. Attach source references
-    response.sources = source_refs
-    return response
 
 
 # ---------------------------------------------------------------------------
@@ -342,213 +279,6 @@ def _synthesize_dataset_docs(symbol: str) -> list[DocumentListItem]:
         logger.warning("failed_to_load_sec_filings", symbol=symbol)
 
     return items
-
-
-_STOCK_RELATED_DATASETS: list[tuple[str, str, str, int]] = [
-    # (dataset_name, filter_field, section_label, max_rows)
-    ("portfolio_trades", "ticker", "Portfolio Trades", 200),
-    ("sec_filings", "symbol", "SEC Filings", 50),
-    ("transcripts_list", "symbol", "Earnings Transcripts", 50),
-]
-
-
-def _build_portfolio_summaries(provider: Any) -> str:
-    """Build a concise summary of all portfolios: tickers, trade counts, date ranges."""
-    all_rows: list[dict[str, Any]] = []
-    page = 1
-    while True:
-        try:
-            result = provider.query(
-                "portfolio_trades",
-                FilterParams(page=page, page_size=1000),
-            )
-            if not result.data:
-                break
-            all_rows.extend(result.data)
-            if len(all_rows) >= result.total_records:
-                break
-            page += 1
-        except Exception:
-            break
-
-    if not all_rows:
-        return ""
-
-    # Group by portfolio → ticker → stats
-    portfolios: dict[str, dict[str, dict[str, Any]]] = {}
-    for row in all_rows:
-        port = row.get("portfolio", "")
-        ticker = row.get("ticker", "")
-        if not port or not ticker:
-            continue
-        if port not in portfolios:
-            portfolios[port] = {}
-        if ticker not in portfolios[port]:
-            portfolios[port][ticker] = {
-                "trades": 0,
-                "total_shares": 0,
-                "side": row.get("side", ""),
-                "first_date": row.get("date", ""),
-                "last_date": row.get("date", ""),
-            }
-        entry = portfolios[port][ticker]
-        entry["trades"] += 1
-        entry["total_shares"] += int(float(row.get("shares", 0)))
-        date = row.get("date", "")
-        if date < entry["first_date"]:
-            entry["first_date"] = date
-        if date > entry["last_date"]:
-            entry["last_date"] = date
-
-    if not portfolios:
-        return ""
-
-    lines: list[str] = []
-    for port_name in sorted(portfolios):
-        tickers = portfolios[port_name]
-        # Sort by trade count descending
-        sorted_tickers = sorted(tickers.items(), key=lambda x: x[1]["trades"], reverse=True)
-        lines.append(f"Portfolio: {port_name} ({len(sorted_tickers)} tickers, {sum(t['trades'] for t in tickers.values())} total trades)")
-        for tk, stats in sorted_tickers:
-            lines.append(
-                f"  {tk}: {stats['trades']} trades, {stats['total_shares']:,} shares, "
-                f"{stats['side']}, {stats['first_date']} to {stats['last_date']}"
-            )
-
-    return "--- Portfolio Composition (All Portfolios) ---\n" + "\n".join(lines)
-
-
-def _get_entity_context(entity_type: str, entity_id: str) -> str:
-    """Build structured data context string for an entity.
-
-    Always includes a portfolio composition summary so the LLM can
-    answer cross-entity questions regardless of which page the user
-    is on.
-    """
-    provider = get_data_provider()
-    parts: list[str] = []
-
-    if entity_type == "stock":
-        record = provider.get_record("stocks", entity_id)
-        if record:
-            lines = [f"{k}: {v}" for k, v in record.items()]
-            parts.append("--- Stock Info ---\n" + "\n".join(lines))
-
-        for dataset_name, filter_field, label, max_rows in _STOCK_RELATED_DATASETS:
-            try:
-                result = provider.query(
-                    dataset_name,
-                    FilterParams(
-                        page=1,
-                        page_size=max_rows,
-                        filters={filter_field: entity_id},
-                    ),
-                )
-                if result.data:
-                    rows_text = "\n".join(
-                        ", ".join(f"{k}: {v}" for k, v in row.items())
-                        for row in result.data
-                    )
-                    parts.append(
-                        f"--- {label} ({result.total_records} total) ---\n{rows_text}"
-                    )
-            except Exception:
-                logger.warning("failed_to_load_related_dataset", dataset=dataset_name, entity_id=entity_id)
-
-    elif entity_type == "person":
-        record = provider.get_record("people", entity_id)
-        if record:
-            lines = [f"{k}: {v}" for k, v in record.items()]
-            parts.append("\n".join(lines))
-
-    elif entity_type == "dataset":
-        datasets = provider.list_datasets()
-        for ds in datasets:
-            if ds.name == entity_id:
-                parts.append(
-                    f"Dataset: {ds.display_name}\n"
-                    f"Description: {ds.description}\n"
-                    f"Records: {ds.record_count}\n"
-                    f"Category: {ds.category}"
-                )
-                break
-
-    elif entity_type == "sector":
-        try:
-            result = provider.query(
-                "stocks",
-                FilterParams(page=1, page_size=200, filters={"sector": entity_id}),
-            )
-            if result.data:
-                _SECTOR_FIELDS = (
-                    "ticker", "company_name", "industry", "market_cap_b",
-                    "pe_ratio", "price", "52w_high", "52w_low",
-                    "dividend_yield", "eps", "revenue_b",
-                )
-                rows_text = "\n".join(
-                    ", ".join(
-                        f"{k}: {v}" for k, v in row.items() if k in _SECTOR_FIELDS
-                    )
-                    for row in result.data
-                )
-                parts.append(
-                    f"--- {entity_id} Sector Stocks ({result.total_records} total) ---\n{rows_text}"
-                )
-        except Exception:
-            logger.warning("failed_to_load_sector_stocks", entity_id=entity_id)
-
-    elif entity_type == "industry":
-        try:
-            result = provider.query(
-                "stocks",
-                FilterParams(page=1, page_size=200, filters={"industry": entity_id}),
-            )
-            if result.data:
-                _INDUSTRY_FIELDS = (
-                    "ticker", "company_name", "sector", "market_cap_b",
-                    "pe_ratio", "price", "52w_high", "52w_low",
-                    "dividend_yield", "eps", "revenue_b",
-                )
-                rows_text = "\n".join(
-                    ", ".join(
-                        f"{k}: {v}" for k, v in row.items() if k in _INDUSTRY_FIELDS
-                    )
-                    for row in result.data
-                )
-                parts.append(
-                    f"--- {entity_id} Industry Stocks ({result.total_records} total) ---\n{rows_text}"
-                )
-        except Exception:
-            logger.warning("failed_to_load_industry_stocks", entity_id=entity_id)
-
-    elif entity_type == "portfolio":
-        try:
-            result = provider.query(
-                "portfolio_trades",
-                FilterParams(
-                    page=1,
-                    page_size=500,
-                    filters={"portfolio": entity_id},
-                ),
-            )
-            if result.data:
-                rows_text = "\n".join(
-                    ", ".join(f"{k}: {v}" for k, v in row.items())
-                    for row in result.data
-                )
-                parts.append(
-                    f"--- {entity_id} Trades ({result.total_records} total) ---\n{rows_text}"
-                )
-        except Exception:
-            logger.warning("failed_to_load_portfolio_trades", entity_id=entity_id)
-
-    # Always include portfolio composition so the LLM can answer
-    # cross-entity questions from any page
-    portfolio_summary = _build_portfolio_summaries(provider)
-    if portfolio_summary:
-        parts.append(portfolio_summary)
-
-    return "\n\n".join(parts) if parts else "(No structured data available)"
 
 
 def _mime_to_doc_type(mime: str, filename: str) -> str:

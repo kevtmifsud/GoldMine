@@ -7,7 +7,7 @@ import { EarningsDetailDialog } from "../../components/EarningsDetailDialog";
 import { AppGrid } from "../../components/ag-grid/AppGrid";
 import { createEntityLinkRenderer } from "../../components/ag-grid/EntityLinkRenderer";
 import { useGridColumnManager } from "../../hooks/useGridColumnManager";
-import { ResearchSearchBar } from "../../components/ResearchSearchBar";
+import { EmbeddedChat } from "../../components/chat/EmbeddedChat";
 import { StockViewToolbar } from "../../components/StockViewToolbar";
 import { useStockEntity } from "./StockEntityPage";
 import { StockSummaryBar } from "../../components/StockSummaryBar";
@@ -242,7 +242,7 @@ export function StockPortfolioSubPage() {
   if (loading && !data) {
     return (
       <>
-        <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
+        <EmbeddedChat />
         <StockViewToolbar pageWidgets={[]} />
         <StockSummaryBar displayName={detail.display_name} headerFields={detail.header_fields} />
         <div className="portfolio-loading">
@@ -255,7 +255,7 @@ export function StockPortfolioSubPage() {
   if (error) {
     return (
       <>
-        <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
+        <EmbeddedChat />
         <StockViewToolbar pageWidgets={[]} />
         <StockSummaryBar displayName={detail.display_name} headerFields={detail.header_fields} />
         <div className="portfolio-empty">
@@ -269,7 +269,7 @@ export function StockPortfolioSubPage() {
   if (!data) {
     return (
       <>
-        <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
+        <EmbeddedChat />
         <StockViewToolbar pageWidgets={[]} />
         <StockSummaryBar displayName={detail.display_name} headerFields={detail.header_fields} />
         <div className="portfolio-empty">
@@ -286,7 +286,7 @@ export function StockPortfolioSubPage() {
 
   return (
     <>
-      <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
+      <EmbeddedChat />
       <StockViewToolbar pageWidgets={[]} />
       <StockSummaryBar displayName={detail.display_name} headerFields={detail.header_fields} />
 

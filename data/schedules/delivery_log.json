@@ -308,5 +308,35 @@
     "recipients": [
       "kevintdonadio@gmail.com"
     ]
+  },
+  {
+    "log_id": "437fe203-d6b6-4850-b748-38933f1355fc",
+    "schedule_id": "d4d85725-7454-4965-aaad-9f4c959dc149",
+    "sent_at": "2026-03-18T14:01:17.324443+00:00",
+    "status": "failed",
+    "error": "could not receive data from server: No route to host\nSSL SYSCALL error: No route to host\n",
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ]
+  },
+  {
+    "log_id": "70f4244e-6ca2-41fb-90de-8983945b335a",
+    "schedule_id": "d4d85725-7454-4965-aaad-9f4c959dc149",
+    "sent_at": "2026-03-18T14:06:35.894249+00:00",
+    "status": "failed",
+    "error": "Dataset 'portfolios' not found",
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ]
+  },
+  {
+    "log_id": "879b530c-662e-48ac-b6d2-d7dfcff15aea",
+    "schedule_id": "d4d85725-7454-4965-aaad-9f4c959dc149",
+    "sent_at": "2026-03-18T14:06:45.787996+00:00",
+    "status": "sent",
+    "error": null,
+    "recipients": [
+      "kevintdonadio@gmail.com"
+    ]
   }
 ]

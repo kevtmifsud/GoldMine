@@ -8,6 +8,7 @@ export interface Conversation {
   title: string | null;
   ticker_context: string[];
   created_at: string;
+  origin_path: string | null;
 }
 
 export interface ConversationSummary {
@@ -18,6 +19,7 @@ export interface ConversationSummary {
   last_active: string | null;
   is_shared: boolean;
   first_message: string | null;
+  origin_path: string | null;
 }
 
 export interface Session {
@@ -54,6 +56,7 @@ export interface ConversationDetail {
   is_shared: boolean;
   created_at: string;
   last_active: string | null;
+  origin_path: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,11 +64,13 @@ export interface ConversationDetail {
 // ---------------------------------------------------------------------------
 export async function createConversation(
   title?: string,
-  ticker_context?: string[]
+  ticker_context?: string[],
+  origin_path?: string
 ): Promise<Conversation> {
   const resp = await api.post<Conversation>("/api/v1/conversations", {
     title: title ?? null,
     ticker_context: ticker_context ?? [],
+    origin_path: origin_path ?? null,
   });
   return resp.data;
 }
@@ -95,6 +100,13 @@ export async function getConversationDetail(
     `/api/v1/conversations/${conversationId}`
   );
   return resp.data;
+}
+
+export async function renameConversation(
+  conversationId: string,
+  title: string
+): Promise<void> {
+  await api.patch(`/api/v1/conversations/${conversationId}`, { title });
 }
 
 export async function listConversations(

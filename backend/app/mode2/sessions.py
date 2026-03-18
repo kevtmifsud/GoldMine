@@ -25,6 +25,7 @@ async def create_conversation(
     user_id: str,
     title: str | None = None,
     ticker_context: list[str] | None = None,
+    origin_path: str | None = None,
 ) -> dict:
     """Create a new conversation and its first session."""
     conv_id = str(uuid.uuid4())
@@ -32,9 +33,9 @@ async def create_conversation(
 
     async with get_conn() as conn:
         await conn.execute(
-            """INSERT INTO conversations (id, user_id, title, ticker_context)
-               VALUES ($1, $2, $3, $4)""",
-            conv_id, user_id, title, ticker_context or [],
+            """INSERT INTO conversations (id, user_id, title, ticker_context, origin_path)
+               VALUES ($1, $2, $3, $4, $5)""",
+            conv_id, user_id, title, ticker_context or [], origin_path,
         )
         await conn.execute(
             """INSERT INTO sessions (id, conversation_id, user_id)
@@ -351,7 +352,7 @@ async def list_conversations(
 
     async with get_conn() as conn:
         rows = await conn.fetch(
-            f"""SELECT c.id, c.title, c.ticker_context, c.updated_at,
+            f"""SELECT c.id, c.title, c.ticker_context, c.updated_at, c.origin_path,
                        (SELECT COUNT(*) FROM sessions s WHERE s.conversation_id = c.id) as session_count,
                        EXISTS(SELECT 1 FROM conversation_shares cs WHERE cs.conversation_id = c.id) as is_shared,
                        (SELECT content FROM messages m
@@ -383,6 +384,7 @@ async def list_conversations(
             "last_active": r["updated_at"],
             "is_shared": r["is_shared"],
             "first_message": r["first_message"],
+            "origin_path": r["origin_path"],
         }
         for r in rows
     ]

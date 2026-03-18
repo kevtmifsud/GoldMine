@@ -1,0 +1,229 @@
+/* =========================================================================
+   Embedded Chat — compact Mode 2 chat bar for entity pages
+   ========================================================================= */
+.embedded-chat {
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.embedded-chat--open {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Thread area */
+.embedded-chat__thread {
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Message rows */
+.embedded-chat__message {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+/* Bubbles */
+.embedded-chat__bubble {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  word-wrap: break-word;
+}
+
+.embedded-chat__bubble--user {
+  align-self: flex-end;
+  max-width: 85%;
+  background: var(--color-primary);
+  color: white;
+  border-bottom-right-radius: 2px;
+  white-space: pre-wrap;
+}
+
+.embedded-chat__bubble--assistant {
+  align-self: flex-start;
+  max-width: 100%;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-bottom-left-radius: 2px;
+}
+
+.embedded-chat__bubble--assistant > :first-child {
+  margin-top: 0;
+}
+
+.embedded-chat__bubble--assistant > :last-child {
+  margin-bottom: 0;
+}
+
+.embedded-chat__bubble--streaming {
+  border-color: var(--color-primary);
+  border-left: 3px solid var(--color-primary);
+}
+
+.embedded-chat__bubble--loading {
+  align-self: flex-start;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.embedded-chat__error {
+  padding: 0.4rem 0.75rem;
+  background: #fff5f5;
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius);
+  color: var(--color-error);
+  font-size: 0.82rem;
+}
+
+/* Input row */
+.embedded-chat__input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+}
+
+.embedded-chat__input {
+  flex: 1;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  font-family: inherit;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.embedded-chat__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.embedded-chat__input:disabled {
+  opacity: 0.6;
+}
+
+.embedded-chat__btn {
+  padding: 0.45rem 0.85rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background-color 0.15s;
+}
+
+.embedded-chat__btn:hover:not(:disabled) {
+  background: var(--color-primary-light);
+}
+
+.embedded-chat__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.embedded-chat__btn--cancel {
+  background: var(--color-text-secondary);
+}
+
+.embedded-chat__btn--cancel:hover:not(:disabled) {
+  background: var(--color-error);
+}
+
+.embedded-chat__btn--clear {
+  padding: 0.45rem 0.65rem;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.embedded-chat__btn--clear:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* Markdown in embedded bubbles — same overrides as chat page */
+.embedded-chat__bubble h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0.8rem 0 0.3rem;
+}
+
+.embedded-chat__bubble h3 {
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin: 0.6rem 0 0.25rem;
+}
+
+.embedded-chat__bubble p {
+  margin: 0.3rem 0;
+}
+
+.embedded-chat__bubble ul,
+.embedded-chat__bubble ol {
+  margin: 0.25rem 0;
+  padding-left: 1.3rem;
+}
+
+.embedded-chat__bubble li {
+  margin: 0.15rem 0;
+}
+
+.embedded-chat__bubble code {
+  background: var(--color-surface);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  font-size: 0.83em;
+}
+
+.embedded-chat__bubble pre {
+  background: var(--color-surface);
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  font-size: 0.83em;
+  margin: 0.3rem 0;
+}
+
+.embedded-chat__bubble table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.4rem 0;
+  font-size: 0.8rem;
+}
+
+.embedded-chat__bubble th {
+  text-align: left;
+  font-weight: 600;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.embedded-chat__bubble td {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}

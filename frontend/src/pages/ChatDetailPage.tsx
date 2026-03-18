@@ -4,6 +4,7 @@ import { Layout } from "../components/Layout";
 import { ChatMarkdown } from "../components/chat/ChatMarkdown";
 import { TranscriptViewerDialog } from "../components/research/TranscriptViewerDialog";
 import { FinancialDataDialog } from "../components/chat/FinancialDataDialog";
+import { ReportResponseDialog } from "../components/chat/ReportResponseDialog";
 import { getConversationDetail } from "../config/mode2Api";
 import type { ConversationDetail, SessionMessage } from "../config/mode2Api";
 import type { ParsedCitation } from "../utils/citationParser";
@@ -33,9 +34,11 @@ function formatTimestamp(dateStr: string): string {
 function MessageBubble({
   msg,
   onCitationClick,
+  onReport,
 }: {
   msg: SessionMessage;
   onCitationClick: (citation: ParsedCitation) => void;
+  onReport: (llmResponse: string) => void;
 }) {
   return (
     <div className="chat-detail__message-row">
@@ -71,6 +74,12 @@ function MessageBubble({
               {msg.source_chunks.length} source{msg.source_chunks.length !== 1 ? "s" : ""}
             </span>
           )}
+          <button
+            className="chat-page__report-btn"
+            onClick={() => onReport(msg.content)}
+          >
+            Report Response
+          </button>
         </div>
       )}
     </div>
@@ -92,6 +101,10 @@ export function ChatDetailPage() {
   const [viewingFinancials, setViewingFinancials] = useState<{
     ticker: string;
     statementType: "income-statement" | "balance-sheet" | "cash-flow";
+  } | null>(null);
+  const [reporting, setReporting] = useState<{
+    userQuery: string;
+    llmResponse: string;
   } | null>(null);
 
   useEffect(() => {
@@ -158,6 +171,9 @@ export function ChatDetailPage() {
                 {detail.is_shared && (
                   <span className="chat-history__shared-badge">Shared</span>
                 )}
+                {detail.origin_path && (
+                  <span className="chat-detail__origin">{detail.origin_path}</span>
+                )}
               </div>
             </div>
           )}
@@ -175,11 +191,21 @@ export function ChatDetailPage() {
                 No messages in this conversation.
               </div>
             ) : (
-              detail.messages.map((msg) => (
+              detail.messages.map((msg, idx) => (
                 <MessageBubble
                   key={msg.message_id}
                   msg={msg}
                   onCitationClick={handleCitationClick}
+                  onReport={(llmResponse) => {
+                    const prevUser = detail.messages
+                      .slice(0, idx)
+                      .reverse()
+                      .find((m) => m.role === "user");
+                    setReporting({
+                      userQuery: prevUser?.content ?? "",
+                      llmResponse,
+                    });
+                  }}
                 />
               ))
             )}
@@ -201,6 +227,16 @@ export function ChatDetailPage() {
           ticker={viewingFinancials.ticker}
           statementType={viewingFinancials.statementType}
           onClose={() => setViewingFinancials(null)}
+        />
+      )}
+
+      {reporting && (
+        <ReportResponseDialog
+          userQuery={reporting.userQuery}
+          llmResponse={reporting.llmResponse}
+          conversationId={conversationId ?? null}
+          sessionId={null}
+          onClose={() => setReporting(null)}
         />
       )}
     </Layout>

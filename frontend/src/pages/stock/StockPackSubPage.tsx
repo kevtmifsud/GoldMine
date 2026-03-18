@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
+import { EmbeddedChat } from "../../components/chat/EmbeddedChat";
 import { useStockEntity } from "./StockEntityPage";
 import { PackGrid } from "../../components/PackGrid";
-import { ResearchSearchBar } from "../../components/ResearchSearchBar";
 import { usePackEditor } from "../../hooks/usePackEditor";
 import * as viewsApi from "../../config/viewsApi";
 import "../../styles/packs.css";
@@ -23,7 +23,7 @@ export function StockPackSubPage() {
   if (fetchError) {
     return (
       <>
-        <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
+        <EmbeddedChat />
         <div className="entity-page__error">{fetchError}</div>
       </>
     );
@@ -32,7 +32,7 @@ export function StockPackSubPage() {
   if (!packId || editor.loading) {
     return (
       <>
-        <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
+        <EmbeddedChat />
         <div className="entity-page__loading">
           <div className="spinner" />
         </div>
@@ -42,7 +42,7 @@ export function StockPackSubPage() {
 
   return (
     <>
-      <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
+      <EmbeddedChat />
       <div className="entity-pack-section">
         <div className="entity-pack-section__header">
           <h3>Analyst Pack</h3>

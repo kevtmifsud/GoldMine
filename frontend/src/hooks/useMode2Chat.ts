@@ -3,6 +3,7 @@ import {
   createConversation,
   createSession,
   sendMessageStream,
+  renameConversation,
 } from "../config/mode2Api";
 
 export interface ChatMessage {
@@ -28,9 +29,11 @@ export interface Mode2ChatState {
   sessionId: string | null;
   error: string | null;
   steps: ChatStep[];
+  conversationTitle: string | null;
   sendMessage: (text: string) => void;
   cancelChat: () => void;
   startNewChat: () => void;
+  renameChat: (newTitle: string) => void;
 }
 
 export function useMode2Chat(): Mode2ChatState {
@@ -41,6 +44,7 @@ export function useMode2Chat(): Mode2ChatState {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [steps, setSteps] = useState<ChatStep[]>([]);
+  const [conversationTitle, setConversationTitle] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -60,9 +64,11 @@ export function useMode2Chat(): Mode2ChatState {
       try {
         // Auto-create conversation + session on first message
         if (!convId || !sessId) {
-          const conv = await createConversation();
+          const defaultTitle = `Chat — ${new Date().toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+          const conv = await createConversation(defaultTitle, undefined, window.location.pathname);
           convId = conv.id;
           setConversationId(convId);
+          setConversationTitle(defaultTitle);
 
           const sess = await createSession(convId);
           sessId = sess.session_id;
@@ -140,7 +146,9 @@ export function useMode2Chat(): Mode2ChatState {
               accumulated = "";
               setStreamingContent("");
             }
-            // "metadata" events are silently consumed
+            if (event.type === "metadata" && event.title) {
+              setConversationTitle(event.title as string);
+            }
           }
         }
 
@@ -190,7 +198,21 @@ export function useMode2Chat(): Mode2ChatState {
     setError(null);
     setChatLoading(false);
     setSteps([]);
+    setConversationTitle(null);
   }, []);
+
+  const renameChat = useCallback(
+    async (newTitle: string) => {
+      if (!conversationId) return;
+      setConversationTitle(newTitle);
+      try {
+        await renameConversation(conversationId, newTitle);
+      } catch {
+        // Revert on failure — could show an error, but keep it simple
+      }
+    },
+    [conversationId]
+  );
 
   return {
     messages,
@@ -200,8 +222,10 @@ export function useMode2Chat(): Mode2ChatState {
     sessionId,
     error,
     steps,
+    conversationTitle,
     sendMessage,
     cancelChat,
     startNewChat,
+    renameChat,
   };
 }

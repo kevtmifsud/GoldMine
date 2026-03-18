@@ -129,6 +129,7 @@ class ConversationSummary(BaseModel):
     last_active: datetime | None = None
     is_shared: bool = False
     first_message: str | None = None
+    origin_path: str | None = None
 
 
 class ConversationDetail(BaseModel):
@@ -140,11 +141,13 @@ class ConversationDetail(BaseModel):
     is_shared: bool = False
     created_at: datetime
     last_active: datetime | None = None
+    origin_path: str | None = None
 
 
 class CreateConversationRequest(BaseModel):
     title: str | None = None
     ticker_context: list[str] = Field(default_factory=list)
+    origin_path: str | None = None
 
 
 class CreateConversationResponse(BaseModel):
@@ -152,6 +155,11 @@ class CreateConversationResponse(BaseModel):
     title: str | None = None
     ticker_context: list[str] = Field(default_factory=list)
     created_at: datetime
+    origin_path: str | None = None
+
+
+class RenameConversationRequest(BaseModel):
+    title: str
 
 
 class ShareRequest(BaseModel):

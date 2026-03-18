@@ -1,4 +1,4 @@
-import { ResearchSearchBar } from "../../../components/ResearchSearchBar";
+import { EmbeddedChat } from "../../../components/chat/EmbeddedChat";
 import { TranscriptsGrid } from "../../../components/research/TranscriptsGrid";
 import { useStockEntity } from "../StockEntityPage";
 
@@ -7,10 +7,7 @@ export function TranscriptsSubPage() {
 
   return (
     <>
-      <ResearchSearchBar
-        entityType={detail.entity_type}
-        entityId={detail.entity_id}
-      />
+      <EmbeddedChat />
       <TranscriptsGrid symbol={detail.entity_id} />
     </>
   );

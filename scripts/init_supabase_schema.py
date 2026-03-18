@@ -508,6 +508,26 @@ CREATE INDEX IF NOT EXISTS idx_llm_bugs_status ON llm_bug_reports (status);
 CREATE INDEX IF NOT EXISTS idx_llm_bugs_category ON llm_bug_reports (category);
 CREATE INDEX IF NOT EXISTS idx_llm_bugs_created ON llm_bug_reports (created_at DESC);
 
+-- LLM Regression Tests
+CREATE TABLE IF NOT EXISTS llm_regression_tests (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    bug_report_id       UUID REFERENCES llm_bug_reports(id),
+    test_name           VARCHAR(200) NOT NULL,
+    user_query          TEXT NOT NULL,
+    original_error      TEXT,
+    assertion_type      VARCHAR(50) NOT NULL,
+    assertion_value     TEXT,
+    last_result         VARCHAR(20) DEFAULT 'pending',
+    last_error          TEXT,
+    last_run_at         TIMESTAMP,
+    run_count           INTEGER DEFAULT 0,
+    pass_count          INTEGER DEFAULT 0,
+    fail_count          INTEGER DEFAULT 0,
+    created_at          TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_regression_bug ON llm_regression_tests (bug_report_id);
+CREATE INDEX IF NOT EXISTS idx_regression_result ON llm_regression_tests (last_result);
+
 -- ============================================================
 -- Seed data
 -- ============================================================

@@ -1,4 +1,4 @@
-import { ResearchSearchBar } from "../../components/ResearchSearchBar";
+import { EmbeddedChat } from "../../components/chat/EmbeddedChat";
 import { StockViewToolbar } from "../../components/StockViewToolbar";
 import { useStockEntity } from "./StockEntityPage";
 
@@ -7,7 +7,7 @@ export function StockDataSubPage() {
 
   return (
     <>
-      <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
+      <EmbeddedChat />
       <StockViewToolbar pageWidgets={[]} />
       <div style={{ padding: "2rem 1.25rem", color: "var(--color-text-secondary)" }}>
         Data content will be added here.

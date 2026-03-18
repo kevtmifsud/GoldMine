@@ -15,7 +15,7 @@ import type {
 import {
   useToggleableLegend,
 } from "../components/ToggleableLegend";
-import { ResearchSearchBar } from "../components/ResearchSearchBar";
+
 import "../styles/portfolio.css";
 import "../styles/portfolios-page.css";
 
@@ -791,10 +791,6 @@ export function PortfoliosPage() {
             </div>
           )}
         </div>
-
-        {selected && (
-          <ResearchSearchBar entityType="portfolio" entityId={selected} />
-        )}
 
         {/* Charts row */}
         <div className="portfolios-page__charts-row">

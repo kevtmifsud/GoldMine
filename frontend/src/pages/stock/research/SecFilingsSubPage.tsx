@@ -1,4 +1,4 @@
-import { ResearchSearchBar } from "../../../components/ResearchSearchBar";
+import { EmbeddedChat } from "../../../components/chat/EmbeddedChat";
 import { SecFilingsGrid } from "../../../components/research/SecFilingsGrid";
 import { useStockEntity } from "../StockEntityPage";
 
@@ -7,10 +7,7 @@ export function SecFilingsSubPage() {
 
   return (
     <>
-      <ResearchSearchBar
-        entityType={detail.entity_type}
-        entityId={detail.entity_id}
-      />
+      <EmbeddedChat />
       <SecFilingsGrid symbol={detail.entity_id} />
     </>
   );

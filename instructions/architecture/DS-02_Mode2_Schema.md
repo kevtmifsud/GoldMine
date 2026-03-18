@@ -72,7 +72,7 @@ CREATE INDEX idx_lists_name      ON user_ticker_lists (user_id, list_name);
 
 ### Conversations
 
-Top-level container for a research thread. A conversation may contain multiple sessions over time about the same topic or ticker focus.
+Top-level container for a research thread. A conversation may contain multiple sessions over time about the same topic or ticker focus. `origin_path` captures the URL pathname where the conversation was initiated (e.g. `/chat`, `/entity/stock/AAPL/research/transcripts`).
 
 ```sql
 CREATE TABLE conversations (
@@ -80,6 +80,7 @@ CREATE TABLE conversations (
     user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     title           TEXT,
     ticker_context  VARCHAR(20),
+    origin_path     VARCHAR(255),
     is_archived     BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT NOW(),
     updated_at      TIMESTAMP DEFAULT NOW()

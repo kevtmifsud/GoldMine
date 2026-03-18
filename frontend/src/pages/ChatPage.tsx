@@ -44,6 +44,8 @@ export function ChatPage() {
   const chat = useMode2Chat();
   const navigate = useNavigate();
   const [input, setInput] = useState("");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
   const [viewingTranscript, setViewingTranscript] =
     useState<ViewingTranscript | null>(null);
   const [viewingFinancials, setViewingFinancials] =
@@ -117,7 +119,48 @@ export function ChatPage() {
     <Layout>
       <div className="chat-page">
         <div className="chat-page__header">
-          <span className="chat-page__title">Chat</span>
+          {editingTitle ? (
+            <input
+              className="chat-page__title-input"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const trimmed = titleDraft.trim();
+                  if (trimmed) chat.renameChat(trimmed);
+                  setEditingTitle(false);
+                } else if (e.key === "Escape") {
+                  setEditingTitle(false);
+                }
+              }}
+              onBlur={() => {
+                const trimmed = titleDraft.trim();
+                if (trimmed && trimmed !== (chat.conversationTitle ?? "Chat")) {
+                  chat.renameChat(trimmed);
+                }
+                setEditingTitle(false);
+              }}
+              autoFocus
+            />
+          ) : (
+            <span
+              className={`chat-page__title${chat.conversationId ? " chat-page__title--editable" : ""}`}
+              onClick={() => {
+                if (!chat.conversationId) return;
+                setTitleDraft(chat.conversationTitle ?? "Chat");
+                setEditingTitle(true);
+              }}
+            >
+              {chat.conversationTitle ?? "Chat"}
+              {chat.conversationId && (
+                <svg className="chat-page__title-edit-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                  <path d="m15 5 4 4" />
+                </svg>
+              )}
+            </span>
+          )}
           <div className="chat-page__header-actions">
             <Link to="/chat/history" className="chat-page__history-link">
               History

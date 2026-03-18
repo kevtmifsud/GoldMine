@@ -7,7 +7,7 @@ import { Layout } from "../components/Layout";
 import { EntityHeader } from "../components/EntityHeader";
 import { WidgetContainer } from "../components/WidgetContainer";
 import { DocumentsPanel } from "../components/DocumentsPanel";
-import { ResearchSearchBar } from "../components/ResearchSearchBar";
+
 import { ScheduleEmailDialog } from "../components/ScheduleEmailDialog";
 import { SchedulesList } from "../components/SchedulesList";
 import { EntityPackSection } from "../components/EntityPackSection";
@@ -158,7 +158,6 @@ export function EntityPage() {
         {error && <div className="entity-page__error">{error}</div>}
         {detail && (
           <>
-            <ResearchSearchBar entityType={detail.entity_type} entityId={detail.entity_id} />
             <EntityHeader
               displayName={detail.display_name}
               entityType={detail.entity_type}

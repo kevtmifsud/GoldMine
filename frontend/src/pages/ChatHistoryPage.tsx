@@ -171,6 +171,9 @@ export function ChatHistoryPage() {
                 <div className="chat-history__card-stats">
                   <span>{conv.session_count} session{conv.session_count !== 1 ? "s" : ""}</span>
                   {conv.is_shared && <span className="chat-history__shared-badge">Shared</span>}
+                  {conv.origin_path && conv.origin_path !== "/chat" && (
+                    <span className="chat-history__origin-badge">{conv.origin_path}</span>
+                  )}
                 </div>
               </div>
             </Link>

@@ -1,9 +1,7 @@
 import api from "./api";
 import type {
-  ConversationMessage,
   DocumentListItem,
   DocumentSearchResult,
-  LLMQueryResponse,
 } from "../types/entities";
 
 export async function listDocuments(
@@ -55,27 +53,5 @@ export async function uploadDocument(
   const resp = await api.post<DocumentListItem>("/api/documents/upload", form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
-  return resp.data;
-}
-
-export async function queryLLM(
-  query: string,
-  entityType: string,
-  entityId: string,
-  signal?: AbortSignal,
-  conversationHistory: ConversationMessage[] = [],
-  isFirstMessage: boolean = true
-): Promise<LLMQueryResponse> {
-  const resp = await api.post<LLMQueryResponse>(
-    "/api/documents/query",
-    {
-      query,
-      entity_type: entityType,
-      entity_id: entityId,
-      conversation_history: conversationHistory,
-      is_first_message: isFirstMessage,
-    },
-    { signal }
-  );
   return resp.data;
 }

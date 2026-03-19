@@ -2,6 +2,18 @@
 
 Investment Research CRM for Portfolio Managers and Research Analysts. Combines a data-grid CRM with an AI-powered chat interface backed by a financial document knowledge base.
 
+## Guiding Principle: Design for Scale
+
+Every piece of this application — database queries, backend jobs, API endpoints, frontend rendering — must be designed to handle production-scale data. If a script processes 2 tickers today, it must work correctly and efficiently for 2 million tickers. Concretely:
+
+- **Database**: Use indexes, pagination, and batch operations. Never `SELECT *` without `LIMIT`. Assume tables will have millions of rows.
+- **Backend jobs & scripts**: Process data in batches/streams, not all-in-memory. Use cursors for large result sets. Add progress logging for long-running operations.
+- **API endpoints**: Paginate list responses. Avoid N+1 queries. Use bulk endpoints where clients need multiple records.
+- **Frontend**: Virtualize long lists (AG Grid already does this). Don't fetch unbounded data — always paginate or limit. Assume any list could have thousands of items.
+- **General**: Prefer `INSERT ... ON CONFLICT` over check-then-insert. Use connection pooling. Design data models with partitioning and archival in mind. Never hardcode limits that will break at scale.
+
+This is a reliability-first system for institutional users. When choosing between simplicity and scalability, choose scalability.
+
 ## Quick Start
 
 ```bash

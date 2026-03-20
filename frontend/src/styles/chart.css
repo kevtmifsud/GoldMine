@@ -23,6 +23,7 @@
 
 .chart-widget__container {
   padding: 0.25rem 0 0.5rem;
+  height: 320px;
 }
 
 .chart-widget__loading {

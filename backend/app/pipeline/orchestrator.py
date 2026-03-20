@@ -18,7 +18,7 @@ import psycopg2
 
 from .config import DATABASE_URL, WORKER_CONCURRENCY
 from .ingestion import scan_for_documents, register_document, reset_stuck_jobs, DocumentJob
-from .classification import classify_document
+from .classification import classify_job
 from .chunking import chunk_transcript
 from .embedding import generate_embeddings, store_chunks, get_embedding_cost
 
@@ -64,8 +64,8 @@ def process_single_document(job: DocumentJob) -> dict:
             (document_id,),
         )
 
-        # WF-02: Classification
-        classification = classify_document(job.file_path)
+        # WF-02: Classification (respects explicit override on DocumentJob)
+        classification = classify_job(job)
         if classification.document_type == "unknown":
             raise ValueError(f"Could not classify document type for {job.file_path}")
 

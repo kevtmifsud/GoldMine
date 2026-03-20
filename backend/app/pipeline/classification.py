@@ -2,10 +2,18 @@
 
 Classifies documents by type using path-based rules.
 Currently all documents under /transcripts/{ticker}/ are earnings_transcript.
+
+Supports explicit classification override for documents originating from
+UI forms (analyst notes) or vendor feeds (sellside/buyside notes).  Set
+``classification_method='explicit'`` on the DocumentJob to skip path rules.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .ingestion import DocumentJob
 
 
 @dataclass
@@ -38,6 +46,30 @@ FILENAME_KEYWORDS = {
     "investor_day": ("investor_day", "template_e"),
     "investor_presentation": ("investor_day", "template_e"),
 }
+
+# Explicit doc types supported via UI / vendor feeds.
+# Maps doc_type → chunking template.
+EXPLICIT_DOC_TYPES = {
+    "analyst_note": "template_a",
+    "sellside_note": "template_a",
+    "buyside_note": "template_a",
+}
+
+
+def classify_job(job: DocumentJob) -> ClassificationResult:
+    """Classify a DocumentJob, respecting explicit overrides.
+
+    If ``job.classification_method == 'explicit'``, use the ``document_type``
+    already set on the job (analyst_note, sellside_note, buyside_note, etc.)
+    and skip path-based classification entirely.
+
+    Otherwise, fall through to path-based ``classify_document()``.
+    """
+    if job.classification_method == "explicit":
+        doc_type = job.document_type
+        template = EXPLICIT_DOC_TYPES.get(doc_type, "template_a")
+        return ClassificationResult(doc_type, template, "explicit")
+    return classify_document(job.file_path)
 
 
 def classify_document(file_path: str) -> ClassificationResult:

@@ -175,10 +175,10 @@ export function EntityPage() {
                     />
                   </div>
                 ))}
-              {detail.widgets.some((w) => w.widget_type === "chart" && !w.full_width) && (
+              {detail.widgets.some((w) => (w.widget_type === "chart" || w.widget_type === "top_positions") && !w.full_width) && (
                 <div className="entity-page__charts">
                   {detail.widgets
-                    .filter((w) => w.widget_type === "chart" && !w.full_width)
+                    .filter((w) => (w.widget_type === "chart" || w.widget_type === "top_positions") && !w.full_width)
                     .map((widget) => (
                       <WidgetContainer
                         key={widget.widget_id}
@@ -190,7 +190,7 @@ export function EntityPage() {
                 </div>
               )}
               {detail.widgets
-                .filter((w) => w.widget_type !== "chart")
+                .filter((w) => w.widget_type !== "chart" && w.widget_type !== "top_positions")
                 .map((widget) => (
                   <WidgetContainer
                     key={widget.widget_id}

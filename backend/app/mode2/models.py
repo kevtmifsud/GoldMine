@@ -16,6 +16,12 @@ QueryType = Literal[
     "cross_ticker",
     "screening",
     "trend_analysis",
+    "portfolio",
+    "estimates",
+    "alt_data",
+    "model_query",
+    "model_edit",
+    "workflow",
 ]
 
 
@@ -29,6 +35,9 @@ class ClassifiedQuery(BaseModel):
     needs_vector_search: bool = True
     section_type_hint: str | None = None
     time_range_quarters: int | None = None
+    required_sources: list[str] = Field(default_factory=list)
+    alt_data_types: list[str] = Field(default_factory=list)
+    workflow_name: str | None = None
 
 
 # ---------------------------------------------------------------------------

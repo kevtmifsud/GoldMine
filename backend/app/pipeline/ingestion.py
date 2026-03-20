@@ -12,7 +12,13 @@ from dataclasses import dataclass, field
 
 @dataclass
 class DocumentJob:
-    """A document queued for processing."""
+    """A document queued for processing.
+
+    For documents originating from UI forms (analyst notes) or vendor feeds
+    (sellside/buyside notes), set ``classification_method='explicit'`` and
+    provide ``document_type`` directly.  WF-02 will skip path-based
+    classification and use the supplied type as-is.
+    """
     file_path: str
     ticker: str
     fiscal_period: str
@@ -21,6 +27,9 @@ class DocumentJob:
     document_type: str = "earnings_transcript"
     is_update: bool = False
     document_id: str | None = None  # set for updates
+    classification_method: str | None = None  # 'explicit' to skip WF-02 path rules
+    # Extra metadata propagated to chunk JSONB for non-transcript doc types
+    metadata: dict[str, object] | None = None
 
 
 def compute_content_hash(content: str) -> str:

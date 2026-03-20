@@ -3,6 +3,7 @@ import type { WidgetConfig } from "../types/entities";
 import { ChartWidget } from "./ChartWidget";
 import { SmartlistWidget } from "./SmartlistWidget";
 import type { SmartlistWidgetHandle } from "./SmartlistWidget";
+import { TopPositionsWidget } from "./TopPositionsWidget";
 
 interface WidgetContainerProps {
   config: WidgetConfig;
@@ -13,6 +14,9 @@ export const WidgetContainer = forwardRef<SmartlistWidgetHandle, WidgetContainer
   function WidgetContainer({ config, entityId }, ref) {
     if (config.widget_type === "chart") {
       return <ChartWidget config={config} entityId={entityId} />;
+    }
+    if (config.widget_type === "top_positions") {
+      return <TopPositionsWidget config={config} />;
     }
     return <SmartlistWidget ref={ref} config={config} />;
   }

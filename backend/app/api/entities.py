@@ -832,22 +832,7 @@ def _build_portfolio_detail(portfolio_name: str) -> EntityDetail:
             widget_id="top_positions",
             title="Top Positions",
             endpoint=f"/api/entities/portfolio/{safe_name}/top-positions",
-            widget_type="chart",
-            chart_config=ChartConfig(
-                chart_type="bar",
-                x_key="ticker",
-                y_key="long_exposure_dollars",
-                x_label="Ticker",
-                y_label="Exposure ($)",
-                y_format="currency",
-                y_label_alt="Exposure (%)",
-                y_format_alt="percent",
-                color_key="sector",
-                bars=[
-                    BarConfig(y_key="long_exposure_dollars", y_key_alt="long_exposure_pct", label="Long", color="#38a169"),
-                    BarConfig(y_key="short_exposure_dollars", y_key_alt="short_exposure_pct", label="Short", color="#e53e3e"),
-                ],
-            ),
+            widget_type="top_positions",
             columns=[],
         ),
         WidgetConfig(
@@ -1339,24 +1324,18 @@ async def get_portfolio_top_positions(name: str) -> PaginatedResponse:
         price = latest_prices.get(h["ticker"], h["avg_cost"])
         position_value = h["shares"] * price
         exposure_pct = (position_value / total_portfolio_value * 100) if total_portfolio_value else 0.0
-        is_long = h["side"] == "long"
         rows.append({
             "ticker": h["ticker"],
             "sector": h["sector"],
-            "long_exposure_dollars": str(round(position_value)) if is_long else "0",
-            "short_exposure_dollars": str(round(position_value)) if not is_long else "0",
-            "long_exposure_pct": f"{exposure_pct:.1f}" if is_long else "0",
-            "short_exposure_pct": f"{exposure_pct:.1f}" if not is_long else "0",
+            "side": h["side"],
+            "exposure_dollars": round(position_value, 2),
+            "exposure_pct": round(exposure_pct, 1),
         })
 
-    # Sort by total absolute exposure descending, take top 20
-    rows.sort(
-        key=lambda r: abs(float(r["long_exposure_dollars"])) + abs(float(r["short_exposure_dollars"])),
-        reverse=True,
-    )
-    top_20 = rows[:20]
+    # Return all positions sorted by absolute exposure; frontend slices top N per side
+    rows.sort(key=lambda r: abs(r["exposure_dollars"]), reverse=True)
 
-    return _paginate(top_20, 1, 200, None, "asc")
+    return _paginate(rows, 1, 500, None, "asc")
 
 
 @router.get("/portfolio/{name}/top-sectors")

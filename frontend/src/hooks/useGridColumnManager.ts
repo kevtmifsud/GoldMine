@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import type { ColDef } from "ag-grid-community";
 import type { ContextMenuConfig } from "../components/ag-grid/AppGrid";
+import { loadColumnOrder } from "../components/ag-grid/gridViewPersistence";
 
 const STORAGE_PREFIX = "goldmine:grid-columns:";
 
@@ -91,14 +92,29 @@ export function useGridColumnManager<T>({
     });
   }, []);
 
+  // Pre-sort columns to match saved display order so AG Grid initialises
+  // them in the correct position (defense-in-depth alongside applyColumnState).
+  const orderedColumns = useMemo(() => {
+    const order = loadColumnOrder(gridId);
+    if (!order) return allColumns;
+    const orderMap = new Map(order.map((id, idx) => [id, idx]));
+    return [...allColumns].sort((a, b) => {
+      const af = a.field ?? a.colId ?? "";
+      const bf = b.field ?? b.colId ?? "";
+      const ai = orderMap.get(af) ?? 9999;
+      const bi = orderMap.get(bf) ?? 9999;
+      return ai - bi;
+    });
+  }, [allColumns, gridId]);
+
   const columnDefs = useMemo<ColDef<T>[]>(
     () =>
-      allColumns.map((col) => {
+      orderedColumns.map((col) => {
         const field = col.field ?? col.colId;
         if (!field) return col; // action columns stay as-is
         return { ...col, hide: !visibleFields.has(field) };
       }),
-    [allColumns, visibleFields]
+    [orderedColumns, visibleFields]
   );
 
   const contextMenuConfig = useMemo<ContextMenuConfig>(() => {

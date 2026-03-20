@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import type { ICellRendererParams } from "ag-grid-community";
 import { TranscriptViewerDialog } from "../research/TranscriptViewerDialog";
 
@@ -21,14 +22,16 @@ export function TranscriptViewButtonRenderer(params: ICellRendererParams) {
       >
         View Transcript
       </button>
-      {open && (
-        <TranscriptViewerDialog
-          symbol={symbol}
-          year={year}
-          quarter={quarter}
-          onClose={() => setOpen(false)}
-        />
-      )}
+      {open &&
+        createPortal(
+          <TranscriptViewerDialog
+            symbol={symbol}
+            year={year}
+            quarter={quarter}
+            onClose={() => setOpen(false)}
+          />,
+          document.body,
+        )}
     </>
   );
 }

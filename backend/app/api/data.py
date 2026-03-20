@@ -13,6 +13,12 @@ _KNOWN_PARAMS = {"page", "page_size", "sort_by", "sort_order", "search"}
 
 
 def _enrich_rows(dataset: str, rows: list[dict], provider) -> list[dict]:
+    """Join columns from related datasets onto each row.
+
+    When a join target has a column that already exists natively (e.g.
+    company_name), the join value overwrites the native one so that the
+    canonical stocks-table data takes precedence.
+    """
     joins = _DATASET_JOINS.get(dataset, [])
     if not joins or not rows:
         return rows
@@ -20,15 +26,17 @@ def _enrich_rows(dataset: str, rows: list[dict], provider) -> list[dict]:
     enriched = [dict(row) for row in rows]
     for target_dataset, source_key, target_key in joins:
         try:
-            target_data = provider._get_data(target_dataset)
+            target_result = provider.query(target_dataset, FilterParams(page=1, page_size=1000))
+            target_data = target_result.data
         except Exception:
             continue
         if not target_data:
             continue
         lookup = {r[target_key]: r for r in target_data}
+        # Include columns that overlap with native keys (overwrite with join values)
         joinable_keys = [
             k for k in target_data[0]
-            if k not in native_keys and k != target_key and k not in _JOIN_EXCLUDE_COLUMNS
+            if k != target_key and k not in _JOIN_EXCLUDE_COLUMNS
         ]
         native_keys.update(joinable_keys)
         for row in enriched:

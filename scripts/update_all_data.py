@@ -980,6 +980,13 @@ def run_phase_filings(
     # EDGAR enrichment for primary_document
     _enrich_filings_with_primary_doc(all_filings)
 
+    # Append primary_document to filing_url so it points to the actual document
+    for f in all_filings:
+        pd_ = f.get("primary_document", "")
+        base = f.get("filing_url", "")
+        if pd_ and base and not base.endswith(pd_):
+            f["filing_url"] = f"{base.rstrip('/')}/{pd_}"
+
     # Deduplicate by accession_number (parquet may have dupes)
     seen_acc: set[str] = set()
     deduped: list[dict] = []

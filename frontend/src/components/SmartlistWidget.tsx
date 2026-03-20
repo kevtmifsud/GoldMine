@@ -4,6 +4,7 @@ import api from "../config/api";
 import type { WidgetConfig, PaginatedResponse, WidgetStateOverride } from "../types/entities";
 import { buildColumnDefs } from "./ag-grid/columnDefBuilder";
 import { AppGrid } from "./ag-grid/AppGrid";
+import { loadColumnOrder } from "./ag-grid/gridViewPersistence";
 import type { ContextMenuConfig } from "./ag-grid/AppGrid";
 import "../styles/smartlist.css";
 
@@ -189,9 +190,22 @@ export const SmartlistWidget = forwardRef<SmartlistWidgetHandle, SmartlistWidget
     );
   }, [data, clientFilterText, config.client_filterable_columns]);
 
+  // Pre-sort columns to match saved display order so AG Grid initialises
+  // them in the correct position (defense-in-depth alongside applyColumnState).
+  const orderedColumns = useMemo(() => {
+    const order = loadColumnOrder(`smartlist-${config.widget_id}`);
+    if (!order) return config.columns;
+    const orderMap = new Map(order.map((id, idx) => [id, idx]));
+    return [...config.columns].sort((a, b) => {
+      const ai = orderMap.get(a.key) ?? 9999;
+      const bi = orderMap.get(b.key) ?? 9999;
+      return ai - bi;
+    });
+  }, [config.columns, config.widget_id]);
+
   const columnDefs = useMemo(
-    () => buildColumnDefs(config.columns, visibleColumns),
-    [config.columns, visibleColumns]
+    () => buildColumnDefs(orderedColumns, visibleColumns),
+    [orderedColumns, visibleColumns]
   );
 
   const columnsDirty = useMemo(

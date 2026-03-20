@@ -44,5 +44,77 @@
     "row_descriptions": [],
     "entity_type": "dataset",
     "entity_id": "stocks"
+  },
+  {
+    "pack_id": "e0636c6c-1592-43bf-9d7e-a746094288b7",
+    "name": "Tobacco Pack",
+    "owner": "analyst1",
+    "owner_display_name": "",
+    "description": "",
+    "widgets": [],
+    "is_shared": false,
+    "created_at": "2026-03-19T18:36:28.276636+00:00",
+    "updated_at": "2026-03-19T18:36:28.276636+00:00",
+    "row_columns": [
+      2
+    ],
+    "row_heights": [],
+    "row_descriptions": [],
+    "entity_type": "industry",
+    "entity_id": "Tobacco"
+  },
+  {
+    "pack_id": "7b3e6356-4b65-483d-9d87-8a3094c0b67c",
+    "name": "Consumer Staples Pack",
+    "owner": "analyst1",
+    "owner_display_name": "",
+    "description": "",
+    "widgets": [],
+    "is_shared": false,
+    "created_at": "2026-03-19T18:36:43.339792+00:00",
+    "updated_at": "2026-03-19T18:36:43.339792+00:00",
+    "row_columns": [
+      2
+    ],
+    "row_heights": [],
+    "row_descriptions": [],
+    "entity_type": "sector",
+    "entity_id": "Consumer Staples"
+  },
+  {
+    "pack_id": "34c19712-2ba9-418a-8cb8-a4c76c35bbcf",
+    "name": "sec_filings Pack",
+    "owner": "analyst1",
+    "owner_display_name": "",
+    "description": "",
+    "widgets": [],
+    "is_shared": false,
+    "created_at": "2026-03-20T03:16:56.705251+00:00",
+    "updated_at": "2026-03-20T03:16:56.705251+00:00",
+    "row_columns": [
+      2
+    ],
+    "row_heights": [],
+    "row_descriptions": [],
+    "entity_type": "dataset",
+    "entity_id": "sec_filings"
+  },
+  {
+    "pack_id": "9a736085-7218-4496-b8a4-01c2ad577346",
+    "name": "transcripts_list Pack",
+    "owner": "analyst1",
+    "owner_display_name": "",
+    "description": "",
+    "widgets": [],
+    "is_shared": false,
+    "created_at": "2026-03-20T03:25:08.373071+00:00",
+    "updated_at": "2026-03-20T03:25:08.373071+00:00",
+    "row_columns": [
+      2
+    ],
+    "row_heights": [],
+    "row_descriptions": [],
+    "entity_type": "dataset",
+    "entity_id": "transcripts_list"
   }
 ]

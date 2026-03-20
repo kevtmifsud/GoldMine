@@ -222,3 +222,197 @@ Old scripts (`update_fundamentals_data.py`, `update_fundamental_reports.py`) kep
 | `pm1` | `pm789` | Portfolio Manager |
 
 Hardcoded in `backend/app/auth/users.py` (bcrypt hashed).
+## Domain Knowledge & Business Rules
+
+Architecture specs for the pipeline live in `instructions/architecture/` (WF-00 through WF-12, DS-01 through DS-04).
+
+Business rules, data contracts, and domain specs live in `instructions/domain/`:
+
+| File | What it covers |
+|---|---|
+| `instructions/domain/data-schema.md` | Every table: grain, columns, writer, chatbot access, insert policy |
+| `instructions/domain/chatbot.md` | Routing rules, retrieval strategy, session rules, cost warning logic |
+| `instructions/domain/workflows.md` | Workflow framework, earnings preview spec, model generation spec |
+| `instructions/domain/portfolio.md` | Daily job sequence, derivative tables, market neutrality constraint |
+| `instructions/domain/models.md` | Canonical Excel model template, processing job, versioning rules |
+
+**When adding a new feature, check these files first.** They contain decisions that are not visible from the code — which table an output lands in, which sources the chatbot can and cannot query, what a workflow must produce to be considered complete.
+
+## Database: New Tables (Not Yet Built)
+
+The following tables have been designed but not yet migrated. Schema definitions are in `instructions/domain/data-schema.md`. Do not create ad-hoc schemas — use the specs there.
+
+**Research & notes**
+- `analyst_notes` — internal analyst research notes, insert-only, multi-ticker/sector scope
+- `buyside_notes` — external buyside firm notes, ingested via vendor
+- `sellside_notes` — sellside firm notes, ingested via vendor, chunked via pipeline
+- `sellside_estimates` — structured estimates extracted from sellside notes
+- `guidance` — company-issued forward guidance, manually entered until extraction is built
+
+**Estimates (three separate tables, never mixed)**
+- `internal_estimates` — our own forward estimates, PIT insert-only, powered by model processing job
+- `buyside_estimates` — external buyside forward estimates, ingested daily
+- `consensus_estimates` — street consensus estimates, ingested daily
+
+**Portfolio & risk**
+- `trade_requests` — PM trade requests, staging table before execution
+- `daily_pnl` — pre-calculated daily P&L at position/side/sector/portfolio grain
+- `portfolio_concentration` — daily concentration by sector/industry/geography/side
+- `portfolio_risk` — daily beta exposures via `stock_betas` join
+
+**Models**
+- `model_outputs` — long/narrow structured outputs from financial models, versioned
+- `model_peers` — peer set per ticker for comps, initially auto-populated from `stocks`
+
+**Workflows**
+- `workflow_registry` — canonical list of all defined workflows, queryable at runtime
+- `workflow_runs` — every workflow execution: who triggered it, status, cost
+- `workflow_outputs_earnings_preview` — structured output of earnings preview workflow
+
+**Alt data**
+- `alt_data` — single table, all alt data types via `data_type` column
+
+**Platform**
+- `chat_sessions` — persisted chat history, `visibility` (private | public), insert-only
+
+## Chatbot Behavioral Rules (Mode 2)
+
+These rules apply to WF-09 (Response Generator) and must be preserved in its system prompt. Do not modify the system prompt without reviewing `instructions/domain/chatbot.md`.
+
+**Read-only rule:** The chatbot reads from source tables and writes only to output tables (`workflow_outputs_*`, `chat_sessions`, `api_cost_events`). It never updates, deletes, or mutates any source table. Requests like "change my AAPL EPS estimate to $4.00" must be declined with an explanation that data changes happen through the data management interface.
+
+**No fabrication rule:** The chatbot never invents numbers, trends, or explanations. Every figure must be sourced from a database table and cited. If data is unavailable, say so explicitly.
+
+**No hierarchy rule:** When multiple sources contain different values for the same metric (e.g. internal vs. consensus vs. sellside estimates), all values are presented side by side with full citations. No source silently overrides another. The spread between estimates is often the most valuable information.
+
+**Synthesis boundary:** The chatbot summarizes and presents what the data says. It does not generate investment theses, explain why a trend exists, or make recommendations. Structured workflow outputs (earnings previews, model outputs) are permitted because they follow defined templates pulling vetted data — they are not open-ended opinions.
+
+**Citation rules:** Every piece of vetted data must be cited inline using `[TICKER | SourceType | Period | Detail]` format. Two source types are exempt from citation: `positions_trades` and `stock_history` (market prices).
+
+## FastAPI Route Rules
+
+The following route constraints apply to all chatbot-accessible endpoints:
+
+- Source table endpoints exposed to the chatbot must be GET-only
+- The only POST routes the chatbot can call are to output tables
+- Never expose a DELETE or PATCH route to the chatbot layer
+- Any new data source added to the chatbot's retrieval layer must be added to the source whitelist in `instructions/domain/chatbot.md` before implementation
+
+## Auth & Roles
+
+Roles are stored in `user_profiles.role` and `user_profiles.is_admin`.
+
+| Role | Access |
+|---|---|
+| `analyst` | Own private sessions + all public sessions + all shared research data |
+| `analyst` (is_admin=true) | All of the above + all private sessions of all users |
+
+Session visibility: `chat_sessions.visibility` is `private` by default. Users can set their own sessions to `public`. Admins can read all sessions regardless of visibility. Nothing is ever hard-deleted — all sessions are retained for audit.
+
+## WF-02 Classification Extension
+
+WF-02 is path-based by default. For documents originating from UI forms (analyst notes) or vendor feeds (sellside/buyside notes), pass `document_type` explicitly on the `DocumentJob` to skip path classification. Set `classification_method='explicit'`. The existing transcript/filing pipeline is unaffected.
+
+New document types supported by the pipeline:
+- `analyst_note` — from UI, processed nightly by `analyst_notes_processing_job`
+- `sellside_note` — from vendor feed, processed nightly
+- `buyside_note` — from vendor feed, processed nightly
+
+All three use the existing `chunks` table. Chunk metadata must carry `user_id` (analyst notes), `firm` (sellside/buyside), `ticker[]`, `sector[]`, `industry[]` from the parent document.
+## Domain Knowledge & Business Rules
+
+Architecture specs for the pipeline live in `instructions/architecture/` (WF-00 through WF-12, DS-01 through DS-04).
+
+Business rules, data contracts, and domain specs live in `instructions/domain/`:
+
+| File | What it covers |
+|---|---|
+| `instructions/domain/data-schema.md` | Every table: grain, columns, writer, chatbot access, insert policy |
+| `instructions/domain/chatbot.md` | Routing rules, retrieval strategy, session rules, cost warning logic |
+| `instructions/domain/workflows.md` | Workflow framework, earnings preview spec, model generation spec |
+| `instructions/domain/portfolio.md` | Daily job sequence, derivative tables, market neutrality constraint |
+| `instructions/domain/models.md` | Canonical Excel model template, processing job, versioning rules |
+
+**When adding a new feature, check these files first.** They contain decisions that are not visible from the code — which table an output lands in, which sources the chatbot can and cannot query, what a workflow must produce to be considered complete.
+
+## Database: New Tables (Not Yet Built)
+
+The following tables have been designed but not yet migrated. Schema definitions are in `instructions/domain/data-schema.md`. Do not create ad-hoc schemas — use the specs there.
+
+**Research & notes**
+- `analyst_notes` — internal analyst research notes, insert-only, multi-ticker/sector scope
+- `buyside_notes` — external buyside firm notes, ingested via vendor
+- `sellside_notes` — sellside firm notes, ingested via vendor, chunked via pipeline
+- `sellside_estimates` — structured estimates extracted from sellside notes
+- `guidance` — company-issued forward guidance, manually entered until extraction is built
+
+**Estimates (three separate tables, never mixed)**
+- `internal_estimates` — our own forward estimates, PIT insert-only, powered by model processing job
+- `buyside_estimates` — external buyside forward estimates, ingested daily
+- `consensus_estimates` — street consensus estimates, ingested daily
+
+**Portfolio & risk**
+- `trade_requests` — PM trade requests, staging table before execution
+- `daily_pnl` — pre-calculated daily P&L at position/side/sector/portfolio grain
+- `portfolio_concentration` — daily concentration by sector/industry/geography/side
+- `portfolio_risk` — daily beta exposures via `stock_betas` join
+
+**Models**
+- `model_outputs` — long/narrow structured outputs from financial models, versioned
+- `model_peers` — peer set per ticker for comps, initially auto-populated from `stocks`
+
+**Workflows**
+- `workflow_registry` — canonical list of all defined workflows, queryable at runtime
+- `workflow_runs` — every workflow execution: who triggered it, status, cost
+- `workflow_outputs_earnings_preview` — structured output of earnings preview workflow
+
+**Alt data**
+- `alt_data` — single table, all alt data types via `data_type` column
+
+**Platform**
+- `chat_sessions` — persisted chat history, `visibility` (private | public), insert-only
+
+## Chatbot Behavioral Rules (Mode 2)
+
+These rules apply to WF-09 (Response Generator) and must be preserved in its system prompt. Do not modify the system prompt without reviewing `instructions/domain/chatbot.md`.
+
+**Read-only rule:** The chatbot reads from source tables and writes only to output tables (`workflow_outputs_*`, `chat_sessions`, `api_cost_events`). It never updates, deletes, or mutates any source table. Requests like "change my AAPL EPS estimate to $4.00" must be declined with an explanation that data changes happen through the data management interface.
+
+**No fabrication rule:** The chatbot never invents numbers, trends, or explanations. Every figure must be sourced from a database table and cited. If data is unavailable, say so explicitly.
+
+**No hierarchy rule:** When multiple sources contain different values for the same metric (e.g. internal vs. consensus vs. sellside estimates), all values are presented side by side with full citations. No source silently overrides another. The spread between estimates is often the most valuable information.
+
+**Synthesis boundary:** The chatbot summarizes and presents what the data says. It does not generate investment theses, explain why a trend exists, or make recommendations. Structured workflow outputs (earnings previews, model outputs) are permitted because they follow defined templates pulling vetted data — they are not open-ended opinions.
+
+**Citation rules:** Every piece of vetted data must be cited inline using `[TICKER | SourceType | Period | Detail]` format. Two source types are exempt from citation: `positions_trades` and `stock_history` (market prices).
+
+## FastAPI Route Rules
+
+The following route constraints apply to all chatbot-accessible endpoints:
+
+- Source table endpoints exposed to the chatbot must be GET-only
+- The only POST routes the chatbot can call are to output tables
+- Never expose a DELETE or PATCH route to the chatbot layer
+- Any new data source added to the chatbot's retrieval layer must be added to the source whitelist in `instructions/domain/chatbot.md` before implementation
+
+## Auth & Roles
+
+Roles are stored in `user_profiles.role` and `user_profiles.is_admin`.
+
+| Role | Access |
+|---|---|
+| `analyst` | Own private sessions + all public sessions + all shared research data |
+| `analyst` (is_admin=true) | All of the above + all private sessions of all users |
+
+Session visibility: `chat_sessions.visibility` is `private` by default. Users can set their own sessions to `public`. Admins can read all sessions regardless of visibility. Nothing is ever hard-deleted — all sessions are retained for audit.
+
+## WF-02 Classification Extension
+
+WF-02 is path-based by default. For documents originating from UI forms (analyst notes) or vendor feeds (sellside/buyside notes), pass `document_type` explicitly on the `DocumentJob` to skip path classification. Set `classification_method='explicit'`. The existing transcript/filing pipeline is unaffected.
+
+New document types supported by the pipeline:
+- `analyst_note` — from UI, processed nightly by `analyst_notes_processing_job`
+- `sellside_note` — from vendor feed, processed nightly
+- `buyside_note` — from vendor feed, processed nightly
+
+All three use the existing `chunks` table. Chunk metadata must carry `user_id` (analyst notes), `firm` (sellside/buyside), `ticker[]`, `sector[]`, `industry[]` from the parent document.

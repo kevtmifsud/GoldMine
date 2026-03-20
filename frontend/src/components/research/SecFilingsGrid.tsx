@@ -53,16 +53,16 @@ export function FormTypeBadgeRenderer(params: ICellRendererParams) {
 }
 
 function EdgarLinkRenderer(params: ICellRendererParams<SecFiling>) {
-  const baseUrl = params.value as string;
+  const filingUrl = params.value as string;
   const accession = params.data?.accession_number;
   const primaryDoc = params.data?.primary_document;
-  if (!baseUrl || !accession) return <span>{"\u2014"}</span>;
+  if (!filingUrl || !accession) return <span>{"\u2014"}</span>;
 
   // If we have the primary document filename, link to the inline XBRL viewer.
-  // Otherwise fall back to the filing index page.
+  // Otherwise use the filing_url directly (may point to document or directory).
   const url = primaryDoc
     ? `https://www.sec.gov/ix?doc=/Archives/edgar/data/${params.data!.cik.replace(/^0+/, "")}/${accession.replace(/-/g, "")}/${primaryDoc}`
-    : `${baseUrl}/${accession}-index.htm`;
+    : filingUrl;
 
   return (
     <a

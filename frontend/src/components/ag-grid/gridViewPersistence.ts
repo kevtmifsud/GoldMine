@@ -51,3 +51,19 @@ export function clearGridView(key: string): void {
 export function hasGridView(key: string): boolean {
   return localStorage.getItem(STORAGE_PREFIX + key) !== null;
 }
+
+/**
+ * Load the saved column order (colId list) for a grid view.
+ * Returns null if no saved state exists. The order matches the user's
+ * last-saved column arrangement so callers can pre-sort columnDefs.
+ */
+export function loadColumnOrder(key: string): string[] | null {
+  const raw = localStorage.getItem(STORAGE_PREFIX + key);
+  if (!raw) return null;
+  try {
+    const saved = JSON.parse(raw) as GridViewState;
+    return saved.columnState.map((cs) => cs.colId);
+  } catch {
+    return null;
+  }
+}

@@ -176,6 +176,43 @@ See `backend/.env.example` for the full list.
 - Schema migrations are run manually via SQL or Python scripts in `scripts/`.
 - Architecture docs in `instructions/architecture/` contain the authoritative schema definitions.
 
+## Data Updates
+
+Unified script: `scripts/update_all_data.py` — replaces both `update_fundamentals_data.py` and `update_fundamental_reports.py`.
+
+```bash
+# Weekly incremental (phases 1-9: prices, EPS, history, stocks, calendar,
+# statements, beta, SEC filings, transcripts)
+python scripts/update_all_data.py
+
+# Full backfill from 2015
+python scripts/update_all_data.py --full
+
+# Also run monthly phases (company info + officers)
+python scripts/update_all_data.py --include-profiles
+
+# Single phase
+python scripts/update_all_data.py --only prices
+python scripts/update_all_data.py --only transcripts
+python scripts/update_all_data.py --only filings
+python scripts/update_all_data.py --only statements
+
+# Options
+python scripts/update_all_data.py --workers 20             # Thread pool size (default 10)
+python scripts/update_all_data.py --fresh                  # Ignore all checkpoints
+python scripts/update_all_data.py --start-date 2020-01-01  # Override history start
+```
+
+Key design decisions:
+- **Bulk DuckDB queries** for all data phases: prices, EPS, calendar, statements, beta, SEC filings (`stock_sec_filing` parquet), and transcripts (`stock_earning_call_transcripts` parquet) — single query per data type instead of per-ticker API calls
+- **Incremental by default** — queries DB for last-known dates, only fetches/upserts new data
+- **All tickers** for filings + transcripts (no whitelist)
+- **EDGAR enrichment** for SEC filings — sequential CIK lookups for `primary_document` field (rate-limited 0.15s)
+- **Checkpoint/resume** for info + officers phases (per-ticker API calls)
+- `--full` bypasses incremental bounds for initial backfill
+
+Old scripts (`update_fundamentals_data.py`, `update_fundamental_reports.py`) kept as reference.
+
 ## Demo Users
 
 | Username | Password | Role |

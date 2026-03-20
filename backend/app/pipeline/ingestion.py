@@ -55,18 +55,36 @@ def reset_stuck_jobs(cur) -> int:
 def scan_for_documents(cur) -> list[DocumentJob]:
     """Query transcripts_list for documents needing processing.
 
+    Uses two bulk queries (transcripts + registry) instead of per-row lookups,
+    then compares in Python.
+
     Returns:
         List of DocumentJob for new or changed documents.
     """
+    # 1. Fetch all transcripts with content
     cur.execute(
         "SELECT symbol, fiscal_year, fiscal_quarter, transcripts "
         "FROM transcripts_list WHERE transcripts IS NOT NULL"
     )
-    rows = cur.fetchall()
+    transcript_rows = cur.fetchall()
 
+    # 2. Bulk-fetch entire processing_registry for transcripts (one query)
+    cur.execute(
+        "SELECT file_path, document_id, file_hash, processing_status "
+        "FROM processing_registry WHERE file_path LIKE '/transcripts/%%'"
+    )
+    registry: dict[str, dict] = {}
+    for file_path, document_id, file_hash, status in cur.fetchall():
+        registry[file_path] = {
+            "document_id": str(document_id),
+            "file_hash": file_hash,
+            "status": status,
+        }
+
+    # 3. Compare and build job list
     jobs: list[DocumentJob] = []
 
-    for symbol, fiscal_year, fiscal_quarter, transcripts_text in rows:
+    for symbol, fiscal_year, fiscal_quarter, transcripts_text in transcript_rows:
         if not transcripts_text or not transcripts_text.strip():
             continue
 
@@ -78,14 +96,9 @@ def scan_for_documents(cur) -> list[DocumentJob]:
         content_hash = compute_content_hash(transcripts_text)
         fiscal_period = f"Q{quarter}_{year}"
 
-        # Check processing registry
-        cur.execute(
-            "SELECT document_id, file_hash, processing_status FROM processing_registry WHERE file_path = %s",
-            (file_path,),
-        )
-        row = cur.fetchone()
+        existing = registry.get(file_path)
 
-        if row is None:
+        if existing is None:
             # New document
             jobs.append(DocumentJob(
                 file_path=file_path,
@@ -95,7 +108,7 @@ def scan_for_documents(cur) -> list[DocumentJob]:
                 content=transcripts_text,
                 is_update=False,
             ))
-        elif row[1] != content_hash:
+        elif existing["file_hash"] != content_hash:
             # Changed document
             jobs.append(DocumentJob(
                 file_path=file_path,
@@ -104,7 +117,7 @@ def scan_for_documents(cur) -> list[DocumentJob]:
                 file_hash=content_hash,
                 content=transcripts_text,
                 is_update=True,
-                document_id=str(row[0]),
+                document_id=existing["document_id"],
             ))
         # else: unchanged, skip
 

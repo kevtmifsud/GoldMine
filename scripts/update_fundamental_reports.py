@@ -36,6 +36,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
 from tabulate import tabulate
@@ -783,19 +784,24 @@ def run_phase_transcripts(
 
             print(f"    Found {len(index_df)} transcripts (>= {min_year})")
 
-            # Collect and format transcripts for this ticker
+            # Format transcripts directly from get_transcripts_list() data
+            # (avoids per-quarter API calls — single call already has all data)
             ticker_rows: list[dict] = []
             fetched = 0
 
             for _, row in index_df.iterrows():
-                year = int(row["fiscal_year"])
-                quarter = int(row["fiscal_quarter"])
-                index_row = {col: str(row.get(col, "")).strip() for col in index_df.columns}
+                meta_cols = [c for c in index_df.columns if c != "transcripts"]
+                index_row = {col: str(row.get(col, "")).strip() for col in meta_cols}
                 index_row["symbol"] = ticker
 
                 try:
-                    transcript_df = transcripts_obj.get_transcript(year, quarter)
-                    if transcript_df is None or transcript_df.empty:
+                    raw = row.get("transcripts", None)
+                    if raw is None or (hasattr(raw, '__len__') and len(raw) == 0):
+                        ticker_rows.append(index_row)
+                        continue
+
+                    transcript_df = pd.DataFrame(raw.tolist() if hasattr(raw, 'tolist') else raw)
+                    if transcript_df.empty:
                         ticker_rows.append(index_row)
                         continue
 
@@ -808,7 +814,8 @@ def run_phase_transcripts(
                     index_row["transcripts"] = formatted
                     fetched += 1
                 except Exception as e:
-                    print(f"    WARNING: Failed to fetch {ticker} {year} Q{quarter}: {e}",
+                    print(f"    WARNING: Failed to format {ticker} "
+                          f"{row.get('fiscal_year')}-Q{row.get('fiscal_quarter')}: {e}",
                           file=sys.stderr, flush=True)
 
                 ticker_rows.append(index_row)

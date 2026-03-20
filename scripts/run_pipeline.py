@@ -15,11 +15,13 @@ def main():
     parser = argparse.ArgumentParser(description="Run Mode 1 document processing pipeline")
     parser.add_argument("--tickers", nargs="*", help="Only process these tickers")
     parser.add_argument("--limit", type=int, help="Max documents to process")
+    parser.add_argument("--workers", type=int, default=None, help="Parallel workers (default: 10)")
     args = parser.parse_args()
 
     result = run_pipeline(
         test_tickers=args.tickers,
         test_limit=args.limit,
+        workers=args.workers,
     )
 
     if result.get("failed", 0) > 0:

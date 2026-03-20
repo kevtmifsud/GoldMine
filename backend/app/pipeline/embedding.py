@@ -71,31 +71,33 @@ def store_chunks(
 ) -> int:
     """Store chunks with embeddings in Supabase.
 
+    Uses batched INSERT via execute_values for fewer round-trips.
     Returns the number of chunks stored.
     """
-    for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-        embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
+    from psycopg2.extras import execute_values
 
-        cur.execute(
-            """INSERT INTO chunks
-               (document_id, ticker, document_type, section_name, section_type,
-                fiscal_period, filing_date, chunk_sequence, word_count,
-                chunk_text, embedding, is_active)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector, TRUE)""",
-            (
-                document_id,
-                ticker,
-                document_type,
-                chunk.section_name,
-                chunk.section_type,
-                fiscal_period,
-                filing_date,
-                chunk.chunk_sequence,
-                chunk.word_count,
-                chunk.chunk_text,
-                embedding_str,
-            ),
-        )
+    rows = []
+    for chunk, embedding in zip(chunks, embeddings):
+        embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
+        rows.append((
+            document_id, ticker, document_type,
+            chunk.section_name, chunk.section_type,
+            fiscal_period, filing_date, chunk.chunk_sequence,
+            chunk.word_count, chunk.chunk_text, embedding_str,
+        ))
+
+    # Batch in pages of 20 — each row includes a 1536-dim vector so keep batches moderate
+    execute_values(
+        cur,
+        """INSERT INTO chunks
+           (document_id, ticker, document_type, section_name, section_type,
+            fiscal_period, filing_date, chunk_sequence, word_count,
+            chunk_text, embedding, is_active)
+           VALUES %s""",
+        rows,
+        template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector, TRUE)",
+        page_size=20,
+    )
 
     return len(chunks)
 

@@ -7,10 +7,9 @@ speaker attribution and section classification.
 from __future__ import annotations
 
 import re
-import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from .config import MIN_CHUNK_TOKENS, MAX_CHUNK_TOKENS, TARGET_CHUNK_TOKENS
+from .config import MAX_CHUNK_TOKENS
 
 
 @dataclass
@@ -299,7 +298,6 @@ def _chunk_qa_section(
 
     # Group into exchanges: analyst question(s) + management answer(s)
     current_exchange: list[Paragraph] = []
-    current_is_qa = False
 
     for p in paragraphs:
         is_exec = p.speaker in exec_speakers or p.speaker.lower() == "operator"
@@ -433,6 +431,93 @@ def chunk_transcript(text: str) -> list[Chunk]:
     exec_speaker_set = {s for s, r in exec_roles.items() if r in ("ceo", "cfo", "executive", "ir_moderator")}
     qa_chunks = _chunk_qa_section(qa, exec_speaker_set, seq)
     chunks.extend(qa_chunks)
+
+    return chunks
+
+
+def chunk_plain_text(text: str, section_name: str = "Content", section_type: str = "unknown_section") -> list[Chunk]:
+    """Chunk a plain-text document (e.g. analyst notes, buyside/sellside notes).
+
+    Splits on paragraph boundaries, merging short paragraphs and splitting
+    oversized ones to stay within the configured token budget.
+    """
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    if not paragraphs:
+        paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
+    if not paragraphs:
+        return []
+
+    chunks: list[Chunk] = []
+    current_text = ""
+    seq = 0
+
+    for para in paragraphs:
+        para_tokens = _estimate_tokens(para)
+
+        # If this single paragraph exceeds max, flush current then split it
+        if para_tokens > MAX_CHUNK_TOKENS:
+            if current_text.strip():
+                wc = len(current_text.split())
+                if wc >= 20:
+                    chunks.append(Chunk(
+                        chunk_text=current_text.strip(),
+                        section_name=section_name,
+                        section_type=section_type,
+                        chunk_sequence=seq,
+                        word_count=wc,
+                    ))
+                    seq += 1
+                current_text = ""
+
+            # Split oversized paragraph by sentences
+            sentences = re.split(r'(?<=[.!?])\s+', para)
+            buf = ""
+            for sent in sentences:
+                if buf and _estimate_tokens(buf + " " + sent) > MAX_CHUNK_TOKENS:
+                    wc = len(buf.split())
+                    if wc >= 20:
+                        chunks.append(Chunk(
+                            chunk_text=buf.strip(),
+                            section_name=section_name,
+                            section_type=section_type,
+                            chunk_sequence=seq,
+                            word_count=wc,
+                        ))
+                        seq += 1
+                    buf = sent
+                else:
+                    buf = f"{buf} {sent}".strip() if buf else sent
+            if buf.strip():
+                current_text = buf
+            continue
+
+        # If adding this paragraph exceeds max, flush current first
+        if current_text and _estimate_tokens(current_text) + para_tokens > MAX_CHUNK_TOKENS:
+            wc = len(current_text.split())
+            if wc >= 20:
+                chunks.append(Chunk(
+                    chunk_text=current_text.strip(),
+                    section_name=section_name,
+                    section_type=section_type,
+                    chunk_sequence=seq,
+                    word_count=wc,
+                ))
+                seq += 1
+            current_text = ""
+
+        current_text = f"{current_text}\n\n{para}".strip() if current_text else para
+
+    # Flush remaining
+    if current_text.strip():
+        wc = len(current_text.split())
+        if wc >= 20:
+            chunks.append(Chunk(
+                chunk_text=current_text.strip(),
+                section_name=section_name,
+                section_type=section_type,
+                chunk_sequence=seq,
+                word_count=wc,
+            ))
 
     return chunks
 

@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useRef, useState, useCallback } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CITATION_REGEX, parseSingleCitation } from "../../utils/citationParser";
@@ -76,6 +76,149 @@ function processChildren(
   return children;
 }
 
+/**
+ * Extract plain text from a ReactNode tree (handles strings, arrays, elements).
+ */
+function extractText(node: ReactNode): string {
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (node == null || typeof node === "boolean") return "";
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (typeof node === "object" && "props" in node) {
+    return extractText((node as React.ReactElement).props.children);
+  }
+  return "";
+}
+
+/**
+ * Check if a cell's content is numeric for right-alignment.
+ * Strips markdown bold/italic markers and financial formatting
+ * before testing. Handles: $1,234.56, -0.5%, +2.3%, 1.23x, N/A.
+ */
+function isNumericCell(node: ReactNode): boolean {
+  const raw = extractText(node).trim();
+  if (!raw) return false;
+  // Strip markdown bold/italic markers
+  const stripped = raw
+    .replace(/\*\*/g, "")
+    .replace(/\*/g, "")
+    .replace(/\$/g, "")
+    .replace(/,/g, "")
+    .replace(/%/g, "")
+    .replace(/x$/i, "")  // multiples like 1.23x
+    .trim();
+  if (!stripped) return false;
+  // N/A is a special case — right-align it as a placeholder for a number
+  if (/^N\/?A$/i.test(stripped)) return true;
+  // Must parse as a number after stripping formatting
+  return !isNaN(parseFloat(stripped)) && /^[+-]?\d/.test(stripped);
+}
+
+/**
+ * Extract plain text from a table element for clipboard copy.
+ */
+function extractTableData(table: HTMLTableElement): { headers: string[]; rows: string[][] } {
+  const headers: string[] = [];
+  const rows: string[][] = [];
+
+  table.querySelectorAll("thead th").forEach((th) => {
+    headers.push((th as HTMLElement).innerText.trim());
+  });
+
+  table.querySelectorAll("tbody tr").forEach((tr) => {
+    const cells: string[] = [];
+    tr.querySelectorAll("td").forEach((td) => {
+      cells.push((td as HTMLElement).innerText.trim());
+    });
+    if (cells.length > 0) rows.push(cells);
+  });
+
+  return { headers, rows };
+}
+
+function toTSV(headers: string[], rows: string[][]): string {
+  const lines = [headers.join("\t")];
+  for (const row of rows) lines.push(row.join("\t"));
+  return lines.join("\n");
+}
+
+function toCSV(headers: string[], rows: string[][]): string {
+  const escape = (s: string) => (s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s);
+  const lines = [headers.map(escape).join(",")];
+  for (const row of rows) lines.push(row.map(escape).join(","));
+  return lines.join("\n");
+}
+
+async function writeClipboard(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // Fallback for older browsers or insecure contexts
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+  }
+}
+
+function CopyTableButton({ tableRef }: { tableRef: React.RefObject<HTMLTableElement | null> }) {
+  const [status, setStatus] = useState<"idle" | "menu" | "copied">("idle");
+
+  const handleCopy = useCallback(
+    async (format: "tsv" | "csv") => {
+      const table = tableRef.current;
+      if (!table) return;
+      const { headers, rows } = extractTableData(table);
+      const text = format === "tsv" ? toTSV(headers, rows) : toCSV(headers, rows);
+      await writeClipboard(text);
+      setStatus("copied");
+      setTimeout(() => setStatus("idle"), 1500);
+    },
+    [tableRef]
+  );
+
+  if (status === "copied") {
+    return <span className="chat-table-copy chat-table-copy--done">Copied!</span>;
+  }
+
+  if (status === "menu") {
+    return (
+      <span className="chat-table-copy chat-table-copy--menu">
+        <button onClick={() => handleCopy("tsv")} className="chat-table-copy__option">
+          TSV (Excel)
+        </button>
+        <button onClick={() => handleCopy("csv")} className="chat-table-copy__option">
+          CSV
+        </button>
+        <button onClick={() => setStatus("idle")} className="chat-table-copy__option chat-table-copy__option--cancel">
+          &times;
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <button className="chat-table-copy" onClick={() => setStatus("menu")} title="Copy table">
+      Copy
+    </button>
+  );
+}
+
+function ChatTableWrapper({ children: kids }: { children: ReactNode }) {
+  const tableRef = useRef<HTMLTableElement | null>(null);
+
+  return (
+    <div className="chat-table-wrap">
+      <CopyTableButton tableRef={tableRef} />
+      <table ref={tableRef}>{kids}</table>
+    </div>
+  );
+}
+
 export function ChatMarkdown({ children, onCitationClick }: ChatMarkdownProps) {
   return (
     <Markdown
@@ -93,8 +236,16 @@ export function ChatMarkdown({ children, onCitationClick }: ChatMarkdownProps) {
         em({ children: kids }) {
           return <em>{processChildren(kids, onCitationClick)}</em>;
         },
+        table({ children: kids }) {
+          return <ChatTableWrapper>{kids}</ChatTableWrapper>;
+        },
         td({ children: kids }) {
-          return <td>{processChildren(kids, onCitationClick)}</td>;
+          const align = isNumericCell(kids) ? "right" : undefined;
+          return (
+            <td style={align ? { textAlign: align } : undefined}>
+              {processChildren(kids, onCitationClick)}
+            </td>
+          );
         },
         th({ children: kids }) {
           return <th>{processChildren(kids, onCitationClick)}</th>;

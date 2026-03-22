@@ -21,8 +21,9 @@ class StepCollector:
         cost_usd: float = 0.0,
         duration_ms: int = 0,
         result_summary: str = "",
+        query: str | None = None,
     ) -> None:
-        self.steps.append({
+        step: dict = {
             "type": "step",
             "label": label,
             "detail": detail,
@@ -31,7 +32,10 @@ class StepCollector:
             "cost_usd": cost_usd,
             "duration_ms": duration_ms,
             "result_summary": result_summary,
-        })
+        }
+        if query:
+            step["query"] = query
+        self.steps.append(step)
 
     def drain(self) -> list[dict]:
         """Return all accumulated steps and clear the internal list."""

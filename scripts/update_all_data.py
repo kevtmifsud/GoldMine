@@ -136,6 +136,7 @@ _EDGAR_UA = "GoldMine admin@goldmine.dev"
 VALID_PHASES = [
     "prices", "calendar", "statements", "beta",
     "filings", "transcripts", "info", "officers",
+    "consensus_estimates", "buyside_estimates",
 ]
 
 random.seed(42)
@@ -1588,6 +1589,20 @@ def main() -> None:
         if not only or only == "officers":
             with phase_timer("Officers"):
                 run_phase_officers(conn, tickers, args.workers, args.fresh)
+
+    # --- Phase 12: Consensus Estimates ---
+    if only == "consensus_estimates":
+        with phase_timer("Consensus Estimates"):
+            sys.path.insert(0, str(CHECKPOINT_DIR))
+            from ingest_consensus_estimates import run as run_consensus
+            run_consensus()
+
+    # --- Phase 13: Buyside Estimates ---
+    if only == "buyside_estimates":
+        with phase_timer("Buyside Estimates"):
+            sys.path.insert(0, str(CHECKPOINT_DIR))
+            from ingest_buyside_estimates import run as run_buyside
+            run_buyside()
 
     conn.close()
     print("\nDone!")

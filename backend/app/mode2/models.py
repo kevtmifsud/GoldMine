@@ -31,13 +31,11 @@ class ClassifiedQuery(BaseModel):
     list_references: list[str] = Field(default_factory=list)
     fiscal_periods: list[str] = Field(default_factory=list)
     topic: str = ""
-    needs_structured_data: bool = False
-    needs_vector_search: bool = True
     section_type_hint: str | None = None
     time_range_quarters: int | None = None
-    required_sources: list[str] = Field(default_factory=list)
     alt_data_types: list[str] = Field(default_factory=list)
     workflow_name: str | None = None
+    estimated_ticker_count: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -78,16 +76,6 @@ class QALibraryEntry(BaseModel):
     similarity: float = 0.0
 
 
-class RetrievalContext(BaseModel):
-    query_type: str
-    structured_data: list[dict[str, Any]] | None = None
-    chunks: list[ChunkResult] = Field(default_factory=list)
-    qa_library_hits: list[QALibraryEntry] = Field(default_factory=list)
-    cache_hit: bool = False
-    total_chunks_retrieved: int = 0
-    total_input_tokens_estimate: int = 0
-
-
 # ---------------------------------------------------------------------------
 # DS-03: API Request / Response Models
 # ---------------------------------------------------------------------------
@@ -116,7 +104,7 @@ class SessionMessage(BaseModel):
     content: str
     query_type: str | None = None
     tickers_referenced: list[str] = Field(default_factory=list)
-    source_chunks: list[dict[str, Any]] = Field(default_factory=list)
+    source_chunks: list[Any] = Field(default_factory=list)
     feedback: dict[str, Any] | None = None
     created_at: datetime
 
@@ -137,6 +125,7 @@ class ConversationSummary(BaseModel):
     session_count: int = 0
     last_active: datetime | None = None
     is_shared: bool = False
+    visibility: str = "private"
     first_message: str | None = None
     origin_path: str | None = None
 
@@ -148,6 +137,7 @@ class ConversationDetail(BaseModel):
     messages: list[SessionMessage] = Field(default_factory=list)
     turn_count: int = 0
     is_shared: bool = False
+    visibility: str = "private"
     created_at: datetime
     last_active: datetime | None = None
     origin_path: str | None = None

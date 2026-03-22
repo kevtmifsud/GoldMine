@@ -16,7 +16,7 @@ async def test_render_stock_email():
     assert "GoldMine:" in subject
     assert "AAPL" in subject
     assert "<table" in html_body
-    assert "Related People" in html_body
+    assert "Officers" in html_body
     assert "GoldMine" in text_body
     assert "AAPL" in text_body
 
@@ -30,7 +30,7 @@ async def test_render_single_widget():
         widget_ids=["related_people"],
     )
 
-    assert "Related People" in html_body
+    assert "Officers" in html_body
     assert "Related Files" not in html_body
 
 

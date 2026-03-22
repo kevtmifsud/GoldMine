@@ -52,8 +52,10 @@ backend/
     documents/      # User-uploaded document management
     email/          # Email rendering + SMTP/console delivery
     reports/        # Report generation (daily P&L)
+    workflows/      # Workflow framework: base class, registry, qa/docs_sync
     views/          # Saved view persistence
     tests/          # pytest suite
+    object_storage/ # File storage abstraction layer
   .env              # Environment config (see backend/.env.example)
 
 frontend/
@@ -67,6 +69,13 @@ frontend/
 
 data/               # Local data files (views, documents, schedules, unstructured)
 scripts/            # Utility scripts (migrations, data generation, pipeline)
+  migrations/       # SQL migration files + runner (run_migrations.py)
+  *_job.py          # Portfolio pipeline jobs (trade_completed, pnl_calculation, concentration, risk)
+  run_portfolio_jobs.py   # Master runner for daily portfolio job sequence
+  backfill_portfolio_tables.py  # Backfill all derivative tables from historical trades
+  seed_workflow_registry.py     # Seed workflow_registry table (idempotent)
+  run_scheduled_workflows.py    # Trigger scheduled workflows (earnings previews, docs sync, cost report)
+  send_cost_report.py           # Daily usage & cost report email (--preview, --send, --date)
 instructions/       # Architecture specs (WF-00 through WF-12, DS-01 through DS-04)
 ```
 
@@ -319,7 +328,109 @@ New document types supported by the pipeline:
 - `buyside_note` — from vendor feed, processed nightly
 
 All three use the existing `chunks` table. Chunk metadata must carry `user_id` (analyst notes), `firm` (sellside/buyside), `ticker[]`, `sector[]`, `industry[]` from the parent document.
-## Domain Knowledge & Business Rules
+
+## Documentation sync workflow
+
+A dedicated workflow keeps all markdown documentation in sync with the codebase automatically.
+
+Location: `backend/app/workflows/qa/docs_sync.py`
+Runner: `scripts/run_docs_sync.py`
+Output table: `workflow_outputs_docs_sync`
+
+Run it after any significant build session:
+```bash
+python scripts/run_docs_sync.py
+```
+
+Or trigger from the chatbot:
+> "Run the docs sync"
+
+What it checks:
+- Database tables vs data-schema.md
+- Tool definitions vs chatbot.md access map
+- Alt data keyword mappings (classifier.py vs tools.py vs chatbot.md)
+- Workflow registry vs workflows.md
+- Pipeline architecture vs WF-* docs
+- CLAUDE.md project structure vs actual directories
+- Skill files in instructions/skills/
+
+Auto-fixes minor gaps. Flags anything requiring human judgment with a suggested fix.
+
+**A task is not complete until docs sync exits with code 0.**
+
+## Documentation Hygiene (mandatory)
+
+These rules apply to every session that adds a feature, adds a dataset, modifies a pipeline, or changes architecture. They are not optional.
+
+### After adding a new database table
+- Add the table to `instructions/domain/data-schema.md` with: grain, key columns, writer, insert policy, chatbot access, citation label
+- If the table is chatbot-accessible, add it to the data source access map in `instructions/domain/chatbot.md`
+- If the table requires a new tool, add the tool definition to `backend/app/mode2/tools.py` and document it in `instructions/domain/chatbot.md`
+
+### After adding a new workflow
+- Add the workflow spec to `instructions/domain/workflows.md` following the template in that file
+- Seed the workflow_registry table via `scripts/seed_workflow_registry.py`
+- Mark status as IMPLEMENTED with the date once built
+- Add the output table schema to `data-schema.md`
+
+### After adding a new alt data type
+- Add the keyword → data_type mapping to both:
+  - `instructions/domain/chatbot.md` (keyword mapping table)
+  - `backend/app/mode2/classifier.py` (`ALT_DATA_KEYWORD_MAP`)
+- Add the data_type value to the alt_data tool's enum in `backend/app/mode2/tools.py`
+- Document the source vendor and date_frequency in `data-schema.md` under the `alt_data` table section
+
+### After modifying the chatbot pipeline
+- Update `instructions/domain/chatbot.md` pipeline overview
+- Update the relevant WF-* file in `instructions/architecture/`
+- If tool definitions changed, update the data source access map in `instructions/domain/chatbot.md`
+- If the system prompt changed, update `instructions/domain/WF-09_system_prompt.md`
+
+### After adding a new API endpoint group
+- Add it to the Project Structure section of CLAUDE.md
+- If it exposes chatbot data, verify it is GET-only and add a note in `instructions/domain/chatbot.md`
+
+### After any session that changes architecture
+- Update the Architecture: Two-Mode System section in CLAUDE.md
+
+### The self-check rule (apply at end of every session)
+
+Before marking any task complete, ask: "Did I add, remove, or change any of the following?"
+- A database table or column
+- A chatbot data source or tool
+- A workflow
+- An alt data type
+- A pipeline stage
+- An API endpoint group
+- A top-level directory or module
+
+If yes to any of these, update the relevant markdown files before finishing. A task is not complete until the docs reflect what was built.
+
+## Skills (step-by-step task checklists)
+
+When performing any of the following tasks, read the relevant skill file first and follow it exactly:
+
+| Task | Skill file |
+|---|---|
+| Add a new chatbot data source | `instructions/skills/add-new-data-source.md` |
+| Add a new workflow | `instructions/skills/add-new-workflow.md` |
+| Add a new alt data type | `instructions/skills/add-new-alt-data-type.md` |
+| Add a new model sheet | `instructions/skills/add-new-model-sheet.md` |
+
+Skills are checklists, not suggestions. Every step must be completed including the documentation steps. A task is not done until all checklist items are checked.
+
+## Instructions for Claude Code
+
+Before implementing any feature, writing any migration, or modifying 
+any pipeline component, read the relevant file(s) in instructions/domain/:
+
+- Anything database/table related → read data-schema.md
+- Anything chatbot/retrieval/routing related → read chatbot.md  
+- Anything workflow/earnings preview related → read workflows.md
+- Anything portfolio/P&L/risk related → read portfolio.md
+- Anything model/Excel related → read models.md
+
+Do not rely on memory of these files from prior sessions. Re-read them.
 
 Architecture specs for the pipeline live in `instructions/architecture/` (WF-00 through WF-12, DS-01 through DS-04).
 

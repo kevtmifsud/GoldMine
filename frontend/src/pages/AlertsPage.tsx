@@ -11,13 +11,14 @@ export function AlertsPage() {
   const [schedules, setSchedules] = useState<EmailSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<EmailSchedule | null>(null);
 
   const fetchSchedules = () => {
     schedulesApi
       .listSchedules()
-      .then((data) => setSchedules(data.filter((s) => s.entity_type !== "report")))
+      .then((data) => setSchedules(data))
       .catch(() => {})
       .finally(() => setLoading(false));
   };
@@ -44,6 +45,24 @@ export function AlertsPage() {
     }
   };
 
+  const handleToggleStatus = async (schedule: EmailSchedule) => {
+    const newStatus = schedule.status === "active" ? "paused" : "active";
+    setTogglingId(schedule.schedule_id);
+    try {
+      await schedulesApi.updateSchedule(schedule.schedule_id, { status: newStatus });
+      setSchedules((prev) =>
+        prev.map((s) =>
+          s.schedule_id === schedule.schedule_id ? { ...s, status: newStatus } : s
+        )
+      );
+    } catch {
+      setFeedback("Failed to update alert status.");
+      setTimeout(() => setFeedback(null), 3000);
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   const handleDelete = async (scheduleId: string) => {
     try {
       await schedulesApi.deleteSchedule(scheduleId);
@@ -63,6 +82,17 @@ export function AlertsPage() {
     } catch {
       return iso;
     }
+  };
+
+  const renderEntityLink = (s: EmailSchedule) => {
+    if (s.entity_type === "report") {
+      return <span className="alerts-page__card-entity-label">{s.entity_id.replace(/-/g, " ")}</span>;
+    }
+    return (
+      <Link to={`/entity/${s.entity_type}/${s.entity_id}`}>
+        {s.entity_type}/{s.entity_id}
+      </Link>
+    );
   };
 
   return (
@@ -99,12 +129,13 @@ export function AlertsPage() {
         {!loading && schedules.length > 0 && (
           <div className="alerts-page__list">
             {schedules.map((s) => (
-              <div key={s.schedule_id} className="alerts-page__card">
+              <div
+                key={s.schedule_id}
+                className={`alerts-page__card${s.status !== "active" ? " alerts-page__card--inactive" : ""}`}
+              >
                 <div className="alerts-page__card-name">{s.name}</div>
                 <div className="alerts-page__card-entity">
-                  <Link to={`/entity/${s.entity_type}/${s.entity_id}`}>
-                    {s.entity_type}/{s.entity_id}
-                  </Link>
+                  {renderEntityLink(s)}
                 </div>
                 <div className="alerts-page__card-recipients">
                   {s.recipients.join(", ")}
@@ -114,15 +145,26 @@ export function AlertsPage() {
                 </div>
                 <div className="alerts-page__card-status">
                   <span
-                    className={`schedules-list__item-status schedules-list__item-status--${s.status}`}
+                    className={`alerts-page__status-badge alerts-page__status-badge--${s.status}`}
                   >
                     {s.status}
                   </span>
                 </div>
                 <div className="alerts-page__card-next-run">
-                  Next: {formatDate(s.next_run_at)}
+                  {s.status === "active" ? `Next: ${formatDate(s.next_run_at)}` : "Paused"}
                 </div>
                 <div className="alerts-page__card-actions">
+                  <button
+                    className={`alerts-page__toggle-btn alerts-page__toggle-btn--${s.status === "active" ? "pause" : "activate"}`}
+                    onClick={() => handleToggleStatus(s)}
+                    disabled={togglingId === s.schedule_id}
+                  >
+                    {togglingId === s.schedule_id
+                      ? "..."
+                      : s.status === "active"
+                        ? "Pause"
+                        : "Activate"}
+                  </button>
                   <button
                     className="schedules-list__item-btn"
                     onClick={() => setEditingSchedule(s)}

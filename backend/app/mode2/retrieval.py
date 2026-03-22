@@ -1,7 +1,8 @@
-"""WF-08: Retrieval Orchestration.
+"""WF-08: Retrieval functions.
 
-Routes each query to correct retrieval strategy, enforces chunk limits,
-checks screening cache, surfaces Q&A library hits.
+Contains all _query_* functions, vector search, Q&A library lookup,
+screening cache, and screening prefilter. These are called by
+tools.execute_tool() in the agentic pipeline.
 """
 from __future__ import annotations
 
@@ -24,8 +25,6 @@ from .models import (
     ChunkResult,
     ClassifiedQuery,
     QALibraryEntry,
-    ResolvedUniverse,
-    RetrievalContext,
 )
 from .steps import StepCollector
 
@@ -157,6 +156,7 @@ async def _vector_search(
     limit_per_ticker: int = 6,
     section_type: str | None = None,
     fiscal_periods: list[str] | None = None,
+    doc_types: list[str] | None = None,
     steps: StepCollector | None = None,
 ) -> list[ChunkResult]:
     """Perform pgvector cosine similarity search."""
@@ -183,6 +183,12 @@ async def _vector_search(
         conditions.append(f"fiscal_period IN ({placeholders})")
         params.extend(fiscal_periods)
         idx += len(fiscal_periods)
+
+    if doc_types:
+        placeholders = ", ".join(f"${i}" for i in range(idx, idx + len(doc_types)))
+        conditions.append(f"document_type IN ({placeholders})")
+        params.extend(doc_types)
+        idx += len(doc_types)
 
     where = " AND ".join(conditions)
 
@@ -236,6 +242,13 @@ async def _vector_search(
             source="supabase",
             duration_ms=search_duration_ms,
             result_summary=f"{len(results)} chunks found",
+            query=(
+                f"Vector search: doc_types={doc_types} "
+                f"tickers={tickers[:3]}{'...' if len(tickers) > 3 else ''} "
+                f"limit_per_ticker={limit_per_ticker}"
+                + (f" section_type={section_type}" if section_type else "")
+                + (f" fiscal_periods={fiscal_periods}" if fiscal_periods else "")
+            ),
         )
     return results
 
@@ -287,6 +300,596 @@ async def _structured_query(
             detail=f"SQL query on financial_metrics ({len(metrics)} metrics)",
             source="supabase",
             duration_ms=structured_duration_ms,
+            result_summary=f"{len(results)} rows",
+            query=(
+                f"SELECT metric_name, period_end, period_type, value "
+                f"FROM financial_metrics "
+                f"WHERE ticker = '{ticker}' AND metric_name IN {tuple(metrics[:5])}{'...' if len(metrics) > 5 else ''} "
+                f"ORDER BY period_end DESC LIMIT 50"
+            ),
+        )
+    return results
+
+
+async def _query_financial_metrics(
+    tickers: list[str],
+    classified: ClassifiedQuery,
+    steps: StepCollector | None = None,
+) -> list[dict]:
+    """Query financial_metrics — delegates to existing _structured_query."""
+    return await _structured_query(
+        tickers, classified.topic, classified.fiscal_periods or None, steps=steps,
+    )
+
+
+def _normalize_estimate_period(period: str) -> str:
+    """Normalize period format to match daily_estimates storage.
+
+    FY2025 → 2025A, 2025 → 2025A, Q4_2025 → 2025Q4, 2025Q4 → 2025Q4.
+    """
+    period = period.strip()
+    if period.startswith("FY"):
+        return period[2:] + "A"
+    if period.endswith("A") or "Q" in period:
+        if "_" in period:
+            # Q4_2025 → 2025Q4
+            parts = period.split("_")
+            if len(parts) == 2:
+                return parts[1] + parts[0]
+        return period
+    if len(period) == 4 and period.isdigit():
+        return period + "A"
+    return period
+
+
+async def _query_estimates(
+    tickers: list[str],
+    classified: ClassifiedQuery,
+    steps: StepCollector | None = None,
+) -> list[dict]:
+    """Query daily_estimates for all four sources in a single query."""
+    if not tickers:
+        return []
+    t0 = time.time()
+
+    logger.info("query_estimates_start tickers=%s fiscal_periods=%s", tickers, classified.fiscal_periods)
+
+    period_clause = ""
+    params: list = [tickers, tickers]  # $1 for outer, $2 for subquery
+    idx = 3
+    if classified.fiscal_periods:
+        normalized = [_normalize_estimate_period(p) for p in classified.fiscal_periods]
+        period_clause = f"AND period = ANY(${idx})"
+        params.append(normalized)
+        idx += 1
+
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            f"""SELECT
+                    ticker, metric, period,
+                    period_start_date, period_end_date,
+                    source, firm, analyst_name,
+                    analyst_person_id,
+                    value, unit,
+                    estimate_date, as_of_date,
+                    staleness_days
+                FROM daily_estimates
+                WHERE ticker = ANY($1)
+                {period_clause}
+                AND as_of_date = (
+                    SELECT MAX(as_of_date)
+                    FROM daily_estimates
+                    WHERE ticker = ANY($2)
+                )
+                ORDER BY ticker, metric, period, source, firm,
+                    analyst_name""",
+            *params,
+        )
+
+    results = [
+        dict(r) | {"_table": "daily_estimates"}
+        for r in rows
+    ]
+    duration_ms = int((time.time() - t0) * 1000)
+    logger.info("query_estimates_done tickers=%s rows=%d duration_ms=%d", tickers, len(results), duration_ms)
+    if steps:
+        steps.add(
+            label="Fetching estimates",
+            detail=f"daily_estimates ({len(results)} rows, all 4 sources)",
+            source="supabase",
+            duration_ms=duration_ms,
+            result_summary=f"{len(results)} estimate rows",
+            query=(
+                f"SELECT ... FROM daily_estimates "
+                f"WHERE ticker IN {tuple(tickers)} "
+                f"AND as_of_date = (SELECT MAX(as_of_date) ...)"
+            ),
+        )
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Portfolio name normalization — DB stores Title Case with spaces
+# ---------------------------------------------------------------------------
+PORTFOLIO_MAP: dict[str, str | None] = {
+    "long_only": "Long Only",
+    "long only": "Long Only",
+    "flagship": "Flagship",
+    "all": None,  # None = no filter (all portfolios)
+}
+
+
+def _normalize_portfolio(raw: str | None) -> str | None:
+    """Map tool-level portfolio input to actual DB value.
+
+    Returns None when no portfolio filter should be applied.
+    """
+    if not raw:
+        return None
+    key = raw.strip().lower()
+    if key in PORTFOLIO_MAP:
+        return PORTFOLIO_MAP[key]
+    # Fallback: try title-casing
+    return raw.strip().title()
+
+
+async def _query_daily_pnl(
+    tickers: list[str] | None = None,
+    classified: ClassifiedQuery | None = None,
+    steps: StepCollector | None = None,
+    portfolio: str | None = None,
+    date: str | None = None,
+    date_range: dict | None = None,
+    group_by: list[str] | None = None,
+    ticker: str | None = None,
+    limit: int | None = None,
+    order_by: str | None = None,
+    order_dir: str | None = None,
+) -> list[dict]:
+    """Query daily_pnl with flexible filtering for portfolio queries.
+
+    When no tickers are provided, queries across ALL positions (required
+    for portfolio-wide queries like 'top 5 holdings').
+    """
+    t0 = time.time()
+
+    conditions: list[str] = []
+    params: list = []
+    idx = 1
+
+    # Portfolio filter
+    norm_portfolio = _normalize_portfolio(portfolio)
+    if norm_portfolio:
+        conditions.append(f"portfolio = ${idx}")
+        params.append(norm_portfolio)
+        idx += 1
+
+    # Ticker filter — single ticker takes precedence
+    if ticker:
+        conditions.append(f"ticker = ${idx}")
+        params.append(ticker.upper())
+        idx += 1
+    elif tickers:
+        conditions.append(f"ticker = ANY(${idx})")
+        params.append(tickers)
+        idx += 1
+    # else: no ticker filter — return all positions
+
+    # Date filter
+    if date:
+        conditions.append(f"date = ${idx}::date")
+        params.append(date)
+        idx += 1
+    elif date_range and date_range.get("start") and date_range.get("end"):
+        conditions.append(f"date BETWEEN ${idx}::date AND ${idx + 1}::date")
+        params.extend([date_range["start"], date_range["end"]])
+        idx += 2
+    else:
+        conditions.append("date = (SELECT MAX(date) FROM daily_pnl)")
+
+    where = " AND ".join(conditions) if conditions else "TRUE"
+
+    # Order
+    safe_order_by = order_by if order_by in (
+        "unrealized_pnl", "realized_pnl", "market_value", "cost_basis",
+        "daily_return", "cumulative_return", "contribution_to_portfolio",
+        "ticker", "date", "shares_held",
+    ) else "unrealized_pnl"
+    safe_order_dir = "ASC" if (order_dir or "").lower() == "asc" else "DESC"
+    safe_limit = min(limit or 100, 500)
+
+    # When querying all portfolios, always group results by portfolio first
+    # so they come back separated (never mixed)
+    portfolio_order_prefix = "" if norm_portfolio else "portfolio, "
+
+    # Group by aggregation
+    if group_by:
+        safe_group_cols = [c for c in group_by if c in (
+            "portfolio", "side", "sector", "industry", "ticker", "date",
+        )]
+        if not safe_group_cols:
+            safe_group_cols = ["portfolio", "side"]
+        # Always include portfolio in group when querying all
+        if not norm_portfolio and "portfolio" not in safe_group_cols:
+            safe_group_cols.insert(0, "portfolio")
+        group_str = ", ".join(safe_group_cols)
+        sql = f"""
+            SELECT {group_str},
+                   SUM(unrealized_pnl) AS unrealized_pnl,
+                   SUM(realized_pnl) AS realized_pnl,
+                   SUM(market_value) AS market_value,
+                   SUM(cost_basis) AS cost_basis,
+                   AVG(daily_return) AS daily_return,
+                   SUM(contribution_to_portfolio) AS contribution_to_portfolio,
+                   SUM(daily_realized_pnl) AS daily_realized_pnl,
+                   SUM(ytd_pnl) AS ytd_pnl,
+                   SUM(itd_pnl) AS itd_pnl
+            FROM daily_pnl
+            WHERE {where}
+            GROUP BY {group_str}
+            ORDER BY {portfolio_order_prefix}{safe_order_by} {safe_order_dir}
+            LIMIT {safe_limit}
+        """
+    else:
+        sql = f"""
+            SELECT date, ticker, portfolio, side, sector, industry,
+                   unrealized_pnl, realized_pnl, daily_return,
+                   cumulative_return, contribution_to_portfolio,
+                   shares_held, market_value, cost_basis,
+                   daily_realized_pnl, ytd_pnl, itd_pnl
+            FROM daily_pnl
+            WHERE {where}
+            ORDER BY {portfolio_order_prefix}{safe_order_by} {safe_order_dir}
+            LIMIT {safe_limit}
+        """
+
+    async with get_conn() as conn:
+        rows = await conn.fetch(sql, *params)
+
+    results = [dict(r) | {"_table": "daily_pnl"} for r in rows]
+    duration_ms = int((time.time() - t0) * 1000)
+    if steps:
+        steps.add(
+            label="Fetching P&L data",
+            detail=f"daily_pnl ({len(results)} rows)",
+            source="supabase",
+            duration_ms=duration_ms,
+            result_summary=f"{len(results)} rows",
+            query=sql.strip()[:300],
+        )
+    return results
+
+
+async def _query_portfolio_concentration(
+    tickers: list[str] | None = None,
+    classified: ClassifiedQuery | None = None,
+    steps: StepCollector | None = None,
+    portfolio: str | None = None,
+    ticker: str | None = None,
+) -> list[dict]:
+    """Query portfolio_concentration for most recent date."""
+    t0 = time.time()
+    conditions = ["date = (SELECT MAX(date) FROM portfolio_concentration)"]
+    params: list = []
+    idx = 1
+
+    norm_portfolio = _normalize_portfolio(portfolio)
+    if norm_portfolio:
+        conditions.append(f"portfolio = ${idx}")
+        params.append(norm_portfolio)
+        idx += 1
+
+    if ticker:
+        conditions.append(f"ticker = ${idx}")
+        params.append(ticker.upper())
+        idx += 1
+    elif tickers:
+        conditions.append(f"ticker = ANY(${idx})")
+        params.append(tickers)
+        idx += 1
+
+    where = " AND ".join(conditions)
+    portfolio_order = "" if norm_portfolio else "portfolio, "
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            f"""SELECT date, ticker, portfolio, side, sector, industry,
+                       position_weight, sector_weight, industry_weight,
+                       is_market_neutral_compliant
+                FROM portfolio_concentration
+                WHERE {where}
+                ORDER BY {portfolio_order}position_weight DESC
+                LIMIT 200""",
+            *params,
+        )
+    results = [dict(r) | {"_table": "portfolio_concentration"} for r in rows]
+    duration_ms = int((time.time() - t0) * 1000)
+    if steps:
+        steps.add(
+            label="Fetching concentration data",
+            detail=f"portfolio_concentration ({len(results)} rows)",
+            source="supabase",
+            duration_ms=duration_ms,
+            result_summary=f"{len(results)} rows",
+        )
+    return results
+
+
+async def _query_portfolio_risk(
+    tickers: list[str] | None = None,
+    classified: ClassifiedQuery | None = None,
+    steps: StepCollector | None = None,
+    portfolio: str | None = None,
+    ticker: str | None = None,
+) -> list[dict]:
+    """Query portfolio_risk for most recent date."""
+    t0 = time.time()
+    conditions = ["date = (SELECT MAX(date) FROM portfolio_risk)"]
+    params: list = []
+    idx = 1
+
+    norm_portfolio = _normalize_portfolio(portfolio)
+    if norm_portfolio:
+        conditions.append(f"portfolio = ${idx}")
+        params.append(norm_portfolio)
+        idx += 1
+
+    if ticker:
+        conditions.append(f"ticker = ${idx}")
+        params.append(ticker.upper())
+        idx += 1
+    elif tickers:
+        conditions.append(f"ticker = ANY(${idx})")
+        params.append(tickers)
+        idx += 1
+
+    where = " AND ".join(conditions)
+    portfolio_order = "" if norm_portfolio else "portfolio, "
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            f"""SELECT date, ticker, portfolio, side, sector,
+                       beta, weighted_beta_contribution
+                FROM portfolio_risk
+                WHERE {where}
+                ORDER BY {portfolio_order}weighted_beta_contribution DESC
+                LIMIT 200""",
+            *params,
+        )
+    results = [dict(r) | {"_table": "portfolio_risk"} for r in rows]
+    duration_ms = int((time.time() - t0) * 1000)
+    if steps:
+        steps.add(
+            label="Fetching risk data",
+            detail=f"portfolio_risk ({len(results)} rows)",
+            source="supabase",
+            duration_ms=duration_ms,
+            result_summary=f"{len(results)} rows",
+        )
+    return results
+
+
+async def _query_trade_requests(
+    tickers: list[str],
+    classified: ClassifiedQuery,
+    steps: StepCollector | None = None,
+) -> list[dict]:
+    """Query trade_requests for tickers, most recent first."""
+    if not tickers:
+        return []
+    t0 = time.time()
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            """SELECT ticker, side, quantity, order_type, limit_price, status,
+                      portfolio, created_at, updated_at
+               FROM trade_requests
+               WHERE ticker = ANY($1)
+               ORDER BY created_at DESC
+               LIMIT 20""",
+            tickers,
+        )
+    results = [dict(r) | {"_table": "trade_requests"} for r in rows]
+    duration_ms = int((time.time() - t0) * 1000)
+    if steps:
+        steps.add(
+            label="Fetching trade requests",
+            detail=f"trade_requests ({len(results)} rows)",
+            source="supabase",
+            duration_ms=duration_ms,
+            result_summary=f"{len(results)} rows",
+        )
+    return results
+
+
+async def _query_guidance(
+    tickers: list[str],
+    classified: ClassifiedQuery,
+    steps: StepCollector | None = None,
+) -> list[dict]:
+    """Query guidance for tickers and optional periods."""
+    if not tickers:
+        return []
+    t0 = time.time()
+    params: list = [tickers]
+    period_clause = ""
+    if classified.fiscal_periods:
+        period_clause = " AND period = ANY($2)"
+        params.append(classified.fiscal_periods)
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            f"""SELECT ticker, metric, period,
+                       value, unit, guidance_type,
+                       source, issued_date
+                FROM guidance
+                WHERE ticker = ANY($1){period_clause}
+                ORDER BY issued_date DESC
+                LIMIT 50""",
+            *params,
+        )
+    results = [dict(r) | {"_table": "guidance"} for r in rows]
+    duration_ms = int((time.time() - t0) * 1000)
+    if steps:
+        steps.add(
+            label="Fetching guidance",
+            detail=f"guidance ({len(results)} rows)",
+            source="supabase",
+            duration_ms=duration_ms,
+            result_summary=f"{len(results)} rows",
+            query=(
+                f"SELECT ticker, metric, period, value, unit, guidance_type, source, issued_date "
+                f"FROM guidance WHERE ticker IN {tuple(tickers)} "
+                f"ORDER BY issued_date DESC LIMIT 50"
+            ),
+        )
+    return results
+
+
+async def _query_alt_data(
+    tickers: list[str],
+    classified: ClassifiedQuery,
+    steps: StepCollector | None = None,
+) -> list[dict]:
+    """Query alt_data for tickers, always filtered by data_type."""
+    if not tickers or not classified.alt_data_types:
+        return []
+    t0 = time.time()
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            """SELECT ticker, data_type, date, value, growth, unit,
+                      source_vendor, date_frequency
+               FROM alt_data
+               WHERE ticker = ANY($1) AND data_type = ANY($2)
+               ORDER BY date DESC
+               LIMIT 50""",
+            tickers, classified.alt_data_types,
+        )
+    results = [dict(r) | {"_table": "alt_data"} for r in rows]
+    duration_ms = int((time.time() - t0) * 1000)
+    if steps:
+        steps.add(
+            label="Fetching alt data",
+            detail=f"alt_data ({len(results)} rows)",
+            source="supabase",
+            duration_ms=duration_ms,
+            result_summary=f"{len(results)} rows",
+        )
+    return results
+
+
+async def _query_model_outputs(
+    tickers: list[str],
+    classified: ClassifiedQuery,
+    steps: StepCollector | None = None,
+) -> list[dict]:
+    """Query model_outputs, most recent version per ticker.
+
+    Uses the DISTINCT ON pattern from data-schema.md:
+        SELECT DISTINCT ON (ticker, sheet, metric, period, scenario) *
+        FROM model_outputs
+        ORDER BY ticker, sheet, metric, period, scenario, as_of_date DESC
+    """
+    if not tickers:
+        return []
+    t0 = time.time()
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            """SELECT DISTINCT ON (ticker, sheet, metric, period, scenario)
+                      ticker, sheet, metric, period, scenario,
+                      value, unit, version, as_of_date, created_by, created_at
+               FROM model_outputs
+               WHERE ticker = ANY($1)
+               ORDER BY ticker, sheet, metric, period, scenario, as_of_date DESC
+               LIMIT 500""",
+            tickers,
+        )
+    results = [dict(r) | {"_table": "model_outputs"} for r in rows]
+    duration_ms = int((time.time() - t0) * 1000)
+    if steps:
+        steps.add(
+            label="Fetching model outputs",
+            detail=f"model_outputs ({len(results)} rows)",
+            source="supabase",
+            duration_ms=duration_ms,
+            result_summary=f"{len(results)} rows",
+        )
+    return results
+
+
+async def _query_stock_history(
+    tickers: list[str],
+    classified: ClassifiedQuery,
+    steps: StepCollector | None = None,
+) -> list[dict]:
+    """Query stock_history, last 90 days for tickers."""
+    if not tickers:
+        return []
+    t0 = time.time()
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            """SELECT
+                 ticker,
+                 date::date AS date,
+                 close::numeric AS close,
+                 NULLIF(eps_estimate, '')::numeric AS eps_estimate,
+                 NULLIF(eps_actual, '')::numeric AS eps_actual
+               FROM stock_history
+               WHERE ticker = ANY($1)
+                 AND date::date >= CURRENT_DATE - INTERVAL '90 days'
+               ORDER BY date::date DESC
+               LIMIT 100""",
+            tickers,
+        )
+    results = [dict(r) | {"_table": "stock_history"} for r in rows]
+    duration_ms = int((time.time() - t0) * 1000)
+    if steps:
+        steps.add(
+            label="Fetching price history",
+            detail=f"stock_history ({len(results)} rows)",
+            source="supabase",
+            duration_ms=duration_ms,
+            result_summary=f"{len(results)} rows",
+            query=(
+                f"SELECT ticker, date::date, close::numeric, "
+                f"NULLIF(eps_estimate,'')::numeric, NULLIF(eps_actual,'')::numeric "
+                f"FROM stock_history WHERE ticker IN {tuple(tickers)} "
+                f"AND date >= CURRENT_DATE - 90 days ORDER BY date DESC LIMIT 100"
+            ),
+        )
+    return results
+
+
+async def _query_workflow_registry(
+    tickers: list[str],
+    classified: ClassifiedQuery,
+    steps: StepCollector | None = None,
+) -> list[dict]:
+    """Query workflow_registry by name if specified."""
+    t0 = time.time()
+    if classified.workflow_name:
+        async with get_conn() as conn:
+            rows = await conn.fetch(
+                """SELECT workflow_name, description, input_schema, output_table,
+                          schedule, is_active
+                   FROM workflow_registry
+                   WHERE workflow_name = $1
+                   LIMIT 10""",
+                classified.workflow_name,
+            )
+    else:
+        async with get_conn() as conn:
+            rows = await conn.fetch(
+                """SELECT workflow_name, description, input_schema, output_table,
+                          schedule, is_active
+                   FROM workflow_registry
+                   WHERE is_active = TRUE
+                   LIMIT 50""",
+            )
+    results = [dict(r) | {"_table": "workflow_registry"} for r in rows]
+    duration_ms = int((time.time() - t0) * 1000)
+    if steps:
+        steps.add(
+            label="Fetching workflow info",
+            detail=f"workflow_registry ({len(results)} rows)",
+            source="supabase",
+            duration_ms=duration_ms,
             result_summary=f"{len(results)} rows",
         )
     return results
@@ -378,128 +981,3 @@ def _estimate_tokens(chunks: list[ChunkResult], structured: list[dict] | None) -
         total += len(json.dumps(structured, default=str)) // 4
     total += 100  # user question
     return total
-
-
-# ---------------------------------------------------------------------------
-# Main retrieval entry point
-# ---------------------------------------------------------------------------
-async def retrieve_context(
-    classified: ClassifiedQuery,
-    universe: ResolvedUniverse,
-    user_query: str,
-    session_id: str | None = None,
-    message_id: str | None = None,
-    user_id: str | None = None,
-    steps: StepCollector | None = None,
-) -> RetrievalContext:
-    """Assemble retrieval context based on query type and resolved tickers."""
-
-    # Embed the user query
-    query_embedding = await _embed_query(
-        user_query, session_id=session_id, message_id=message_id, user_id=user_id,
-        steps=steps,
-    )
-
-    # Q&A library lookup (runs on every query)
-    qa_hits = await _lookup_qa_library(query_embedding, steps=steps)
-
-    structured_data = None
-    chunks: list[ChunkResult] = []
-    cache_hit = False
-
-    qt = classified.query_type
-
-    if qt == "single_ticker_qualitative":
-        chunks = await _vector_search(
-            query_embedding,
-            tickers=universe.tickers,
-            limit_per_ticker=6,
-            section_type=classified.section_type_hint,
-            fiscal_periods=classified.fiscal_periods or None,
-            steps=steps,
-        )
-
-    elif qt == "single_ticker_quantitative":
-        if classified.needs_structured_data:
-            structured_data = await _structured_query(
-                universe.tickers, classified.topic, classified.fiscal_periods or None,
-                steps=steps,
-            )
-        if classified.needs_vector_search:
-            chunks = await _vector_search(
-                query_embedding,
-                tickers=universe.tickers,
-                limit_per_ticker=4,
-                section_type=classified.section_type_hint,
-                fiscal_periods=classified.fiscal_periods or None,
-                steps=steps,
-            )
-
-    elif qt == "cross_ticker":
-        per_ticker = 3 if len(universe.tickers) <= 20 else 2
-        chunks = await _vector_search(
-            query_embedding,
-            tickers=universe.tickers,
-            limit_per_ticker=per_ticker,
-            section_type=classified.section_type_hint,
-            fiscal_periods=classified.fiscal_periods or None,
-            steps=steps,
-        )
-
-    elif qt == "screening":
-        # Check cache first
-        cached = await _check_screening_cache(user_query, classified.fiscal_periods)
-        if cached:
-            cache_hit = True
-            chunks = [ChunkResult(**c) for c in cached.get("chunks", [])]
-            if steps:
-                steps.add(
-                    label="Screening cache hit",
-                    detail="MD5 cache lookup",
-                    source="cache",
-                    result_summary=f"{len(chunks)} cached chunks",
-                )
-        else:
-            # Broad retrieval
-            raw_chunks = await _vector_search(
-                query_embedding,
-                tickers=universe.tickers,
-                limit_per_ticker=3,
-                section_type=classified.section_type_hint,
-                steps=steps,
-            )
-            # Haiku pre-filter if too many
-            chunks = await _screening_prefilter(
-                raw_chunks, user_query,
-                session_id=session_id, message_id=message_id, user_id=user_id,
-                steps=steps,
-            )
-            # Cache the result
-            await _write_screening_cache(
-                user_query, classified.fiscal_periods,
-                {"chunks": [c.model_dump() for c in chunks]},
-            )
-
-    elif qt == "trend_analysis":
-        # Build period list from time_range_quarters
-        periods = classified.fiscal_periods
-        chunks = await _vector_search(
-            query_embedding,
-            tickers=universe.tickers,
-            limit_per_ticker=3 * (classified.time_range_quarters or 4),
-            section_type=classified.section_type_hint,
-            fiscal_periods=periods or None,
-            steps=steps,
-        )
-
-    token_est = _estimate_tokens(chunks, structured_data)
-
-    return RetrievalContext(
-        query_type=qt,
-        structured_data=structured_data,
-        chunks=chunks,
-        qa_library_hits=qa_hits,
-        cache_hit=cache_hit,
-        total_chunks_retrieved=len(chunks),
-        total_input_tokens_estimate=token_est,
-    )

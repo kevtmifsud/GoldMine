@@ -19,34 +19,47 @@ export interface ChatStep {
   cost_usd: number;
   duration_ms: number;
   result_summary: string;
+  query?: string;
+}
+
+export interface CostWarning {
+  ticker_count: number;
+  message: string;
 }
 
 export interface Mode2ChatState {
   messages: ChatMessage[];
   chatLoading: boolean;
   streamingContent: string;
+  isStreaming: boolean;
   conversationId: string | null;
   sessionId: string | null;
   error: string | null;
   steps: ChatStep[];
   conversationTitle: string | null;
+  costWarning: CostWarning | null;
   sendMessage: (text: string) => void;
   cancelChat: () => void;
   startNewChat: () => void;
   renameChat: (newTitle: string) => void;
+  confirmCostWarning: () => void;
+  dismissCostWarning: () => void;
 }
 
 export function useMode2Chat(): Mode2ChatState {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [steps, setSteps] = useState<ChatStep[]>([]);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
+  const [costWarning, setCostWarning] = useState<CostWarning | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  const pendingQueryRef = useRef<string | null>(null);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -55,7 +68,11 @@ export function useMode2Chat(): Mode2ChatState {
 
       setError(null);
       setChatLoading(true);
+      setIsStreaming(false);
       setSteps([]);
+      setStreamingContent("");
+      setCostWarning(null);
+      pendingQueryRef.current = trimmed;
       setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
 
       let convId = conversationId;
@@ -90,7 +107,6 @@ export function useMode2Chat(): Mode2ChatState {
         if (!reader) throw new Error("No response body");
 
         const decoder = new TextDecoder();
-        let accumulated = "";
         let buffer = "";
 
         while (true) {
@@ -101,7 +117,6 @@ export function useMode2Chat(): Mode2ChatState {
 
           // Parse SSE lines: "data: {...}\n\n"
           const lines = buffer.split("\n");
-          // Keep the last potentially incomplete line in the buffer
           buffer = lines.pop() ?? "";
 
           for (const line of lines) {
@@ -127,24 +142,39 @@ export function useMode2Chat(): Mode2ChatState {
                   cost_usd: (event.cost_usd as number) ?? 0,
                   duration_ms: (event.duration_ms as number) ?? 0,
                   result_summary: (event.result_summary as string) ?? "",
+                  query: (event.query as string) ?? undefined,
                 },
               ]);
             } else if (event.type === "token" && event.content) {
-              accumulated += event.content as string;
-              setStreamingContent(accumulated);
+              // First token: switch from loading to streaming
+              setIsStreaming(true);
+              // Functional update — guarantees each token appends to latest state
+              setStreamingContent((prev) => prev + (event.content as string));
             } else if (event.type === "error") {
-              setError((event.message as string) ?? "An error occurred");
+              setError(
+                (event.user_message as string) ??
+                (event.message as string) ??
+                "An error occurred"
+              );
+            } else if (event.type === "cost_warning") {
+              // Pause: show warning and wait for user decision
+              setCostWarning({
+                ticker_count: (event.ticker_count as number) ?? 0,
+                message: (event.message as string) ?? "",
+              });
+              setChatLoading(false);
             } else if (event.type === "done") {
-              // Finalize: move accumulated text into messages
-              if (accumulated) {
-                const finalText = accumulated;
-                setMessages((prev) => [
-                  ...prev,
-                  { role: "assistant", content: finalText },
-                ]);
-              }
-              accumulated = "";
-              setStreamingContent("");
+              // Finalize: move streaming content into messages
+              setStreamingContent((prev) => {
+                if (prev) {
+                  setMessages((msgs) => [
+                    ...msgs,
+                    { role: "assistant", content: prev },
+                  ]);
+                }
+                return "";
+              });
+              setIsStreaming(false);
             }
             if (event.type === "metadata" && event.title) {
               setConversationTitle(event.title as string);
@@ -153,36 +183,40 @@ export function useMode2Chat(): Mode2ChatState {
         }
 
         // If stream ended without a "done" event, finalize whatever we have
-        if (accumulated) {
-          const finalText = accumulated;
-          setMessages((prev) => [
-            ...prev,
-            { role: "assistant", content: finalText },
-          ]);
-          setStreamingContent("");
-        }
+        setStreamingContent((prev) => {
+          if (prev) {
+            setMessages((msgs) => [
+              ...msgs,
+              { role: "assistant", content: prev },
+            ]);
+          }
+          return "";
+        });
+        setIsStreaming(false);
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === "AbortError") {
           // User cancelled — keep whatever was streamed so far
-          if (streamingContent) {
-            const partial = streamingContent;
-            setMessages((prev) => [
-              ...prev,
-              { role: "assistant", content: partial },
-            ]);
-            setStreamingContent("");
-          }
+          setStreamingContent((prev) => {
+            if (prev) {
+              setMessages((msgs) => [
+                ...msgs,
+                { role: "assistant", content: prev },
+              ]);
+            }
+            return "";
+          });
         } else {
           const msg =
             err instanceof Error ? err.message : "An unexpected error occurred";
           setError(msg);
         }
+        setIsStreaming(false);
       } finally {
         abortRef.current = null;
         setChatLoading(false);
       }
     },
-    [chatLoading, conversationId, sessionId, streamingContent]
+    [chatLoading, conversationId, sessionId]
   );
 
   const cancelChat = useCallback(() => {
@@ -193,12 +227,15 @@ export function useMode2Chat(): Mode2ChatState {
     abortRef.current?.abort();
     setMessages([]);
     setStreamingContent("");
+    setIsStreaming(false);
     setConversationId(null);
     setSessionId(null);
     setError(null);
     setChatLoading(false);
     setSteps([]);
     setConversationTitle(null);
+    setCostWarning(null);
+    pendingQueryRef.current = null;
   }, []);
 
   const renameChat = useCallback(
@@ -214,18 +251,38 @@ export function useMode2Chat(): Mode2ChatState {
     [conversationId]
   );
 
+  const confirmCostWarning = useCallback(() => {
+    setCostWarning(null);
+    pendingQueryRef.current = null;
+    sendMessage("yes, run it");
+  }, [sendMessage]);
+
+  const dismissCostWarning = useCallback(() => {
+    setCostWarning(null);
+    pendingQueryRef.current = null;
+    abortRef.current?.abort();
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: "cancel" },
+    ]);
+  }, []);
+
   return {
     messages,
     chatLoading,
     streamingContent,
+    isStreaming,
     conversationId,
     sessionId,
     error,
     steps,
     conversationTitle,
+    costWarning,
     sendMessage,
     cancelChat,
     startNewChat,
     renameChat,
+    confirmCostWarning,
+    dismissCostWarning,
   };
 }

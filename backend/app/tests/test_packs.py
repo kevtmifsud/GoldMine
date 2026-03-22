@@ -142,6 +142,13 @@ async def test_cannot_delete_others_pack(authed_client, authed_client_2):
 
 @pytest.mark.asyncio
 async def test_pack_resolution(authed_client):
+    # Get a real person_id from the database for the pack fixture
+    people_resp = await authed_client.get("/api/data/people?page_size=1")
+    people_data = people_resp.json()
+    if not people_data["data"]:
+        pytest.skip("No people in database")
+    person_id = people_data["data"][0]["person_id"]
+
     create_resp = await authed_client.post("/api/views/packs/", json={
         "name": "Research Pack",
         "widgets": [
@@ -152,7 +159,7 @@ async def test_pack_resolution(authed_client):
             },
             {
                 "source_entity_type": "person",
-                "source_entity_id": "PER-001",
+                "source_entity_id": person_id,
                 "widget_id": "covered_stocks",
             },
         ],

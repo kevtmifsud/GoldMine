@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import threading
 import time
-import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
@@ -19,7 +18,7 @@ import psycopg2
 from .config import DATABASE_URL, WORKER_CONCURRENCY
 from .ingestion import scan_for_documents, register_document, reset_stuck_jobs, DocumentJob
 from .classification import classify_job
-from .chunking import chunk_transcript
+from .chunking import chunk_transcript, chunk_plain_text
 from .embedding import generate_embeddings, store_chunks, get_embedding_cost
 
 
@@ -74,8 +73,14 @@ def process_single_document(job: DocumentJob) -> dict:
             (classification.document_type, classification.classification_method, document_id),
         )
 
-        # WF-03: Chunking
-        chunks = chunk_transcript(job.content)
+        # WF-03: Chunking — select chunker based on document type
+        doc_type = classification.document_type
+        if doc_type in ("analyst_note", "sellside_note", "buyside_note"):
+            section_name = doc_type.replace("_", " ").title()
+            chunks = chunk_plain_text(job.content, section_name=section_name, section_type=doc_type)
+        else:
+            chunks = chunk_transcript(job.content)
+
         if not chunks:
             cur.execute(
                 """UPDATE processing_registry
@@ -91,7 +96,7 @@ def process_single_document(job: DocumentJob) -> dict:
         embeddings = generate_embeddings(
             chunks,
             ticker=job.ticker,
-            document_type=classification.document_type,
+            document_type=doc_type,
             fiscal_period=job.fiscal_period,
         )
 
@@ -99,10 +104,11 @@ def process_single_document(job: DocumentJob) -> dict:
             cur,
             document_id=document_id,
             ticker=job.ticker,
-            document_type=classification.document_type,
+            document_type=doc_type,
             fiscal_period=job.fiscal_period,
             chunks=chunks,
             embeddings=embeddings,
+            metadata=job.metadata,
         )
 
         # Mark as complete

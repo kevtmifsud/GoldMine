@@ -16,7 +16,6 @@ from fastapi.responses import StreamingResponse
 
 from .classifier import classify_query
 from .ticker_resolver import resolve_tickers
-from .retrieval import retrieve_context
 from .generator import generate_response
 from .steps import StepCollector
 from .sessions import (
@@ -29,6 +28,8 @@ from .sessions import (
     maybe_compress_session,
     auto_title_conversation,
     list_conversations,
+    set_conversation_visibility,
+    get_visible_conversations,
 )
 from .qa_library import submit_feedback
 from .sharing import share_conversation, share_insight, get_shared_conversations
@@ -124,31 +125,17 @@ async def chat_message(request: Request, body: ChatMessageRequest):
             ticker_str = ", ".join(universe.tickers[:5]) + ("..." if len(universe.tickers) > 5 else "")
             yield f"data: {json.dumps({'type': 'step', 'label': f'Resolving tickers: {ticker_str}' if universe.tickers else 'Resolving tickers', 'detail': 'Ticker lookup and list expansion', 'source': 'supabase', 'model': None, 'cost_usd': 0.0, 'duration_ms': resolve_ms, 'result_summary': f'{len(universe.tickers)} tickers'})}\n\n"
 
-            # WF-08: Retrieve context
-            context = await retrieve_context(
-                classified, universe, body.content,
-                session_id=body.session_id,
-                message_id=assistant_msg_id,
-                user_id=user_id,
-                steps=steps,
-            )
-
-            # Emit retrieval steps
-            for step in steps.drain():
-                yield f"data: {json.dumps(step)}\n\n"
-
-            # WF-09: Generate response (streaming)
+            # WF-08/09: Agentic retrieval + generation (streaming)
             rolling_summary = await get_rolling_summary(body.session_id)
 
-            yield f"data: {json.dumps({'type': 'step', 'label': 'Generating response', 'detail': 'Streaming LLM completion', 'source': 'anthropic', 'model': None, 'cost_usd': 0.0, 'duration_ms': 0, 'result_summary': ''})}\n\n"
-
             async for event in generate_response(
-                body.content, context, classified,
+                body.content, classified, universe,
                 history=history,
                 rolling_summary=rolling_summary,
                 session_id=body.session_id,
                 message_id=assistant_msg_id,
                 user_id=user_id,
+                steps=steps,
             ):
                 yield f"data: {json.dumps(event)}\n\n"
 
@@ -254,6 +241,41 @@ async def get_chat_session(session_id: str) -> SessionResponse:
 
 
 # ---------------------------------------------------------------------------
+# Conversation visibility & listing
+# ---------------------------------------------------------------------------
+@router.patch("/conversations/{conversation_id}/visibility")
+async def update_conversation_visibility(
+    request: Request, conversation_id: str, body: dict
+):
+    """Update conversation visibility (private/public). Owner only."""
+    user_id = _get_user_id(request)
+    visibility = body.get("visibility", "")
+    if visibility not in ("private", "public"):
+        raise HTTPException(400, "visibility must be 'private' or 'public'")
+    ok = await set_conversation_visibility(conversation_id, visibility, user_id)
+    if not ok:
+        raise HTTPException(404, "Conversation not found or not owned by you")
+    return {"status": "updated", "visibility": visibility}
+
+
+@router.get("/visible-conversations")
+async def list_visible_conversations(
+    request: Request,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """List conversations visible to current user (own + public from others)."""
+    user_id = _get_user_id(request)
+    user = getattr(request.state, "user", None)
+    is_admin = getattr(user, "is_admin", False) if user else False
+    conversations = await get_visible_conversations(
+        user_id, is_admin=is_admin,
+        limit=limit, offset=offset,
+    )
+    return conversations
+
+
+# ---------------------------------------------------------------------------
 # Feedback
 # ---------------------------------------------------------------------------
 @router.post("/messages/{message_id}/feedback", status_code=201)
@@ -324,7 +346,7 @@ async def get_conversation_detail(
 
     async with get_conn() as conn:
         conv = await conn.fetchrow(
-            """SELECT id, title, ticker_context, created_at, updated_at, origin_path,
+            """SELECT id, title, ticker_context, visibility, created_at, updated_at, origin_path,
                       EXISTS(SELECT 1 FROM conversation_shares cs WHERE cs.conversation_id = c.id) as is_shared
                FROM conversations c
                WHERE id = $1 AND user_id = $2""",
@@ -354,7 +376,11 @@ async def get_conversation_detail(
                 content=m["content"],
                 query_type=m["query_type"],
                 tickers_referenced=m["tickers_referenced"] or [],
-                source_chunks=json.loads(m["source_chunks"]) if m["source_chunks"] else [],
+                source_chunks=(
+                    m["source_chunks"] if isinstance(m["source_chunks"], list)
+                    else json.loads(m["source_chunks"]) if m["source_chunks"]
+                    else []
+                ),
                 feedback=None,
                 created_at=m["created_at"],
             )
@@ -362,6 +388,7 @@ async def get_conversation_detail(
         ],
         turn_count=len(messages),
         is_shared=conv["is_shared"],
+        visibility=conv["visibility"],
         created_at=conv["created_at"],
         last_active=conv["updated_at"],
         origin_path=conv["origin_path"],

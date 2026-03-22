@@ -166,6 +166,35 @@ async def save_user_message(
     return msg_id
 
 
+_INVALID_SUMMARY_PHRASES = [
+    "no data available",
+    "not available",
+    "not yet ingested",
+    "data management interface",
+    "no estimates",
+    "no results found",
+    "empty",
+    "not in the database",
+    "not currently available",
+]
+
+
+def _validate_summary(summary: str) -> str:
+    """Strip sentences containing data-availability noise from summary."""
+    sentences = summary.split(". ")
+    valid = [
+        s for s in sentences
+        if not any(phrase in s.lower() for phrase in _INVALID_SUMMARY_PHRASES)
+    ]
+    stripped = len(sentences) - len(valid)
+    if stripped > 0:
+        logger.warning(
+            "compression_quality_check: stripped %d sentences containing data availability statements",
+            stripped,
+        )
+    return ". ".join(valid)
+
+
 async def maybe_compress_session(
     session_id: str,
     user_id: str | None = None,
@@ -191,7 +220,7 @@ async def maybe_compress_session(
 
         # Get messages not yet covered by summary (up to turn_count - 4)
         messages = await conn.fetch(
-            """SELECT role, content FROM messages
+            """SELECT id, role, content FROM messages
                WHERE session_id = $1
                ORDER BY created_at""",
             session_id,
@@ -201,11 +230,39 @@ async def maybe_compress_session(
         return
 
     # Messages to summarize: from covered+1 to turn_count-4
-    all_msgs = [{"role": m["role"], "content": m["content"]} for m in messages]
+    all_msgs = [{"id": str(m["id"]), "role": m["role"], "content": m["content"]} for m in messages]
     to_summarize = all_msgs[covered : max(covered, len(all_msgs) - 8)]
 
     if not to_summarize:
         return
+
+    # Check for negatively-flagged messages in the compression window
+    msg_ids = [m["id"] for m in to_summarize]
+    flagged_ids: set[str] = set()
+    async with get_conn() as conn:
+        flagged_rows = await conn.fetch(
+            """SELECT message_id, feedback_type
+               FROM message_feedback
+               WHERE message_id = ANY($1)
+               AND feedback_type IN ('thumbs_down', 'flagged', 'edited')""",
+            msg_ids,
+        )
+    flagged_ids = {str(r["message_id"]) for r in flagged_rows}
+
+    # Build flagged-message notes for the compression prompt
+    flagged_notes = ""
+    if flagged_ids:
+        notes = []
+        for m in to_summarize:
+            if m["id"] in flagged_ids and m["role"] == "assistant":
+                notes.append(
+                    f"NOTE: The assistant response (message {m['id']}) was marked "
+                    f"incorrect by the user. Do NOT include that response's content "
+                    f"in the summary. If the user provided a correction, include "
+                    f"only the correction."
+                )
+        if notes:
+            flagged_notes = "\n".join(notes) + "\n\n"
 
     # Call Haiku for compression
     config = await get_model_config("session_compressor")
@@ -215,12 +272,22 @@ async def maybe_compress_session(
         f"{m['role']}: {m['content'][:500]}" for m in to_summarize
     )
 
-    prompt = f"""Summarize the following conversation turns concisely. Preserve:
-- Specific ticker names and financial figures mentioned
-- Questions asked and conclusions reached
-- Any follow-up threads the user indicated interest in
+    prompt = f"""{flagged_notes}Summarize the following conversation turns into a rolling summary.
 
-Do NOT summarize themes — preserve specific facts and numbers.
+INCLUDE — Always keep these:
+- Tickers, sectors, and topics under research
+- Questions asked and analytical themes
+- Key verified findings from successful data retrieval (qualitative insights, not specific stale numbers)
+- Analyst stated preferences (e.g. "prefers tables", "focus on margins")
+- Follow-up items mentioned
+- Workflow outputs that were reviewed and discussed
+
+EXCLUDE — Remove these entirely:
+- Transient data availability: any statement that data was unavailable, not found, empty, or not yet ingested. These change as the database is updated and must never be treated as permanent facts.
+- User-reported incorrect responses: any response the user indicated was wrong, corrected, or disputed. If the user said "that's wrong" or provided a correction, exclude the original incorrect statement and include only the correction if it was factual.
+- Stale time-sensitive figures: specific numeric values for things that change daily (prices, P&L amounts, market values, specific estimate values with a date). Include the topic but not the specific stale number. Instead of "AAPL market value was $594M as of March 20", write "Analyst reviewed AAPL portfolio position and P&L".
+- Error messages and failures: API errors, database failures, timeout errors.
+- Workflow execution status: "Earnings preview was generated", "Model was created successfully". The outputs are stored in the database. Include what was reviewed, not that it ran.
 
 Conversation:
 {conversation_text}
@@ -237,6 +304,7 @@ Summary:"""
     )
 
     summary = response.content[0].text.strip()
+    summary = _validate_summary(summary)
     cost = await calculate_cost(model, response.usage.input_tokens, response.usage.output_tokens)
 
     emit_cost_event(
@@ -308,6 +376,84 @@ Title:"""
         )
 
     return title
+
+
+async def set_conversation_visibility(
+    conversation_id: str,
+    visibility: str,
+    user_id: str,
+) -> bool:
+    """Set visibility on a conversation. Only the owner can change it.
+    Affects all sessions within that conversation.
+    """
+    if visibility not in ("private", "public"):
+        raise ValueError(f"Invalid visibility: {visibility}")
+    async with get_conn() as conn:
+        result = await conn.execute(
+            """UPDATE conversations SET visibility = $1, updated_at = NOW()
+               WHERE id = $2 AND user_id = $3""",
+            visibility, conversation_id, user_id,
+        )
+    return result == "UPDATE 1"
+
+
+async def get_visible_conversations(
+    user_id: str,
+    is_admin: bool = False,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict]:
+    """Return conversations visible to this user.
+
+    Rules:
+    - Admin sees all conversations
+    - Users see their own (any visibility)
+    - Users see others' public conversations
+    """
+    if is_admin:
+        where = "TRUE"
+        params: list = [limit, offset]
+        idx = 1
+    else:
+        where = "(c.user_id = $1 OR c.visibility = 'public')"
+        params = [user_id, limit, offset]
+        idx = 2
+
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            f"""SELECT c.id, c.user_id, c.title, c.ticker_context,
+                       c.visibility, c.is_archived, c.origin_path,
+                       c.created_at, c.updated_at,
+                       COUNT(s.id) as session_count,
+                       MAX(s.updated_at) as last_active,
+                       (SELECT content FROM messages m
+                        JOIN sessions s2 ON m.session_id = s2.id
+                        WHERE s2.conversation_id = c.id AND m.role = 'user'
+                        ORDER BY m.created_at LIMIT 1) as first_message
+                FROM conversations c
+                LEFT JOIN sessions s ON s.conversation_id = c.id
+                WHERE {where}
+                AND c.is_archived = FALSE
+                GROUP BY c.id
+                ORDER BY COALESCE(MAX(s.updated_at), c.updated_at) DESC
+                LIMIT ${idx} OFFSET ${idx + 1}""",
+            *params,
+        )
+
+    return [
+        {
+            "id": str(r["id"]),
+            "user_id": r["user_id"],
+            "title": r["title"],
+            "ticker_context": r["ticker_context"] or [],
+            "visibility": r["visibility"],
+            "session_count": r["session_count"],
+            "last_active": r["last_active"] or r["updated_at"],
+            "first_message": r["first_message"],
+            "origin_path": r["origin_path"],
+        }
+        for r in rows
+    ]
 
 
 async def list_conversations(

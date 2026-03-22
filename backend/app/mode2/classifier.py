@@ -36,35 +36,6 @@ You are a financial query classifier. Analyze the user's question and return a J
 - model_edit: Request to change a model assumption. Example: "Change base case 2027 revenue growth to 15%"
 - workflow: Request to run a named workflow. Example: "Run earnings preview for NVDA"
 
-## Required sources
-You MUST output a required_sources[] list. This tells the retrieval layer which data sources to query. Available sources:
-- financial_metrics: Reported company financials (revenue, margins, EPS, balance sheet, cash flow)
-- chunks_earnings_transcript: Earnings call transcripts (vector search)
-- chunks_10k, chunks_10q, chunks_8k: SEC filings (vector search)
-- chunks_analyst_note: Internal analyst notes (vector search)
-- chunks_buyside_note: External buyside firm notes (vector search)
-- chunks_sellside_note: Sellside firm notes (vector search)
-- internal_estimates, buyside_estimates, consensus_estimates, sellside_estimates: Forward estimates
-- guidance: Company-issued forward guidance
-- daily_pnl: Portfolio P&L data
-- portfolio_concentration: Portfolio exposure/weights
-- portfolio_risk: Beta exposures
-- trade_requests: Pending/historical trade requests
-- stock_history: Historical price data
-- alt_data: Alternative data (must also set alt_data_types[])
-- model_outputs: Financial model assumptions/scenarios
-- workflow_registry: Workflow lookup (for workflow type)
-
-## Source routing rules (critical — follow exactly)
-1. Portfolio queries → only daily_pnl, portfolio_concentration, portfolio_risk, trade_requests. NEVER include financial_metrics or stock_history.
-2. Internal analyst note queries → only chunks_analyst_note. NEVER include chunks_sellside_note or chunks_buyside_note.
-3. Sellside queries → only chunks_sellside_note. NEVER include chunks_analyst_note or chunks_buyside_note.
-4. Buyside queries → only chunks_buyside_note. NEVER include chunks_analyst_note or chunks_sellside_note.
-5. Estimates queries → ALWAYS include ALL FOUR: internal_estimates, buyside_estimates, consensus_estimates, sellside_estimates. Never present a single source alone.
-6. Alt data → ALWAYS set alt_data_types[] with the specific type(s). Never query alt_data without a type filter.
-7. Stock price/performance → stock_history only. Self-contained.
-8. Multi-source queries are the norm — include all relevant sources.
-
 ## Alt data keyword mapping
 Map natural language terms to alt_data_types values:
 - credit card, card data, transaction data, consumer spend, CC data, card trends, card spend → credit_card
@@ -83,24 +54,22 @@ Return ONLY valid JSON matching this schema (no markdown, no preamble):
   "list_references": [],
   "fiscal_periods": ["Q4_2024"],
   "topic": "gross margin outlook",
-  "needs_structured_data": false,
-  "needs_vector_search": true,
   "section_type_hint": null,
   "time_range_quarters": null,
-  "required_sources": ["financial_metrics", "chunks_earnings_transcript"],
   "alt_data_types": [],
-  "workflow_name": null
+  "workflow_name": null,
+  "estimated_ticker_count": 1
 }}
 
 ## Rules
 - Infer fiscal periods from natural language. Today is {today}.
   "last quarter" = current quarter - 1, "this year" = current fiscal year.
   Format periods as Q{{N}}_{{YYYY}} for quarterly, FY{{YYYY}} for annual.
-- If the user references a named list (e.g., "my tech names", "semiconductor names"), put the name in list_references, NOT in tickers.
+- If the user references a named list (e.g., "my tech names", "semiconductor names"), put the name in list_references, NOT in tickers. Estimate the number of tickers in the list for estimated_ticker_count.
 - Set section_type_hint when topic maps to a known section: "guidance" → "cfo_remarks", "risk" → "risk_factors", "strategy" → "ceo_remarks".
-- For quantitative questions, set needs_structured_data=true. For qualitative, set needs_vector_search=true. For hybrid, set both.
 - For trend_analysis, set time_range_quarters to the number of quarters requested.
 - For workflow queries, set workflow_name to the machine name (e.g. "earnings_preview", "financial_model_generation").
+- Set estimated_ticker_count to the number of tickers the query is about. For screening queries over the full universe, set to 503. For named lists, estimate the list size.
 
 ## User's ticker lists
 {ticker_lists}
@@ -201,16 +170,17 @@ async def classify_query(
         classified = ClassifiedQuery(
             query_type="single_ticker_qualitative",
             tickers=[],
-            needs_vector_search=True,
         )
 
-    # Enforce routing rules deterministically
-    classified.required_sources = resolve_required_sources(classified)
     return classified
 
 
 # ---------------------------------------------------------------------------
 # Alt data keyword → data_type mapping (authoritative, from chatbot.md)
+#
+# Single source of truth for alt data keyword routing. Must stay in sync
+# with tool descriptions in tools.py and the keyword mapping table in
+# chatbot.md. Do not delete this constant.
 # ---------------------------------------------------------------------------
 ALT_DATA_KEYWORD_MAP: dict[str, str] = {
     "credit card": "credit_card",
@@ -243,93 +213,3 @@ ALT_DATA_KEYWORD_MAP: dict[str, str] = {
     "healthcare data": "medical_claims",
     "rx data": "medical_claims",
 }
-
-# All four estimate sources — always queried together, never in isolation
-_ALL_ESTIMATE_SOURCES = [
-    "internal_estimates",
-    "buyside_estimates",
-    "consensus_estimates",
-    "sellside_estimates",
-]
-
-# Portfolio-only sources
-_PORTFOLIO_SOURCES = [
-    "daily_pnl",
-    "portfolio_concentration",
-    "portfolio_risk",
-    "trade_requests",
-]
-
-# Sources that must never appear together (mutual exclusion groups)
-_NOTE_TYPES = {"chunks_analyst_note", "chunks_buyside_note", "chunks_sellside_note"}
-
-
-def resolve_required_sources(classified: ClassifiedQuery) -> list[str]:
-    """Enforce routing rules from chatbot.md on top of LLM output.
-
-    The LLM's ``required_sources`` is treated as a starting suggestion.
-    This function adds mandatory sources, removes prohibited ones, and
-    enforces isolation rules deterministically.
-    """
-    sources = list(classified.required_sources)
-    qtype = classified.query_type
-
-    # ----- Query-type-driven defaults when LLM returns empty list -----
-    if not sources:
-        if qtype == "portfolio":
-            sources = list(_PORTFOLIO_SOURCES)
-        elif qtype == "estimates":
-            sources = list(_ALL_ESTIMATE_SOURCES)
-        elif qtype == "alt_data":
-            sources = ["alt_data"]
-        elif qtype == "model_query":
-            sources = ["model_outputs"]
-        elif qtype == "model_edit":
-            sources = ["model_outputs"]
-        elif qtype == "workflow":
-            sources = ["workflow_registry"]
-        elif qtype == "single_ticker_quantitative":
-            sources = ["financial_metrics"]
-        elif qtype == "single_ticker_qualitative":
-            sources = ["chunks_earnings_transcript"]
-        elif qtype in ("cross_ticker", "screening", "trend_analysis"):
-            sources = ["chunks_earnings_transcript"]
-            if classified.needs_structured_data:
-                sources.append("financial_metrics")
-
-    # ----- Rule 1: Portfolio isolation -----
-    if qtype == "portfolio":
-        sources = [s for s in sources if s in _PORTFOLIO_SOURCES]
-        if not sources:
-            sources = list(_PORTFOLIO_SOURCES)
-
-    # ----- Rule 2-4: Note type isolation -----
-    present_notes = _NOTE_TYPES & set(sources)
-    if len(present_notes) > 1:
-        # Keep only the first one found (in deterministic order)
-        for note in ("chunks_analyst_note", "chunks_sellside_note", "chunks_buyside_note"):
-            if note in present_notes:
-                sources = [s for s in sources if s not in _NOTE_TYPES or s == note]
-                break
-
-    # ----- Rule 5: Estimates always all four -----
-    has_any_estimate = any(s in _ALL_ESTIMATE_SOURCES for s in sources)
-    if has_any_estimate or qtype == "estimates":
-        for est in _ALL_ESTIMATE_SOURCES:
-            if est not in sources:
-                sources.append(est)
-
-    # ----- Rule 6: Alt data requires type filter -----
-    if "alt_data" in sources and not classified.alt_data_types:
-        # Remove alt_data if no types specified — can't query without filter
-        sources = [s for s in sources if s != "alt_data"]
-
-    # Deduplicate while preserving order
-    seen: set[str] = set()
-    deduped: list[str] = []
-    for s in sources:
-        if s not in seen:
-            seen.add(s)
-            deduped.append(s)
-
-    return deduped

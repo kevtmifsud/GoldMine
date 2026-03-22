@@ -245,6 +245,145 @@
 }
 
 /* Tables in chat messages */
+.chat-table-wrap {
+  position: relative;
+  overflow-x: auto;
+  margin: 0.6rem 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* Copy button — top right, visible on hover */
+.chat-table-copy {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 5;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.chat-table-wrap:hover .chat-table-copy {
+  opacity: 1;
+}
+
+.chat-table-copy:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.chat-table-copy--done {
+  opacity: 1;
+  color: var(--color-success);
+  border-color: var(--color-success);
+  cursor: default;
+  font-weight: 500;
+}
+
+.chat-table-copy--menu {
+  opacity: 1;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+}
+
+.chat-table-copy__option {
+  background: none;
+  border: none;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.chat-table-copy__option:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.chat-table-copy__option--cancel {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.chat-table-wrap table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  min-width: max-content;
+}
+
+.chat-table-wrap thead th {
+  text-align: left;
+  font-weight: 500;
+  padding: 8px 12px;
+  background: var(--color-bg);
+  border-bottom: 2px solid var(--color-border);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* Sticky first column for wide tables */
+.chat-table-wrap th:first-child,
+.chat-table-wrap td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.chat-table-wrap thead th:first-child {
+  z-index: 3;
+  background: var(--color-bg);
+}
+
+.chat-table-wrap tbody td:first-child {
+  background: var(--color-surface);
+  font-weight: 500;
+}
+
+.chat-table-wrap td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+/* Strip bold from rendered markdown inside table cells —
+   visual hierarchy comes from header row only */
+.chat-table-wrap tbody td strong {
+  font-weight: 400;
+}
+
+.chat-table-wrap tbody tr:nth-child(even) td {
+  background: var(--color-bg);
+}
+
+.chat-table-wrap tbody tr:nth-child(even) td:first-child {
+  background: var(--color-bg);
+}
+
+.chat-table-wrap tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.chat-table-wrap tbody tr:hover td {
+  background: #edf2f7;
+}
+
+/* Fallback for tables not wrapped by ChatMarkdown (plain .chat-page__msg) */
 .chat-page__msg table {
   border-collapse: collapse;
   width: 100%;
@@ -259,14 +398,14 @@
 
 .chat-page__msg th {
   text-align: left;
-  font-weight: 600;
-  padding: 0.4rem 0.6rem;
+  font-weight: 500;
+  padding: 8px 12px;
   border-bottom: 2px solid var(--color-border);
   white-space: nowrap;
 }
 
 .chat-page__msg td {
-  padding: 0.35rem 0.6rem;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--color-border);
   vertical-align: top;
 }
@@ -285,6 +424,67 @@
   border: 1px solid var(--color-border);
   color: var(--color-text-secondary);
   font-style: italic;
+}
+
+/* Cost warning */
+.chat-page__cost-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #92400e;
+}
+
+.chat-page__cost-warning-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.chat-page__cost-warning-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-page__cost-warning-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.chat-page__cost-warning-btn {
+  padding: 0.3rem 0.7rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chat-page__cost-warning-btn--confirm {
+  background: #f59e0b;
+  color: white;
+}
+
+.chat-page__cost-warning-btn--confirm:hover {
+  background: #d97706;
+}
+
+.chat-page__cost-warning-btn--cancel {
+  background: transparent;
+  border: 1px solid #d97706;
+  color: #92400e;
+}
+
+.chat-page__cost-warning-btn--cancel:hover {
+  background: #fef3c7;
 }
 
 /* Error */
@@ -486,6 +686,49 @@
 
 .chat-steps__collapse-btn:hover {
   color: var(--color-text);
+}
+
+.chat-step__header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.chat-step__query-wrapper {
+  margin-left: 1.4rem;
+  margin-top: 0.15rem;
+}
+
+.chat-step__query-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.7rem;
+  color: var(--color-text-muted, #94a3b8);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.chat-step__query-toggle:hover {
+  color: var(--color-text, #334155);
+}
+
+.chat-step__query-code {
+  margin: 0.25rem 0 0.4rem 0;
+  padding: 0.4rem 0.6rem;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 6rem;
+  overflow-y: auto;
 }
 
 /* Chat page header actions */

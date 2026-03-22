@@ -12,20 +12,50 @@ Canonical reference for every table in GoldMine. For each table: grain, key colu
 Grain: one row per ticker. S&P 500 universe (503 tickers).
 Writer: `update_all_data.py` (weekly). Upsertable.
 Chatbot: read. Used for ticker resolution, sector/industry lookup, peer population.
-Key columns: `ticker`, `company_name`, `sector`, `industry`, `market_cap`, `exchange`.
+Key columns:
+- `ticker` varchar PK
+- `company_name` text
+- `sector` varchar
+- `industry` varchar
+- `market_cap_b` varchar
+- `pe_ratio` varchar
+- `price` varchar
+- `52w_high` varchar
+- `52w_low` varchar
+- `dividend_yield` varchar
+- `eps` varchar
+- `revenue_b` varchar
+- `country` varchar
+- `exchange` varchar
+- `address` text
+- `city` varchar
+- `phone` varchar
+- `zip` varchar
+- `long_business_summary` text
+- `full_time_employees` varchar
+- `web_site` text
+- `report_date` varchar
 
 ### `financial_metrics`
 Grain: one row per ticker per period per metric.
 Writer: `update_all_data.py` (weekly). Upsertable.
 Chatbot: read. Primary source for fundamental queries (revenue, margins, EPS, B/S, cash flow).
-Key columns: `ticker`, `period`, `metric_name`, `value`, `period_type` (annual | quarterly).
+Key columns:
+- `ticker` varchar
+- `metric_name` varchar
+- `period_end` date
+- `period_type` varchar (annual | quarterly)
+- `value` numeric
+- `created_at` timestamptz
+
 Never mix with portfolio P&L data — these are reported company financials only.
 
 ### `stock_history`
 Grain: one row per ticker per date.
 Writer: `update_all_data.py` (weekly). Upsertable.
-Chatbot: read. Used for price/performance queries. Exempt from inline citation.
-Key columns: `ticker`, `date`, `open`, `high`, `low`, `close`, `volume`, `adjusted_close`.
+Chatbot: read. Used for price/performance queries and EPS estimate vs actual comparison. Exempt from inline citation.
+Key columns: `date` varchar, `ticker` varchar, `close` varchar, `eps_estimate` varchar (nullable), `eps_actual` varchar (nullable).
+Note: All columns are VARCHAR. Always cast to appropriate types in queries: `date::date`, `close::numeric`, `NULLIF(eps_estimate, '')::numeric`, `NULLIF(eps_actual, '')::numeric`.
 
 ### `transcripts_list`
 Grain: one row per earnings call (ticker + period).
@@ -43,14 +73,30 @@ Key columns: `ticker`, `filing_type` (10-K | 10-Q | 8-K | DEF14A), `period`, `fi
 Grain: one row per document chunk.
 Writer: WF-04 (embedding + storage). Insert-only.
 Chatbot: read via pgvector cosine similarity. Primary retrieval source for all document types.
-Key columns: `id`, `ticker`, `doc_type`, `period`, `content`, `embedding` (1536-dim OpenAI), `source_doc_id`, `chunk_index`, `metadata` (JSONB — carries speaker, section, user_id, firm, ticker_list, sector_list, industry_list depending on doc_type).
-Doc types: `earnings_transcript`, `10-K`, `10-Q`, `8-K`, `analyst_note`, `sellside_note`, `buyside_note`.
+Key columns:
+- `chunk_id` uuid PK
+- `document_id` uuid FK → source document
+- `ticker` text
+- `document_type` text (earnings_transcript | 10-K | 10-Q | 8-K | analyst_note | sellside_note | buyside_note)
+- `fiscal_period` text (e.g. Q4_2024, FY2024)
+- `section_name` text (e.g. "CFO Remarks")
+- `section_type` text (e.g. cfo_remarks, risk_factors)
+- `chunk_text` text (the actual content)
+- `chunk_sequence` integer (position in document)
+- `word_count` integer
+- `filing_date` date (nullable)
+- `page_reference` integer (nullable)
+- `is_active` boolean DEFAULT true
+- `embedding` vector(1536) (OpenAI text-embedding-3-large)
+- `created_at` timestamptz
+
+Note: code uses actual DB column names correctly. This section was previously documented with different names — now corrected to match the actual schema.
 
 ### `people`
-Grain: one row per executive per company.
-Writer: `update_all_data.py` (monthly). Upsertable.
-Chatbot: read. Used for executive/compensation queries.
-Key columns: `ticker`, `name`, `title`, `compensation`.
+Grain: one row per person (executive, buyside analyst, or sellside analyst).
+Writer: `update_all_data.py` (monthly, executives), `seed_analysts.py` (analysts). Upsertable.
+Chatbot: read. Used for executive/compensation queries and analyst attribution on estimates.
+Key columns: `person_id` varchar PK, `name` text, `title` text, `organization` text, `type` varchar (`executive` | `buyside_analyst` | `sellside_analyst`), `tickers` text (executives only), `sector_coverage` text[] (analysts only — sectors covered).
 
 ### `earnings_calendar`
 Grain: one row per ticker per earnings date.
@@ -74,14 +120,148 @@ Roles: `analyst` for all users. `is_admin=true` grants full session visibility.
 ### `api_cost_events`
 Grain: one row per LLM API call.
 Writer: chatbot pipeline (all WF stages). Insert-only.
-Chatbot: no direct access. Used by cost estimation logic only.
-Key columns: `id`, `workflow_step`, `model`, `input_tokens`, `output_tokens`, `cost_usd`, `session_id`, `created_at`.
+Chatbot: no direct access. Used by cost estimation logic and daily cost report.
+Key columns:
+- `id` uuid PK
+- `mode` text (mode_2)
+- `component` text (response_generator | query_classifier | query_embedder | screening_prefilter | session_compressor)
+- `model` text (model name used)
+- `input_tokens` integer
+- `output_tokens` integer (nullable)
+- `cost_usd` numeric
+- `session_id` uuid (nullable)
+- `message_id` uuid (nullable)
+- `user_id` text (nullable)
+- `query_type` text (nullable)
+- `ticker_count` integer (nullable)
+- `document_id` uuid (nullable)
+- `created_at` timestamptz
 
 ### `model_config`
 Grain: one row per pipeline component.
 Writer: manual admin update. Upsertable.
 Chatbot: read at runtime for model assignment. Enables hot-swap without redeploy.
 Key columns: `component` (wf06_classifier | wf09_generator | etc.), `model_id`, `updated_at`.
+
+### `api_pricing`
+Grain: one row per model per pricing tier.
+Writer: manual admin update. Upsertable.
+Chatbot: no direct access. Used by cost calculation logic in `cost.py`.
+Key columns: `model`, `input_per_1m` numeric, `output_per_1m` numeric, `is_current` bool.
+
+### `portfolio_trades`
+Grain: one row per executed trade.
+Writer: `trade_completed_job` (moves executed `trade_requests` → `portfolio_trades`). Insert-only.
+Chatbot: indirect (via `daily_pnl`). Source of truth for all position and P&L calculations.
+Key columns: `date`, `ticker`, `action` (buy | sell), `shares`, `price`, `portfolio` ('Flagship' | 'Long Only'), `side` (long | short).
+Portfolio names in the database use Title Case with spaces. The tool layer normalizes lowercase_underscore input to match these values via `PORTFOLIO_MAP` in `retrieval.py`.
+
+### `workflow_outputs_docs_sync`
+Grain: one row per docs_sync workflow run.
+Writer: docs_sync workflow. Insert-only.
+Chatbot: read. Surfaces documentation gap reports and sync history.
+Key columns: `id` uuid PK, `workflow_run_id` uuid FK, `triggered_by` text, `started_at` timestamptz, `completed_at` timestamptz, `files_checked` text[], `gaps_found` jsonb, `files_updated` text[], `items_needing_human_review` jsonb, `summary` text, `created_at` timestamptz.
+
+### `workflow_outputs_financial_model`
+Grain: one row per financial model generation (ticker + version + run).
+Writer: financial_model_generation workflow. Insert-only.
+Chatbot: read. Prior models for a ticker are surfaced as context.
+Key columns: `id` uuid PK, `workflow_run_id` uuid FK, `ticker` text, `version` text, `s3_path` text, `key_kpis` text[], `assumptions_snapshot` jsonb, `generated_at` timestamptz, `generated_by` text.
+
+---
+
+## Mode 2 platform tables (existing, pre-built)
+
+These tables existed before the domain schema work and power the core Mode 2 chat infrastructure. They are all working correctly. Documented here for completeness.
+
+### `conversations`
+Grain: one row per conversation thread. The shareable unit — visibility lives here.
+Writer: mode2 router on first message. Upsertable (title, visibility updates).
+Chatbot: no direct access.
+Key columns: `id` uuid PK, `user_id` text, `title` text, `ticker_context` text[], `visibility` text DEFAULT 'private' ('private' | 'public') — added in migration 026, `is_archived` bool, `origin_path` varchar, `created_at` timestamptz, `updated_at` timestamptz.
+Visibility rules: private = owner only (default). public = entire team can view. Admin sees everything. Set at conversation level — all sessions within inherit the same visibility.
+Note: parent of `sessions` table.
+
+### `messages`
+Grain: one row per chat message (user or assistant).
+Writer: mode2 generator after each response. Insert-only.
+Chatbot: no direct access — conversation history is for user reference only.
+Key columns: `id` uuid PK, `session_id` uuid FK → `sessions`, `user_id` text, `role` varchar (user | assistant), `content` text, `query_type` varchar, `tickers_referenced` text[], `source_chunks` jsonb, `qa_library_hits` jsonb, `classifier_model` varchar, `generator_model` varchar, `input_tokens` integer, `output_tokens` integer, `cost_usd` numeric, `content_embedding` vector, `created_at` timestamptz.
+
+### `qa_library`
+Grain: one row per validated Q&A pair.
+Writer: WF-11 feedback pipeline. Insert-only.
+Chatbot: read via pgvector similarity search at start of every query (threshold 0.88).
+Key columns: `id` uuid PK, `question` text, `answer` text, `question_embedding` vector, `tickers_referenced` text[], `validation_type` text, `validation_weight` numeric, `created_at` timestamptz.
+
+### `screening_cache`
+Grain: one row per cached screening result.
+Writer: WF-08 retrieval after screening runs. Upsertable (expires_at refreshed on re-query).
+Key columns: `query_hash` text PK, `query_text` text, `result_content` jsonb, `expires_at` timestamptz, `hit_count` integer, `created_at` timestamptz.
+Chatbot: read/write for screening queries.
+
+### `conversation_shares`
+Grain: one row per share grant.
+Writer: sharing API. Insert-only.
+Key columns: `id` uuid PK, `conversation_id` uuid FK, `shared_by` text, `shared_with` text, `created_at` timestamptz.
+Chatbot: no access.
+
+### `insights`
+Grain: one row per saved insight.
+Writer: mode2 router (analyst saves a message as insight). Insert-only.
+Key columns: `id` uuid PK, `user_id` text, `message_id` uuid, `session_id` uuid, `title` text, `content` text, `ticker_context` text[], `tags` text[], `created_at` timestamptz.
+Chatbot: no access.
+
+### `insight_shares`
+Grain: one row per insight share grant.
+Writer: sharing API. Insert-only.
+Chatbot: no access.
+
+### `message_feedback`
+Grain: one row per feedback action on a message.
+Writer: WF-11 feedback pipeline. Insert-only.
+Chatbot: no access.
+
+### `llm_bug_reports`
+Grain: one row per bug report submitted.
+Writer: mode2 router bug report endpoint. Insert-only (status can be updated).
+Key columns: `id` uuid PK, `category` text, `description` text, `user_query` text, `llm_response` text, `error_message` text, `tickers_referenced` text[], `query_type` text, `status` text, `resolution` text, `user_id` text, `created_at` timestamptz, `resolved_at` timestamptz.
+Chatbot: no access.
+
+### `llm_regression_tests`
+Grain: one row per regression test case.
+Writer: admin/developer. Upsertable.
+Chatbot: no access.
+
+### `user_ticker_lists`
+Grain: one row per named ticker list per user.
+Writer: mode2 router. Upsertable (ON CONFLICT updates tickers).
+Key columns: `user_id` text, `list_name` text, `tickers` text[], `created_at` timestamptz, `updated_at` timestamptz.
+Chatbot: read — classifier uses these to expand list references like "my tech names".
+
+### `feature_requests`
+Grain: one row per user-submitted feature request.
+Writer: mode2 router /request command. Insert-only (status updated by admin).
+Key columns: `id` uuid PK, `user_id` text, `session_id` uuid, `request_text` text, `status` text, `priority` text, `admin_notes` text, `created_at` timestamptz.
+Chatbot: no access.
+
+### `processing_registry`
+Grain: one row per document in the ingestion pipeline.
+Writer: WF-01 ingestion scanner. Upsertable.
+Key columns: tracks MD5 change detection to avoid reprocessing unchanged docs.
+Chatbot: no access.
+
+### `pipeline_runs`
+Grain: one row per pipeline execution.
+Writer: WF-05 orchestrator. Insert-only.
+Chatbot: no access.
+
+### `portfolios`
+Grain: one row per portfolio definition.
+Writer: manual/admin or `generate_portfolio_trades.py`. Upsertable.
+Key columns: `portfolio_id` text, `name` text, `strategy` text, `aum` numeric, `long_exposure` numeric, `short_exposure` numeric, `num_positions` integer, `max_position_pct` numeric, `inception_date` date, `rebalance_frequency` text, `total_trades` integer, `unique_tickers` integer, `status` text.
+Note: currently 2 rows (Flagship, Long Only). Referenced by entities.py for portfolio detail views.
+Chatbot: indirect — entities.py reads it for portfolio metadata.
 
 ---
 
@@ -137,9 +317,9 @@ Note: sellside notes are also processed by a structured extraction job that writ
 ---
 
 ### `sellside_estimates`
-Grain: one row per ticker per metric per period per firm per published date.
+Grain: one row per ticker per metric per period per firm per estimate_date. Event log table — chatbot never queries directly; use `daily_estimates` instead.
 Writer: sellside extraction job (runs after sellside note ingestion). Insert-only.
-Chatbot: read. Always presented alongside `internal_estimates`, `buyside_estimates`, `consensus_estimates` — never in isolation. Citation label: `[TICKER | Sellside Estimate | Firm | Date]`.
+Chatbot: indirect (via `daily_estimates`). Always presented alongside other estimate sources — never in isolation. Citation label: `[TICKER | Sellside Estimate | Firm | Date]`.
 Key columns:
 - `id` uuid PK
 - `ticker` text
@@ -149,15 +329,15 @@ Key columns:
 - `metric` text (revenue | eps | ebitda | etc.)
 - `value` numeric
 - `unit` text
-- `published_date` date
+- `estimate_date` date (when the estimate was made)
 - `created_at` timestamptz
 
 ---
 
 ### `internal_estimates`
-Grain: one row per ticker per metric per period per version (PIT).
+Grain: one row per ticker per metric per period per version (PIT). Event log table — chatbot never queries directly; use `daily_estimates` instead.
 Writer: model processing job only. Insert-only. Never updated — new estimates are new rows.
-Chatbot: read. Always the most recent row per (ticker, metric, period). Citation label: `[TICKER | Internal Estimate | Author | Date]`.
+Chatbot: indirect (via `daily_estimates`). Citation label: `[TICKER | Internal Estimate | Author | Date]`.
 Key columns:
 - `id` uuid PK
 - `ticker` text
@@ -165,35 +345,36 @@ Key columns:
 - `metric` text
 - `value` numeric
 - `unit` text
+- `estimate_date` date (when the estimate was made)
 - `user_id` uuid FK (analyst whose model produced this estimate)
 - `model_version` text
 - `created_at` timestamptz
 
-Query pattern: `SELECT DISTINCT ON (ticker, metric, period) * FROM internal_estimates ORDER BY ticker, metric, period, created_at DESC`.
-
 ---
 
 ### `buyside_estimates`
-Grain: one row per ticker per metric per period per firm per as_of_date.
+Grain: one row per ticker per metric per period per analyst per estimate_date. Event log table — chatbot never queries directly; use `daily_estimates` instead.
 Writer: vendor ingestion job (daily). Insert-only (preserve historical snapshots).
-Chatbot: read. Citation label: `[TICKER | Buyside Estimate | Firm | Date]`.
+Chatbot: indirect (via `daily_estimates`). Citation label: `[TICKER | Buyside Estimate | Firm | Date]`.
 Key columns:
 - `id` uuid PK
 - `ticker` text
 - `firm` text
+- `analyst_name` text (individual analyst name)
+- `analyst_person_id` varchar FK → `people.person_id`
 - `period` text
 - `metric` text
 - `value` numeric
 - `unit` text
-- `as_of_date` date
+- `estimate_date` date (when the estimate was made)
 - `created_at` timestamptz
 
 ---
 
 ### `consensus_estimates`
-Grain: one row per ticker per metric per period per as_of_date.
+Grain: one row per ticker per metric per period per estimate_date. Event log table — chatbot never queries directly; use `daily_estimates` instead.
 Writer: vendor ingestion job (daily). Insert-only (preserve historical snapshots).
-Chatbot: read. Citation label: `[TICKER | Consensus | Period | Date]`.
+Chatbot: indirect (via `daily_estimates`). Citation label: `[TICKER | Consensus | Period | Date]`.
 Key columns:
 - `id` uuid PK
 - `ticker` text
@@ -201,8 +382,54 @@ Key columns:
 - `metric` text
 - `value` numeric
 - `unit` text
-- `as_of_date` date
+- `estimate_date` date (when the estimate was made)
 - `created_at` timestamptz
+
+---
+
+### `daily_estimates`
+Grain: one row per ticker per metric per period per source per firm per as_of_date (calendar date).
+Writer: `daily_estimates_job.py` (nightly forward-fill from all four log tables). Insert-only.
+Chatbot: read. The **only** table the chatbot queries for estimates. All four sources unified. Citation labels vary by source (see WF-09 system prompt).
+Key columns:
+- `id` uuid PK
+- `ticker` text
+- `metric` text
+- `period` text (e.g. 2026Q1, 2026A)
+- `period_start_date` date
+- `period_end_date` date
+- `source` text (`consensus` | `buyside` | `internal` | `sellside`)
+- `firm` text (nullable — NULL for consensus and internal)
+- `analyst_name` text (nullable)
+- `analyst_person_id` varchar FK → `people.person_id` (nullable)
+- `user_id` uuid (nullable — for internal estimates)
+- `value` numeric
+- `unit` text
+- `estimate_date` date (when the estimate was originally made)
+- `as_of_date` date (the calendar date this row represents)
+- `staleness_days` integer (generated: `as_of_date - estimate_date`)
+- `created_at` timestamptz
+
+Unique constraint: `(ticker, metric, period, source, firm, analyst_name, as_of_date)`. `firm` and `analyst_name` are NOT NULL (empty string for sources without them).
+
+Query pattern: `WHERE as_of_date = (SELECT MAX(as_of_date) FROM daily_estimates WHERE ticker = ANY($1))` to get the latest snapshot.
+
+## Estimates architecture (two layers)
+
+**Layer 1 — Event log tables (insert-only):**
+- `consensus_estimates`
+- `buyside_estimates`
+- `internal_estimates`
+- `sellside_estimates`
+
+One row per estimate event. `estimate_date`: when the estimate was made. `created_at`: when inserted into DB. Never updated or deleted. Chatbot never queries these directly.
+
+**Layer 2 — Daily pre-calculated:**
+- `daily_estimates`
+
+One row per ticker × metric × period × source × firm × as_of_date. Forward-filled nightly by `daily_estimates_job.py`. Chatbot queries only this table.
+
+`staleness_days = as_of_date - estimate_date` (computed column — DB calculates automatically). High staleness = estimate not recently updated.
 
 ---
 
@@ -281,7 +508,7 @@ Key columns:
 - `id` uuid PK
 - `date` date
 - `ticker` text
-- `portfolio` text (flagship | long_only)
+- `portfolio` text ('Flagship' | 'Long Only')
 - `side` text (long | short)
 - `sector` text
 - `industry` text
@@ -290,7 +517,23 @@ Key columns:
 - `daily_return` numeric
 - `cumulative_return` numeric
 - `contribution_to_portfolio` numeric
+- `shares_held` numeric
+- `market_value` numeric
+- `cost_basis` numeric
+- `daily_realized_pnl` numeric (P&L from positions closed on THIS date only. 0.0 on days with no closes. NOT cumulative.)
+- `ytd_pnl` numeric (year-to-date total P&L from Jan 1 of current year. Includes both unrealized change and realized. Recalculated daily.)
+- `itd_pnl` numeric (inception-to-date total P&L since first trade ever. = unrealized_pnl + SUM(all daily_realized_pnl ever for this position))
 - `created_at` timestamptz
+
+Portfolio names in the database use Title Case with spaces. The tool layer normalizes lowercase_underscore input to match these values via `PORTFOLIO_MAP` in `retrieval.py`.
+
+## P&L terminology (critical — never mix these)
+
+- `daily_realized_pnl`: TODAY only. Positions closed today. Zero on most days.
+- `unrealized_pnl`: Current mark-to-market on ALL open positions. Changes every day with prices.
+- `ytd_pnl`: Jan 1 to today. Labeled "YTD P&L".
+- `itd_pnl`: Since inception. Labeled "ITD P&L" or "Inception to Date P&L".
+- NEVER use "Realized P&L" without a time qualifier. The old `realized_pnl` column was cumulative inception-to-date and was confusingly labeled — it has been superseded by `itd_pnl`.
 
 ---
 
@@ -302,7 +545,7 @@ Key columns:
 - `id` uuid PK
 - `date` date
 - `ticker` text
-- `portfolio` text
+- `portfolio` text ('Flagship' | 'Long Only')
 - `side` text (long | short)
 - `sector` text
 - `industry` text
@@ -311,7 +554,9 @@ Key columns:
 - `sector_weight` numeric
 - `industry_weight` numeric
 - `geo_weight` numeric
-- `is_market_neutral_compliant` bool (flagship only: long $ = short $ within tolerance)
+- `market_value` numeric (this position's dollar value: shares * close price)
+- `portfolio_market_value` numeric (total dollar value of all positions in this portfolio on this date)
+- `is_market_neutral_compliant` bool (Flagship only, NULL for Long Only. Calculated from dollar values: abs(long$ - short$) / total$ < 0.02. Portfolio-level flag applied to all rows for that portfolio + date.)
 - `created_at` timestamptz
 
 ---
@@ -324,7 +569,7 @@ Key columns:
 - `id` uuid PK
 - `date` date
 - `ticker` text
-- `portfolio` text
+- `portfolio` text ('Flagship' | 'Long Only')
 - `beta` numeric (from `stock_betas`)
 - `weighted_beta_contribution` numeric
 - `sector` text
@@ -416,20 +661,25 @@ Key columns: see `instructions/domain/workflows.md` for full earnings preview ou
 
 ---
 
-### `chat_sessions`
+### `sessions`
 Grain: one row per chat session.
-Writer: WF-10 session manager. Insert-only. No hard deletes ever.
-Chatbot: no — chat history is never fed back to the LLM as retrieval context.
+Writer: WF-10 session manager. Sessions created on first message, updated on every turn.
+Chatbot: no — chat history is for user reference only, never fed back to LLM as retrieval context.
 Key columns:
 - `id` uuid PK
-- `user_id` uuid FK → `user_profiles`
-- `title` text (auto-generated after first exchange by WF-10)
-- `visibility` text (private | public) default 'private'
-- `messages` jsonb (compressed every 10 turns by WF-10)
+- `conversation_id` uuid FK → `conversations`
+- `user_id` text (analyst username)
+- `rolling_summary` text (compressed history, updated every 10 turns by WF-10)
+- `summary_covers_through` integer (turn number through which summary is current)
+- `turn_count` integer
+- `total_input_tokens` integer
+- `total_output_tokens` integer
+- `total_cost_usd` numeric
+- `title` text (auto-generated after turn 1) — added in migration 025
 - `created_at` timestamptz
 - `updated_at` timestamptz
 
-Visibility rules: private = author only. public = entire team. Admin (`is_admin=true`) can read all sessions regardless of visibility. Sessions are never deleted — retained permanently for audit.
+Note: `chat_sessions` table was dropped (migration 025). Visibility was moved from sessions to conversations in migration 026 — it belongs at the conversation level since that is the shareable unit.
 
 ---
 
@@ -452,4 +702,6 @@ analyst_notes_processing_job — new analyst_notes rows → chunks (via WF-01 to
     ↓
 vendor_ingestion_jobs      — buyside_notes, sellside_notes, alt_data, buyside_estimates,
                              consensus_estimates → respective tables
+    ↓
+daily_estimates_job        — all 4 estimate log tables → daily_estimates (forward-fill)
 ```

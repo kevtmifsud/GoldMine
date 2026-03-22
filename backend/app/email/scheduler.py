@@ -168,23 +168,34 @@ def _compute_next_run(
     recurrence_type: str = "weekly",
     day_of_month: int | None = None,
 ) -> str:
-    """Compute the next run time based on recurrence settings."""
+    """Compute the next run time based on recurrence settings.
+
+    Always returns a time in the future. If `current` is in the past
+    (e.g. a schedule that fell behind), we start from NOW so we don't
+    fire once per tick for every missed day.
+    """
+    now = datetime.now(timezone.utc)
+    base = max(current, now)
     hour, minute = map(int, time_of_day.split(":"))
 
     if recurrence_type == "monthly" and day_of_month is not None:
-        candidate = current + relativedelta(months=1)
+        candidate = base + relativedelta(months=1)
         try:
             candidate = candidate.replace(day=day_of_month, hour=hour, minute=minute, second=0, microsecond=0)
         except ValueError:
             candidate = candidate.replace(day=28, hour=hour, minute=minute, second=0, microsecond=0)
+        # If still in the past (e.g. day already passed this month), skip another month
+        if candidate <= now:
+            candidate += relativedelta(months=1)
         return candidate.isoformat()
 
-    # daily or weekly
+    # daily or weekly — scan forward from base until we find a matching weekday in the future
     for offset in range(1, 8):
-        candidate = (current + timedelta(days=offset)).replace(
+        candidate = (base + timedelta(days=offset)).replace(
             hour=hour, minute=minute, second=0, microsecond=0,
         )
-        if candidate.weekday() in days_of_week:
+        if candidate.weekday() in days_of_week and candidate > now:
             return candidate.isoformat()
-    # Fallback
-    return (current + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat()
+    # Fallback: tomorrow at the scheduled time
+    fallback = (now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return fallback.isoformat()

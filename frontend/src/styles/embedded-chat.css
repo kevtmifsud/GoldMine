@@ -70,6 +70,9 @@
 .embedded-chat__bubble--streaming {
   border-color: var(--color-primary);
   border-left: 3px solid var(--color-primary);
+  word-break: break-word;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
 .embedded-chat__bubble--loading {
@@ -77,7 +80,115 @@
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   color: var(--color-text-secondary);
-  font-style: italic;
+  padding: 12px 16px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+/* Streaming cursor — blinks at end of message */
+.streaming-cursor::after {
+  content: '\25CB';
+  display: inline-block;
+  animation: cursor-blink 1s step-end infinite;
+  margin-left: 2px;
+  color: var(--color-primary);
+  font-size: 0.9em;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Loading dots — shown before first token arrives */
+.loading-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.loading-dots__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+
+.loading-dots__dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dots__dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dot-pulse {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* Cost warning — inline amber alert for expensive queries */
+.embedded-chat__cost-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: var(--radius);
+  font-size: 0.83rem;
+  line-height: 1.5;
+  color: #92400e;
+}
+
+.embedded-chat__cost-warning-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.embedded-chat__cost-warning-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.embedded-chat__cost-warning-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.embedded-chat__cost-warning-btn {
+  padding: 0.3rem 0.7rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.embedded-chat__cost-warning-btn--confirm {
+  background: #f59e0b;
+  color: white;
+}
+
+.embedded-chat__cost-warning-btn--confirm:hover {
+  background: #d97706;
+}
+
+.embedded-chat__cost-warning-btn--cancel {
+  background: transparent;
+  border: 1px solid #d97706;
+  color: #92400e;
+}
+
+.embedded-chat__cost-warning-btn--cancel:hover {
+  background: #fef3c7;
 }
 
 .embedded-chat__error {
@@ -209,6 +320,13 @@
   margin: 0.3rem 0;
 }
 
+/* Table wrapper in embedded chat inherits from .chat-table-wrap in chat.css */
+.embedded-chat__bubble .chat-table-wrap {
+  margin: 0.4rem 0;
+  font-size: 0.8rem;
+}
+
+/* Fallback for unwrapped tables */
 .embedded-chat__bubble table {
   border-collapse: collapse;
   width: 100%;
@@ -218,12 +336,12 @@
 
 .embedded-chat__bubble th {
   text-align: left;
-  font-weight: 600;
-  padding: 0.3rem 0.5rem;
+  font-weight: 500;
+  padding: 6px 10px;
   border-bottom: 2px solid var(--color-border);
 }
 
 .embedded-chat__bubble td {
-  padding: 0.25rem 0.5rem;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--color-border);
 }

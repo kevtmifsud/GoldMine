@@ -1,0 +1,41 @@
+person_id,name,title,organization,type,tickers,age,born,pay,exercised,unexercised
+PER-001,William Davis,VP of Strategy,Alphabet Inc. (Class C),executive,BDX,62,1963,4594098,762182,268260
+PER-002,Donna Hernandez,CTO,American Water Works,executive,LRCX;FIS,41,1984,1459043,0,0
+PER-003,Patricia Clark,VP of Strategy,Agilent Technologies,executive,DD;PNC,64,1961,1186114,212705,0
+PER-004,Thomas Smith,CEO,Alphabet Inc. (Class A),executive,INTU;TDY,55,1970,2195468,0,237889
+PER-005,Mark Lewis,CEO,AES Corporation,executive,MCK,59,1966,2532980,584632,108861
+PER-006,Patricia Lopez,EVP,A. O. Smith,executive,AMT,60,1965,,0,316295
+PER-007,Karen Perez,SVP,Adobe Inc.,executive,AEP,43,1982,,0,366921
+PER-008,Kenneth Torres,EVP,American Water Works,executive,CBRE;WTW;HON,63,1962,,338503,0
+PER-009,Anthony Jones,President,Align Technology,executive,TROW;LRCX,42,1983,,287748,0
+PER-010,Mark King,CEO,AbbVie,executive,OTIS,46,1979,4637125,507157,317077
+PER-011,Christopher Ramirez,EVP,American Water Works,executive,TRGP;ECL;CSX,56,1969,,544951,260959
+PER-012,Ashley Lopez,CEO,AbbVie,executive,ED;PH;DG,46,1979,,123654,108701
+PER-013,Donna Clark,COO,3M,executive,AMCR;EOG,51,1974,2562456,0,0
+PER-014,Karen Allen,EVP,Air Products,executive,EA;O;ABBV,43,1982,4972459,30531,101720
+PER-015,Lisa Perez,CEO,Alphabet Inc. (Class C),executive,ITW;VRSK;IBM,65,1960,,0,0
+PER-016,Paul Perez,CEO,American Express,executive,ROP;SNA,53,1972,4939082,330828,9813
+PER-017,Susan Torres,EVP,Abbott Laboratories,executive,ETR;SRE;VRSK,68,1957,2552669,355627,328472
+PER-018,Paul Hernandez,CFO,American International Group,executive,META;F;CF,59,1966,2786051,329776,142342
+PER-019,Mark Garcia,VP of Strategy,American Express,executive,TDG;CEG,51,1974,2013112,183514,0
+PER-020,Robert Gonzalez,CEO,American Electric Power,executive,HSIC,56,1969,4394759,0,0
+PER-021,Steven King,CFO,American Express,executive,RMD;EMR,44,1981,4529751,139164,0
+PER-022,Robert Robinson,CFO,3M,executive,PYPL;TXT,56,1969,569350,623155,174739
+PER-023,Sandra Williams,President,3M,executive,JPM,64,1961,2818444,220039,0
+PER-024,Richard Jackson,VP of Strategy,Altria,executive,KMB;EIX,64,1961,,0,0
+PER-025,James Flores,EVP,Alliant Energy,executive,J;AVY;CTAS,57,1968,1387464,843058,0
+PER-026,Jessica Hernandez,Portfolio Manager,Atlas Fund,analyst,EMN;MGM,,,,,
+PER-027,Donald Brown,Senior Analyst,GoldMine Capital,analyst,ARE;HII;URI,,,,,
+PER-028,Anthony Brown,Research Analyst,Atlas Fund,analyst,GPN;FTNT,,,,,
+PER-029,Emily Lewis,Sector Head,GoldMine Capital,analyst,EXC;EMN;EOG;SO;CB;PYPL,,,,,
+PER-030,Sandra Torres,Associate PM,GoldMine Capital,analyst,ATO;SNA;NOW,,,,,
+PER-031,Sandra Martin,Sector Head,Summit Advisors,analyst,HBAN;COP;WAT;COIN;BRO,,,,,
+PER-032,Nancy Sanchez,Portfolio Manager,Summit Advisors,analyst,PKG;VRSK;NSC,,,,,
+PER-033,Sandra Young,Senior Analyst,Summit Advisors,analyst,APH;IEX,,,,,
+PER-034,Steven Robinson,Sector Head,Atlas Fund,analyst,DVN;REG;EL,,,,,
+PER-035,David Allen,Senior Analyst,Summit Advisors,analyst,IT;SO,,,,,
+PER-036,Kimberly Jones,Associate PM,Apex Research,analyst,KMB;HWM;FCX;MAS,,,,,
+PER-037,Donna Thomas,Research Analyst,Atlas Fund,analyst,CPT;XYL;INCY;FSLR;APH;EQIX,,,,,
+PER-038,Margaret Ramirez,Senior Analyst,Atlas Fund,analyst,RCL;EQR;KR;ORCL;STZ;CAT,,,,,
+PER-039,Ashley Davis,Associate PM,Apex Research,analyst,MKC;HPQ;ELV;LDOS;ADP;SWK,,,,,
+PER-040,Karen Sanchez,Sector Head,Pinnacle Partners,analyst,MCD;BALL,,,,,

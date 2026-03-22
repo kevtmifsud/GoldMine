@@ -59,8 +59,7 @@ async def resolve_tickers(
                     # Not a user list — try sector/industry
                     rows = await conn.fetch(
                         """SELECT ticker FROM stocks
-                           WHERE (sector ILIKE $1 OR industry ILIKE $1)
-                           AND is_active = TRUE""",
+                           WHERE (sector ILIKE $1 OR industry ILIKE $1)""",
                         f"%{ref}%",
                     )
                     for r in rows:
@@ -70,7 +69,7 @@ async def resolve_tickers(
         # Screening without specified universe: default to all active
         if classified.query_type == "screening" and not resolved:
             rows = await conn.fetch(
-                "SELECT ticker FROM stocks WHERE is_active = TRUE ORDER BY ticker"
+                "SELECT ticker FROM stocks ORDER BY ticker"
             )
             for r in rows:
                 resolved[r["ticker"]] = "universe"

@@ -1,167 +1,72 @@
-# WF-08: Retrieval Orchestration
+# WF-08: Retrieval — Tool Handlers
 
 ## Purpose
 
-Retrieval orchestration takes the classified query and resolved ticker universe and assembles the context that Claude uses to generate the answer. Different query types require fundamentally different retrieval strategies. This workflow routes each query to the right strategy, enforces chunk limits to control cost, checks the screening cache, and surfaces Q&A library hits.
+WF-08 provides the data retrieval functions that the agentic response generator (WF-09) calls via tool use. There is no standalone orchestrator — Claude decides which tools to call and in what order during the agentic loop in `generator.py`.
+
+The `_query_*` functions in `retrieval.py` are the tool handlers. They are called by `execute_tool()` in `tools.py`, which routes each tool call to the correct function.
 
 ---
 
-## Goals
+## Architecture
 
-- Route each query type to the correct retrieval strategy
-- Enforce per-query chunk limits to keep input token costs predictable
-- Check screening cache before running expensive multi-ticker retrieval
-- Surface relevant Q&A library entries as prior validated context
-- Return a structured context package to WF-09 for response generation
+```
+generator.py (WF-09 agentic loop)
+    ↓
+Claude returns tool_use blocks (e.g. search_documents, get_financial_metrics)
+    ↓
+execute_tool() in tools.py — dispatches to the correct _query_* function
+    ↓
+_query_* functions in retrieval.py — run SQL or pgvector queries against Supabase
+    ↓
+Results returned to Claude as tool_result blocks
+    ↓
+Claude calls more tools or produces final text response
+```
 
 ---
 
-## Q&A Library Lookup — Runs First on Every Query
+## Functions in retrieval.py
 
-Before any document retrieval, check the Q&A library for semantically similar validated answers. This runs on every query type without exception.
+### Always run at the start (by generator.py, not by tool calls)
 
-**Process:**
-1. Embed the user's question using the `query_embedder` model
-2. Search `qa_library` using pgvector cosine similarity on `question_embedding`
-3. Filter to entries where `validation_type IS NOT NULL` (only validated entries)
-4. Apply a similarity threshold of 0.88 — below this, results are too dissimilar to be useful
-5. Return top 2 entries if above threshold, otherwise empty
+- `_embed_query()` — Embeds the user query using OpenAI text-embedding-3-large (1536 dims). Called once at the start of the agentic loop. The embedding is passed to `execute_tool()` for `search_documents` calls.
+- `_lookup_qa_library()` — Searches `qa_library` via pgvector cosine similarity (threshold 0.88, top 2). Results are appended to the system prompt.
 
-**Deduplication logic:**
-If a Q&A library entry exists with similarity > 0.92 for the same ticker and fiscal period as the current query, surface it prominently in the context with an instruction to Claude to reference it directly rather than regenerating from scratch. This is the primary deduplication mechanism — analytically identical questions from different analysts converge to the same validated answer.
+### Vector search
 
----
+- `_vector_search()` — pgvector cosine similarity on `chunks` table. Supports filters: `tickers`, `doc_types`, `section_type`, `fiscal_periods`, `limit_per_ticker`. Called by the `search_documents` tool.
 
-## Screening Cache Check
+### SQL query functions (one per data source)
 
-For `screening` query type only, check the cache before any retrieval:
+| Function | Tool | Table(s) |
+|---|---|---|
+| `_structured_query()` | `get_financial_metrics` | `financial_metrics` |
+| `_query_estimates()` | `get_all_estimates` | All 4 estimate tables in parallel |
+| `_query_daily_pnl()` | `get_daily_pnl` | `daily_pnl` |
+| `_query_portfolio_concentration()` | `get_portfolio_concentration` | `portfolio_concentration` |
+| `_query_portfolio_risk()` | `get_portfolio_risk` | `portfolio_risk` |
+| `_query_trade_requests()` | `get_trade_requests` | `trade_requests` |
+| `_query_stock_history()` | `get_stock_history` | `stock_history` |
+| `_query_guidance()` | `get_guidance` | `guidance` |
+| `_query_alt_data()` | `get_alt_data` | `alt_data` |
+| `_query_model_outputs()` | `get_model_outputs` | `model_outputs` |
+| `_query_workflow_registry()` | `get_workflow_registry` | `workflow_registry` |
 
-1. Hash the query text + fiscal period as a cache key
-2. Look up `screening_cache` WHERE `query_hash` = key AND `expires_at` > NOW()
-3. If hit: increment `hit_count`, return cached result directly to WF-09 — skip all retrieval
-4. If miss: proceed with full retrieval, write result to cache with `expires_at = NOW() + INTERVAL '24 hours'`
+### Screening support
 
----
+- `_screening_prefilter()` — Uses Haiku to pre-filter large chunk sets (>20) down to the top 20 most relevant. Still available for screening queries.
+- `_check_screening_cache()` / `_write_screening_cache()` — MD5-based cache with 24h TTL for screening results.
 
-## Retrieval Strategy by Query Type
+### Utility
 
-### Single Ticker Qualitative
-
-```
-Filter: ticker = X, is_active = TRUE
-Optional filter: section_type = classifier hint (if provided)
-Optional filter: fiscal_period IN classifier periods (if provided)
-Rank: cosine similarity to query embedding
-Return: top 6 chunks
-```
-
-Straightforward filtered semantic search. Fast and precise.
-
----
-
-### Single Ticker Quantitative
-
-No vector search. Query Supabase structured tables directly:
-
-```sql
--- Example for gross margin question
-SELECT ticker, fiscal_period, gross_margin, gross_profit, revenue
-FROM income_statement
-WHERE ticker = 'AAPL'
-AND fiscal_period IN ('Q4_2024', 'Q3_2024')
-AND period_type = 'quarterly';
-```
-
-The classifier's `needs_structured_data: true` flag and `topic` field determine which table and columns to query. Return exact figures formatted as a structured data block for WF-09.
-
-For hybrid questions (e.g., "what was the margin and what did management say about it"):
-- Run both the structured table query AND the vector search
-- Return both result sets to WF-09 separately
-
----
-
-### Cross-Ticker Comparison
-
-Run parallel vector searches — one per ticker in the resolved universe.
-
-**Per-ticker retrieval:**
-```
-Filter: ticker = X, is_active = TRUE
-Optional filter: section_type = classifier hint
-Optional filter: fiscal_period IN classifier periods
-Rank: cosine similarity to query embedding
-Return: top 3 chunks per ticker (not 6 — cost control for large universes)
-```
-
-**Parallelism:** All per-ticker searches run concurrently, not sequentially. At 20 tickers with 3 chunks each, this is 60 chunks total — manageable context.
-
-**Cap:** Maximum 50 tickers as defined in WF-07. At 50 tickers × 3 chunks = 150 chunks, which is large. If ticker count exceeds 20, reduce to top 2 chunks per ticker automatically.
-
----
-
-### Screening
-
-Screening queries span the entire active ticker universe. Two-stage approach to control cost:
-
-**Stage 1 — Broad retrieval (pgvector):**
-```
-Filter: is_active = TRUE
-Filter: section_type IN ('risk_factors', 'cfo_remarks') — or classifier hint
-Filter: filing_date >= NOW() - INTERVAL '6 months' (recent only)
-Rank: cosine similarity to query embedding
-Return: top 3 chunks per ticker, up to 100 tickers
-```
-
-This can return up to 300 chunks. That is too large to pass directly to Sonnet.
-
-**Stage 2 — Haiku pre-filter:**
-Pass the 300 chunks to Haiku with a prompt asking it to identify the 20 most relevant chunks to the screening criteria. Haiku returns a list of chunk IDs.
-
-Pass only those 20 chunks to Sonnet in WF-09.
-
-This two-stage approach ensures Sonnet's context is focused and cost-controlled regardless of universe size.
-
----
-
-### Trend Analysis
-
-Retrieve chunks for one ticker across multiple fiscal periods, ordered chronologically.
-
-```
-Filter: ticker = X, is_active = TRUE
-Filter: fiscal_period IN [last N quarters from classifier]
-Optional filter: section_type = classifier hint
-Rank: by filing_date ASC (chronological), then cosine similarity within period
-Return: top 3 chunks per period
-```
-
-For 8 quarters at 3 chunks each = 24 chunks, ordered chronologically. Claude can reason about change over time from this sequence.
-
----
-
-## Context Package Output
-
-The assembled context passed to WF-09:
-
-```python
-class RetrievalContext(BaseModel):
-    query_type: str
-    structured_data: list[dict] | None
-    chunks: list[ChunkResult]
-    qa_library_hits: list[QALibraryEntry]
-    cache_hit: bool
-    total_chunks_retrieved: int
-    total_input_tokens_estimate: int
-```
-
-Each `ChunkResult` includes the chunk text, full metadata (ticker, document_type, fiscal_period, section_name), and similarity score. The metadata is what enables sourcing in WF-09.
+- `_estimate_tokens()` — Rough token estimate from chunks and structured data. Retained for cost estimation.
 
 ---
 
 ## Cost Tracking
 
 Emits cost events for:
-
 - `query_embedder` — one embedding call per user message (all query types)
 - `screening_prefilter` — one Haiku call for screening queries only
 

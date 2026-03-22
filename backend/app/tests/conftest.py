@@ -27,7 +27,6 @@ import app.data_access.factory as daf
 import app.object_storage.factory as osf
 import app.views.factory as vf
 import app.documents.factory as docf
-import app.llm.factory as llmf
 import app.email.factory as emf
 import app.api.documents as docs_api
 
@@ -38,7 +37,6 @@ def _reset_providers():
     osf._provider = None
     vf._provider = None
     docf._provider = None
-    llmf._provider = None
     emf._email_provider = None
     emf._schedule_provider = None
     docs_api._indexed_existing = False

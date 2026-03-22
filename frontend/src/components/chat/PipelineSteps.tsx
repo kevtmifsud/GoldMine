@@ -8,6 +8,7 @@ export interface ChatStep {
   cost_usd: number;
   duration_ms: number;
   result_summary: string;
+  query?: string;
 }
 
 interface PipelineStepsProps {
@@ -20,6 +21,7 @@ const SOURCE_COLORS: Record<string, { bg: string; fg: string }> = {
   openai: { bg: "#f0fdf4", fg: "#15803d" },
   supabase: { bg: "#f0fdfa", fg: "#0f766e" },
   cache: { bg: "#f1f5f9", fg: "#475569" },
+  tools: { bg: "#fef3c7", fg: "#92400e" },
 };
 
 function formatCost(cost: number): string {
@@ -32,6 +34,24 @@ function formatDuration(ms: number): string {
   if (ms <= 0) return "";
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function StepQueryToggle({ query }: { query: string }) {
+  const [showQuery, setShowQuery] = useState(false);
+
+  return (
+    <div className="chat-step__query-wrapper">
+      <button
+        className="chat-step__query-toggle"
+        onClick={() => setShowQuery(!showQuery)}
+      >
+        {showQuery ? "Hide query" : "Show query"}
+      </button>
+      {showQuery && (
+        <pre className="chat-step__query-code">{query}</pre>
+      )}
+    </div>
+  );
 }
 
 export function PipelineSteps({ steps, completed }: PipelineStepsProps) {
@@ -71,21 +91,24 @@ export function PipelineSteps({ steps, completed }: PipelineStepsProps) {
         const sourceStyle = SOURCE_COLORS[step.source] ?? SOURCE_COLORS.cache;
         return (
           <div key={i} className="chat-step">
-            <span className="chat-step__check">&#10003;</span>
-            <span className="chat-step__label">{step.label}</span>
-            <span
-              className="chat-step__source"
-              style={{ backgroundColor: sourceStyle.bg, color: sourceStyle.fg }}
-            >
-              {step.source}
-              {step.model && ` · ${step.model}`}
-            </span>
-            {step.cost_usd > 0 && (
-              <span className="chat-step__cost">{formatCost(step.cost_usd)}</span>
-            )}
-            {step.duration_ms > 0 && (
-              <span className="chat-step__duration">{formatDuration(step.duration_ms)}</span>
-            )}
+            <div className="chat-step__header">
+              <span className="chat-step__check">&#10003;</span>
+              <span className="chat-step__label">{step.label}</span>
+              <span
+                className="chat-step__source"
+                style={{ backgroundColor: sourceStyle.bg, color: sourceStyle.fg }}
+              >
+                {step.source}
+                {step.model && ` · ${step.model}`}
+              </span>
+              {step.cost_usd > 0 && (
+                <span className="chat-step__cost">{formatCost(step.cost_usd)}</span>
+              )}
+              {step.duration_ms > 0 && (
+                <span className="chat-step__duration">{formatDuration(step.duration_ms)}</span>
+              )}
+            </div>
+            {step.query && <StepQueryToggle query={step.query} />}
           </div>
         );
       })}

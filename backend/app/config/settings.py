@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from pydantic_settings import BaseSettings
 
 
@@ -33,9 +35,25 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "DEBUG"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 8
-    CORS_ORIGINS: list[str] = ["http://localhost:5173"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:5174"]
     MAX_PAGE_SIZE: int = 1000
     DEFAULT_PAGE_SIZE: int = 50
+
+    # Supabase S3-compatible storage (for financial model Excel files)
+    SUPABASE_STORAGE_URL: str = ""
+    S3_BUCKET: str = "financial_model_outputs"
+    S3_MODELS_PREFIX: str = "financial_model_outputs"
+    AWS_REGION: str = "us-east-1"
+
+    @property
+    def aws_access_key_id(self) -> str:
+        """Read from AWS_ACCESS_KEY_ID env var (standard AWS convention, no GOLDMINE_ prefix)."""
+        return os.environ.get("AWS_ACCESS_KEY_ID", "")
+
+    @property
+    def aws_secret_access_key(self) -> str:
+        """Read from AWS_SECRET_ACCESS_KEY env var (standard AWS convention, no GOLDMINE_ prefix)."""
+        return os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 
     model_config = {"env_prefix": "GOLDMINE_", "env_file": ".env", "extra": "ignore"}
 

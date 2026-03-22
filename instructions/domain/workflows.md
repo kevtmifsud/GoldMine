@@ -49,6 +49,10 @@ All workflow output tables follow the pattern `workflow_outputs_{workflow_name}`
 
 ## Workflow: Earnings Preview
 
+**Status:** IMPLEMENTED (2026-03-20)
+**Implementation:** `backend/app/workflows/earnings_preview.py`
+**Scheduler:** `scripts/run_scheduled_workflows.py`
+
 **Registry name:** `earnings_preview`
 **Trigger:** both (scheduled 7 days before earnings date for all portfolio tickers; on-demand for any ticker in the S&P 500 universe)
 **Output table:** `workflow_outputs_earnings_preview`
@@ -181,6 +185,54 @@ Generate a standardized 3-statement financial model for a ticker. All models fol
 - `assumptions_snapshot` jsonb (key assumptions used for this version)
 - `generated_at` timestamptz
 - `generated_by` text
+
+---
+
+## Workflow: Documentation Sync
+
+**Registry name:** `docs_sync`
+**Trigger:** both (on-demand via chatbot or CLI; automatically after major build sessions)
+**Output table:** `workflow_outputs_docs_sync`
+
+### Purpose
+
+Scans codebase and infrastructure, compares against markdown documentation (data-schema.md, chatbot.md, workflows.md, WF-* architecture docs, CLAUDE.md), reconciles gaps, and produces a sync report. Auto-fixes minor gaps (missing columns, missing project structure entries). Flags anything requiring human judgment with a suggested fix.
+
+### Required inputs
+
+None — the workflow discovers everything by reading the codebase directly.
+
+### Process
+
+1. Query `information_schema.tables` for all public tables; compare against documented tables in `data-schema.md`
+2. Import `GOLDMINE_TOOLS` from `tools.py`; compare each tool's data source against `chatbot.md` access map
+3. Import `ALT_DATA_KEYWORD_MAP` from `classifier.py`; compare against `get_alt_data` tool enum and `chatbot.md` keyword table
+4. Query `workflow_registry` for active workflows; compare against specs in `workflows.md`
+5. Read `generator.py`, `classifier.py`, `router.py`; check `chatbot.md` pipeline overview and WF-08/WF-09 docs for stale content
+6. Walk `backend/app/` directories; compare against CLAUDE.md Project Structure
+7. Check `instructions/skills/` for expected skill files
+
+### Output sections
+
+- `files_checked`: every file read during the sync
+- `gaps_found`: all gaps including auto-fixed ones (type: stale_content | missing_entry | wrong_value | needs_human_review)
+- `files_updated`: files modified by auto-fix
+- `items_needing_human_review`: gaps requiring human action, each with a `suggested_fix`
+- `summary`: "{N} gaps found. {N} auto-fixed. {N} need human review."
+
+### Output table schema: `workflow_outputs_docs_sync`
+
+- `id` uuid PK
+- `workflow_run_id` uuid FK → `workflow_runs`
+- `triggered_by` text
+- `started_at` timestamptz
+- `completed_at` timestamptz
+- `files_checked` text[]
+- `gaps_found` jsonb
+- `files_updated` text[]
+- `items_needing_human_review` jsonb
+- `summary` text
+- `created_at` timestamptz
 
 ---
 

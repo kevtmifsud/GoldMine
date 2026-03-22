@@ -212,29 +212,57 @@ async def get_portfolio_comparison(
     start_date: str | None = Query(default=None),
 ) -> dict[str, Any]:
     """Return merged daily cumulative-return series for all portfolios + S&P 500 benchmark."""
+    from app.data_access.db import get_sync_conn
     provider = get_data_provider()
     portfolios = provider.query("portfolios", FilterParams(page=1, page_size=100)).data
     portfolio_names = [pf["name"] for pf in portfolios]
 
-    # Compute cumulative return % and $ series for each portfolio
-    portfolio_pct: dict[str, dict[str, float]] = {}   # name -> {date: cum_ret_pct}
-    portfolio_dollars: dict[str, dict[str, float]] = {}  # name -> {date: cum_pnl_$}
-    portfolio_nav: dict[str, dict[str, float]] = {}  # name -> {date: portfolio_value (NAV)}
+    conn = get_sync_conn()
+    cur = conn.cursor()
+
+    # Build cumulative PnL series per portfolio from daily_pnl
+    portfolio_pct: dict[str, dict[str, float]] = {}
+    portfolio_dollars: dict[str, dict[str, float]] = {}
+    portfolio_nav: dict[str, dict[str, float]] = {}
     earliest_date: str | None = None
+
     for name in portfolio_names:
-        daily = _compute_daily_pnl_series(name)
+        cur.execute("""
+            SELECT date,
+                   SUM(market_value) AS mv,
+                   SUM(unrealized_pnl + realized_pnl) AS total_pnl
+            FROM daily_pnl
+            WHERE portfolio = %s
+            GROUP BY date
+            ORDER BY date
+        """, (name,))
+        rows = cur.fetchall()
+        if not rows:
+            portfolio_pct[name] = {}
+            portfolio_dollars[name] = {}
+            portfolio_nav[name] = {}
+            continue
+
+        initial_capital = float(rows[0][1])  # market_value on first date
         pct_map: dict[str, float] = {}
         dollar_map: dict[str, float] = {}
         nav_map: dict[str, float] = {}
-        for row in daily:
-            pct_map[row["date"]] = float(row["cumulative_pnl_pct"])
-            dollar_map[row["date"]] = float(row["cumulative_pnl"])
-            nav_map[row["date"]] = float(row["portfolio_value"])
+        for date_val, mv, total_pnl in rows:
+            d = str(date_val)
+            cum_pnl = float(total_pnl)
+            cum_pct = (cum_pnl / initial_capital * 100) if initial_capital else 0.0
+            pct_map[d] = round(cum_pct, 2)
+            dollar_map[d] = round(cum_pnl)
+            nav_map[d] = round(initial_capital + cum_pnl)
+
         portfolio_pct[name] = pct_map
         portfolio_dollars[name] = dollar_map
         portfolio_nav[name] = nav_map
-        if daily and (earliest_date is None or daily[0]["date"] < earliest_date):
-            earliest_date = daily[0]["date"]
+        first_date = str(rows[0][0])
+        if earliest_date is None or first_date < earliest_date:
+            earliest_date = first_date
+
+    cur.close()
 
     # Compute S&P 500 equal-weight benchmark
     effective_start = start_date or earliest_date
@@ -292,8 +320,104 @@ async def get_portfolio_daily_pnl_by_group(
     """Return cumulative PnL broken down by sector or industry."""
     if group_by not in ("sector", "industry"):
         group_by = "sector"
-    result = _compute_daily_pnl_by_group(name, group_by, start_date=start_date)
-    return result
+
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+
+    group_col = "sector" if group_by == "sector" else "industry"
+    cur.execute(f"""
+        SELECT date, COALESCE({group_col}, 'Unknown') AS grp,
+               SUM(unrealized_pnl + realized_pnl) AS pnl,
+               SUM(market_value) AS mv
+        FROM daily_pnl
+        WHERE portfolio = %s
+        GROUP BY date, grp
+        ORDER BY date
+    """, (name,))
+    raw = cur.fetchall()
+    cur.close()
+
+    if not raw:
+        return {"series": [], "groups": []}
+
+    # Get initial gross MV for % denominator
+    first_date = raw[0][0]
+    initial_gross_mv = sum(float(r[3]) for r in raw if r[0] == first_date)
+
+    # Build per-date points with group PnL
+    from collections import OrderedDict
+    date_points: OrderedDict[str, dict[str, Any]] = OrderedDict()
+    all_groups: set[str] = set()
+
+    for date_val, grp, pnl, mv in raw:
+        d = str(date_val)
+        if d not in date_points:
+            date_points[d] = {"date": d, "Total": 0.0, "Total_dollars": 0.0}
+        point = date_points[d]
+        pnl_f = float(pnl)
+        pnl_pct = (pnl_f / initial_gross_mv * 100) if initial_gross_mv else 0.0
+        point[grp] = round(point.get(grp, 0.0) + pnl_pct, 2)
+        point[f"{grp}_dollars"] = round(point.get(f"{grp}_dollars", 0.0) + pnl_f)
+        point["Total"] = round(point["Total"] + pnl_pct, 2)
+        point["Total_dollars"] = round(point["Total_dollars"] + pnl_f)
+        all_groups.add(grp)
+
+    series = list(date_points.values())
+
+    # Filter and re-baseline when start_date is provided
+    if start_date and series:
+        baseline: dict[str, float] = {}
+        for point in series:
+            if point["date"] <= start_date:
+                for key, val in point.items():
+                    if key != "date":
+                        baseline[key] = float(val)
+            else:
+                break
+
+        filtered: list[dict[str, Any]] = []
+        for point in series:
+            if point["date"] < start_date:
+                continue
+            new_point: dict[str, Any] = {"date": point["date"]}
+            for key, val in point.items():
+                if key == "date":
+                    continue
+                new_point[key] = round(float(val) - baseline.get(key, 0.0), 2)
+            filtered.append(new_point)
+        series = filtered
+
+    # Identify top 8 groups by absolute final cumulative PnL
+    if series:
+        last_point = series[-1]
+        group_scores: list[tuple[str, float]] = []
+        for key, val in last_point.items():
+            if key in ("date", "Total") or key.endswith("_dollars"):
+                continue
+            group_scores.append((key, abs(float(val))))
+        group_scores.sort(key=lambda x: x[1], reverse=True)
+        top_groups = [g for g, _ in group_scores[:8]]
+        other_groups = {g for g, _ in group_scores[8:]}
+
+        if other_groups:
+            for point in series:
+                other_pct = 0.0
+                other_dollars = 0.0
+                for g in list(point.keys()):
+                    if g in other_groups:
+                        other_pct += point.pop(g, 0.0)
+                    elif g.endswith("_dollars") and g[:-8] in other_groups:
+                        other_dollars += point.pop(g, 0.0)
+                if other_pct:
+                    point["Other"] = round(other_pct, 2)
+                if other_dollars:
+                    point["Other_dollars"] = round(other_dollars)
+            top_groups.append("Other")
+    else:
+        top_groups = []
+
+    return {"series": series, "groups": top_groups}
 
 
 # ---------------------------------------------------------------------------
@@ -742,28 +866,44 @@ def _build_portfolio_detail(portfolio_name: str) -> EntityDetail:
         raise NotFoundError(f"Portfolio '{portfolio_name}' not found")
 
     name = record["name"]
-    holdings = _compute_portfolio_holdings(name)
-    latest_prices = _get_latest_prices()
 
-    total_market_value = 0.0
-    total_cost = 0.0
-    total_pnl = 0.0
-    for h in holdings:
-        price = latest_prices.get(h["ticker"], h["avg_cost"])
-        current_value = h["shares"] * price
-        total_market_value += current_value
-        total_cost += h["total_cost"]
-        if h["side"] == "long":
-            total_pnl += current_value - h["total_cost"]
-        else:
-            total_pnl += h["total_cost"] - current_value
+    # Portfolio summary from pre-calculated daily_pnl
+    from app.data_access.db import get_sync_conn
+    pnl_conn = get_sync_conn()
+    pnl_cur = pnl_conn.cursor()
+    pnl_cur.execute("""
+        SELECT date FROM daily_pnl
+        WHERE portfolio = %s
+        ORDER BY date DESC LIMIT 1
+    """, (name,))
+    latest_row = pnl_cur.fetchone()
+    if latest_row:
+        pnl_cur.execute("""
+            SELECT COUNT(*),
+                   COALESCE(SUM(market_value), 0),
+                   COALESCE(SUM(cost_basis), 0),
+                   COALESCE(SUM(unrealized_pnl + realized_pnl), 0)
+            FROM daily_pnl
+            WHERE portfolio = %s AND date = %s
+        """, (name, latest_row[0]))
+        r = pnl_cur.fetchone()
+        num_positions = r[0]
+        total_market_value = float(r[1])
+        total_cost = float(r[2])
+        total_pnl = float(r[3])
+    else:
+        num_positions = 0
+        total_market_value = 0.0
+        total_cost = 0.0
+        total_pnl = 0.0
+    pnl_cur.close()
     pnl_pct = (total_pnl / total_cost * 100) if total_cost else 0.0
 
     header_fields = [
         EntityField(label="Portfolio", value=name, format="text"),
         EntityField(label="Strategy", value=record.get("strategy"), format="text"),
         EntityField(label="AUM", value=record.get("aum"), format="currency"),
-        EntityField(label="Positions", value=str(len(holdings)), format="number"),
+        EntityField(label="Positions", value=str(num_positions), format="number"),
         EntityField(label="Market Value", value=f"{total_market_value:,.0f}", format="text"),
         EntityField(label="Total Cost", value=f"{total_cost:,.0f}", format="text"),
         EntityField(label="Total PnL", value=f"{total_pnl:,.0f}", format="text"),
@@ -1141,11 +1281,30 @@ async def get_portfolio_positions(
     sort_by: str | None = Query(default=None),
     sort_order: str = Query(default="asc", pattern="^(asc|desc)$"),
 ) -> PaginatedResponse:
-    holdings = _compute_portfolio_holdings(name)
-    if not holdings:
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+
+    # Get most recent date for this portfolio
+    cur.execute("""
+        SELECT date FROM daily_pnl
+        WHERE portfolio = %s ORDER BY date DESC LIMIT 1
+    """, (name,))
+    date_row = cur.fetchone()
+    if not date_row:
         raise NotFoundError(f"Portfolio '{name}' not found or has no positions")
 
-    latest_prices = _get_latest_prices()
+    cur.execute("""
+        SELECT ticker, side, shares_held, market_value, cost_basis,
+               unrealized_pnl, realized_pnl, sector, industry
+        FROM daily_pnl
+        WHERE portfolio = %s AND date = %s
+    """, (name, date_row[0]))
+    position_rows = cur.fetchall()
+    cur.close()
+
+    if not position_rows:
+        raise NotFoundError(f"Portfolio '{name}' not found or has no positions")
 
     # Build stock lookup for enrichment fields
     provider = get_data_provider()
@@ -1153,32 +1312,27 @@ async def get_portfolio_positions(
     stock_map: dict[str, dict[str, Any]] = {s["ticker"]: s for s in all_stocks}
 
     # Compute total portfolio market value for exposure %
-    total_portfolio_value = 0.0
-    for h in holdings:
-        price = latest_prices.get(h["ticker"], h["avg_cost"])
-        total_portfolio_value += h["shares"] * price
+    total_portfolio_value = sum(float(r[3]) for r in position_rows)
 
     rows: list[dict[str, Any]] = []
-    for h in holdings:
-        price = latest_prices.get(h["ticker"], h["avg_cost"])
-        position_value = h["shares"] * price
-        avg_cost = h["avg_cost"]
-        cost_basis = h["total_cost"]
-        return_dollar = position_value - cost_basis
+    for ticker, side, shares_held, mv, cb, unreal, real, sector, industry in position_rows:
+        shares = float(shares_held)
+        position_value = float(mv)
+        cost_basis_total = float(cb)
+        avg_cost = cost_basis_total / shares if shares > 0 else 0
+        price = position_value / shares if shares > 0 else 0
+        return_dollar = position_value - cost_basis_total
         return_pct = ((price / avg_cost) - 1) * 100 if avg_cost else 0.0
-        if h["side"] == "long":
-            pnl = position_value - cost_basis
-        else:
-            pnl = cost_basis - position_value
-        pnl_pct = (pnl / cost_basis * 100) if cost_basis else 0.0
+        pnl = float(unreal) + float(real)
+        pnl_pct = (pnl / cost_basis_total * 100) if cost_basis_total else 0.0
         exposure_pct = (position_value / total_portfolio_value * 100) if total_portfolio_value else 0.0
-        direction = 1.0 if h["side"] == "long" else -1.0
+        direction = 1.0 if side == "long" else -1.0
 
         row: dict[str, Any] = {
-            "ticker": h["ticker"],
-            "side": h["side"],
-            "shares": str(round(h["shares"])),
-            "cost_basis": f"{h['avg_cost']:.2f}",
+            "ticker": ticker,
+            "side": side,
+            "shares": str(round(shares)),
+            "cost_basis": f"{avg_cost:.2f}",
             "current_price": f"{price:.2f}",
             "exposure_dollars": f"{position_value * direction:,.0f}",
             "exposure_pct": f"{exposure_pct * direction:.1f}%",
@@ -1186,12 +1340,12 @@ async def get_portfolio_positions(
             "return_pct": f"{return_pct:.1f}%",
             "pnl": f"{pnl:,.0f}",
             "pnl_pct": f"{pnl_pct:.1f}%",
-            "sector": h["sector"],
-            "industry": h["industry"],
+            "sector": sector,
+            "industry": industry,
         }
 
         # Enrich with stock-level fields
-        stock = stock_map.get(h["ticker"], {})
+        stock = stock_map.get(ticker, {})
         row["company_name"] = stock.get("company_name", "")
         row["market_cap_b"] = stock.get("market_cap_b", "")
         row["pe_ratio"] = stock.get("pe_ratio", "")
@@ -1208,16 +1362,23 @@ async def get_portfolio_positions(
 
 @router.get("/portfolio/{name}/exposure-by-sector")
 async def get_portfolio_exposure_by_sector(name: str) -> PaginatedResponse:
-    holdings = _compute_portfolio_holdings(name)
-    latest_prices = _get_latest_prices()
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT sector, side, SUM(market_value) AS mv
+        FROM daily_pnl
+        WHERE portfolio = %s
+          AND date = (SELECT MAX(date) FROM daily_pnl WHERE portfolio = %s)
+        GROUP BY sector, side
+    """, (name, name))
 
     sector_exposure: dict[str, float] = {}
-    for h in holdings:
-        price = latest_prices.get(h["ticker"], h["avg_cost"])
-        value = h["shares"] * price
-        direction = 1.0 if h["side"] == "long" else -1.0
-        sector = h["sector"]
-        sector_exposure[sector] = sector_exposure.get(sector, 0.0) + value * direction
+    for sector, side, mv in cur.fetchall():
+        direction = 1.0 if side == "long" else -1.0
+        s = sector or "Unknown"
+        sector_exposure[s] = sector_exposure.get(s, 0.0) + float(mv) * direction
+    cur.close()
 
     data = [
         {"sector": s, "net_exposure": str(round(v))}
@@ -1228,18 +1389,19 @@ async def get_portfolio_exposure_by_sector(name: str) -> PaginatedResponse:
 
 @router.get("/portfolio/{name}/pnl-by-position")
 async def get_portfolio_pnl_by_position(name: str) -> PaginatedResponse:
-    holdings = _compute_portfolio_holdings(name)
-    latest_prices = _get_latest_prices()
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT ticker, SUM(unrealized_pnl + realized_pnl) AS pnl
+        FROM daily_pnl
+        WHERE portfolio = %s
+          AND date = (SELECT MAX(date) FROM daily_pnl WHERE portfolio = %s)
+        GROUP BY ticker
+    """, (name, name))
 
-    position_pnl: list[dict[str, Any]] = []
-    for h in holdings:
-        price = latest_prices.get(h["ticker"], h["avg_cost"])
-        current_value = h["shares"] * price
-        if h["side"] == "long":
-            pnl = current_value - h["total_cost"]
-        else:
-            pnl = h["total_cost"] - current_value
-        position_pnl.append({"ticker": h["ticker"], "pnl": round(pnl, 2)})
+    position_pnl = [{"ticker": r[0], "pnl": round(float(r[1]), 2)} for r in cur.fetchall()]
+    cur.close()
 
     # Sort by absolute PnL descending, take top 20
     position_pnl.sort(key=lambda r: abs(r["pnl"]), reverse=True)
@@ -1251,24 +1413,23 @@ async def get_portfolio_pnl_by_position(name: str) -> PaginatedResponse:
 
 @router.get("/portfolio/{name}/pnl-by-sector")
 async def get_portfolio_pnl_by_sector(name: str) -> PaginatedResponse:
-    holdings = _compute_portfolio_holdings(name)
-    latest_prices = _get_latest_prices()
-
-    sector_pnl: dict[str, float] = {}
-    for h in holdings:
-        price = latest_prices.get(h["ticker"], h["avg_cost"])
-        current_value = h["shares"] * price
-        if h["side"] == "long":
-            pnl = current_value - h["total_cost"]
-        else:
-            pnl = h["total_cost"] - current_value
-        sector = h["sector"]
-        sector_pnl[sector] = sector_pnl.get(sector, 0.0) + pnl
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT sector, SUM(unrealized_pnl + realized_pnl) AS pnl
+        FROM daily_pnl
+        WHERE portfolio = %s
+          AND date = (SELECT MAX(date) FROM daily_pnl WHERE portfolio = %s)
+        GROUP BY sector
+    """, (name, name))
 
     data = [
-        {"sector": s, "pnl": str(round(v))}
-        for s, v in sorted(sector_pnl.items())
+        {"sector": r[0] or "Unknown", "pnl": str(round(float(r[1])))}
+        for r in cur.fetchall()
     ]
+    cur.close()
+    data.sort(key=lambda r: r["sector"])
     return _paginate(data, 1, 200, None, "asc")
 
 
@@ -1278,12 +1439,38 @@ async def get_portfolio_value_history(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=5000, ge=1, le=10000),
 ) -> PaginatedResponse:
-    series = _compute_portfolio_value_series(name)
-    if not series:
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+
+    # Monthly snapshots: last trading day of each month
+    cur.execute("""
+        SELECT DISTINCT ON (date_trunc('month', date))
+               date,
+               SUM(market_value) AS market_value,
+               SUM(unrealized_pnl + realized_pnl) AS cumulative_pnl
+        FROM daily_pnl
+        WHERE portfolio = %s
+        GROUP BY date
+        ORDER BY date_trunc('month', date) DESC, date DESC
+    """, (name,))
+    raw = cur.fetchall()
+    cur.close()
+
+    if not raw:
         return PaginatedResponse(
             data=[], page=1, page_size=page_size,
             total_records=0, total_pages=1, has_next=False, has_previous=False,
         )
+
+    series = [
+        {
+            "date": str(r[0]),
+            "market_value": str(round(float(r[1]))),
+            "cumulative_pnl": str(round(float(r[2]))),
+        }
+        for r in sorted(raw, key=lambda r: r[0])
+    ]
     return _paginate(series, page, page_size, None, "asc")
 
 
@@ -1293,41 +1480,117 @@ async def get_portfolio_daily_pnl(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=5000, ge=1, le=10000),
 ) -> PaginatedResponse:
-    series = _compute_daily_pnl_series(name)
-    if not series:
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+
+    # Portfolio-level daily aggregates from daily_pnl
+    cur.execute("""
+        SELECT date,
+               SUM(market_value) AS market_value,
+               SUM(cost_basis) AS total_cost_basis,
+               SUM(unrealized_pnl + realized_pnl) AS total_pnl
+        FROM daily_pnl
+        WHERE portfolio = %s
+        GROUP BY date
+        ORDER BY date
+    """, (name,))
+    daily_rows = cur.fetchall()
+
+    if not daily_rows:
+        cur.close()
         return PaginatedResponse(
             data=[], page=1, page_size=page_size,
             total_records=0, total_pages=1, has_next=False, has_previous=False,
         )
+
+    # Query-time fields: trade counts and amounts per date
+    cur.execute("""
+        SELECT date,
+               COUNT(*),
+               COUNT(*) FILTER (WHERE action = 'buy'),
+               COUNT(*) FILTER (WHERE action = 'sell'),
+               COALESCE(SUM(shares::numeric * price::numeric) FILTER (WHERE action = 'buy'), 0),
+               COALESCE(SUM(shares::numeric * price::numeric) FILTER (WHERE action = 'sell'), 0)
+        FROM portfolio_trades
+        WHERE portfolio = %s
+        GROUP BY date
+    """, (name,))
+    trade_stats: dict[str, tuple] = {}
+    for row in cur.fetchall():
+        trade_stats[str(row[0])] = (int(row[1]), int(row[2]), int(row[3]),
+                                     float(row[4]), float(row[5]))
+    cur.close()
+
+    # Compute initial_capital and build series with cumulative PnL
+    # portfolio_value = initial_capital + cumulative_pnl_dollar
+    initial_capital = float(daily_rows[0][1])  # market_value on first date
+    prev_pnl = 0.0
+    series: list[dict[str, str]] = []
+
+    for date_val, mv, tcb, total_pnl in daily_rows:
+        date_str = str(date_val)
+        market_value = float(mv)
+        total_cost_basis = float(tcb)
+        cumulative_pnl = float(total_pnl)
+        daily_pnl_dollar = cumulative_pnl - prev_pnl
+
+        portfolio_value = initial_capital + cumulative_pnl
+        daily_pnl_pct = (daily_pnl_dollar / abs(market_value - daily_pnl_dollar) * 100) if (market_value - daily_pnl_dollar) else 0.0
+        cumulative_pnl_pct = (cumulative_pnl / initial_capital * 100) if initial_capital else 0.0
+
+        ts = trade_stats.get(date_str, (0, 0, 0, 0.0, 0.0))
+
+        series.append({
+            "date": date_str,
+            "daily_pnl": str(round(daily_pnl_dollar)),
+            "cumulative_pnl": str(round(cumulative_pnl)),
+            "daily_pnl_pct": f"{daily_pnl_pct:.2f}",
+            "cumulative_pnl_pct": f"{cumulative_pnl_pct:.2f}",
+            "market_value": str(round(market_value)),
+            "portfolio_value": str(round(portfolio_value)),
+            "total_cost_basis": str(round(total_cost_basis)),
+            "total_trades": str(ts[0]),
+            "num_buys": str(ts[1]),
+            "num_sells": str(ts[2]),
+            "buy_amount": str(round(ts[3])),
+            "sell_amount": str(round(ts[4])),
+        })
+        prev_pnl = cumulative_pnl
+
     return _paginate(series, page, page_size, None, "asc")
 
 
 @router.get("/portfolio/{name}/top-positions")
 async def get_portfolio_top_positions(name: str) -> PaginatedResponse:
-    holdings = _compute_portfolio_holdings(name)
-    if not holdings:
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT ticker, sector, side, market_value
+        FROM daily_pnl
+        WHERE portfolio = %s
+          AND date = (SELECT MAX(date) FROM daily_pnl WHERE portfolio = %s)
+    """, (name, name))
+    raw = cur.fetchall()
+    cur.close()
+
+    if not raw:
         return PaginatedResponse(
             data=[], page=1, page_size=20,
             total_records=0, total_pages=1, has_next=False, has_previous=False,
         )
 
-    latest_prices = _get_latest_prices()
-
-    # Compute total portfolio market value for exposure %
-    total_portfolio_value = 0.0
-    for h in holdings:
-        price = latest_prices.get(h["ticker"], h["avg_cost"])
-        total_portfolio_value += h["shares"] * price
+    total_portfolio_value = sum(float(r[3]) for r in raw)
 
     rows: list[dict[str, Any]] = []
-    for h in holdings:
-        price = latest_prices.get(h["ticker"], h["avg_cost"])
-        position_value = h["shares"] * price
+    for ticker, sector, side, mv in raw:
+        position_value = float(mv)
         exposure_pct = (position_value / total_portfolio_value * 100) if total_portfolio_value else 0.0
         rows.append({
-            "ticker": h["ticker"],
-            "sector": h["sector"],
-            "side": h["side"],
+            "ticker": ticker,
+            "sector": sector,
+            "side": side,
             "exposure_dollars": round(position_value, 2),
             "exposure_pct": round(exposure_pct, 1),
         })
@@ -1340,27 +1603,34 @@ async def get_portfolio_top_positions(name: str) -> PaginatedResponse:
 
 @router.get("/portfolio/{name}/top-sectors")
 async def get_portfolio_top_sectors(name: str) -> PaginatedResponse:
-    holdings = _compute_portfolio_holdings(name)
-    if not holdings:
+    from app.data_access.db import get_sync_conn
+    conn = get_sync_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT sector, side, SUM(market_value) AS mv
+        FROM daily_pnl
+        WHERE portfolio = %s
+          AND date = (SELECT MAX(date) FROM daily_pnl WHERE portfolio = %s)
+        GROUP BY sector, side
+    """, (name, name))
+    raw = cur.fetchall()
+    cur.close()
+
+    if not raw:
         return PaginatedResponse(
             data=[], page=1, page_size=20,
             total_records=0, total_pages=1, has_next=False, has_previous=False,
         )
 
-    latest_prices = _get_latest_prices()
-
-    total_portfolio_value = 0.0
+    total_portfolio_value = sum(float(r[2]) for r in raw)
     sector_long: dict[str, float] = {}
     sector_short: dict[str, float] = {}
-    for h in holdings:
-        price = latest_prices.get(h["ticker"], h["avg_cost"])
-        value = h["shares"] * price
-        total_portfolio_value += value
-        sector = h["sector"]
-        if h["side"] == "long":
-            sector_long[sector] = sector_long.get(sector, 0.0) + value
+    for sector, side, mv in raw:
+        s = sector or "Unknown"
+        if side == "long":
+            sector_long[s] = sector_long.get(s, 0.0) + float(mv)
         else:
-            sector_short[sector] = sector_short.get(sector, 0.0) + value
+            sector_short[s] = sector_short.get(s, 0.0) + float(mv)
 
     all_sectors = sorted(set(list(sector_long.keys()) + list(sector_short.keys())))
     rows: list[dict[str, Any]] = []
@@ -1663,29 +1933,6 @@ def _compute_portfolio_holdings(
     return result
 
 
-def _compute_portfolio_value_series(portfolio_name: str) -> list[dict[str, Any]]:
-    """Produce monthly market-value + cumulative-PnL snapshots.
-
-    Delegates to _compute_daily_pnl_series (the single source of truth for
-    PnL) and samples the last trading day of each month.
-    """
-    daily = _compute_daily_pnl_series(portfolio_name)
-    if not daily:
-        return []
-
-    # Keep last snapshot per month
-    monthly: dict[str, dict[str, Any]] = {}
-    for row in daily:
-        month_key = row["date"][:7]
-        monthly[month_key] = {
-            "date": row["date"],
-            "market_value": row["market_value"],
-            "cumulative_pnl": row["cumulative_pnl"],
-        }
-
-    return list(monthly.values())
-
-
 _all_trading_dates_cache: list[str] | None = None
 
 
@@ -1820,167 +2067,6 @@ def _compute_daily_pnl_series(portfolio_name: str) -> list[dict[str, str]]:
         prev_signed_mv = signed_mv
 
     return series
-
-
-def _compute_daily_pnl_by_group(
-    portfolio_name: str, group_by: str = "sector", *, start_date: str | None = None,
-) -> dict[str, Any]:
-    """Replay trades against daily prices and attribute PnL to sector/industry groups."""
-    trades = _load_portfolio_trades(portfolio_name)
-    if not trades:
-        return {"series": [], "groups": []}
-
-    provider = get_data_provider()
-    stocks = provider.query("stocks", FilterParams(page=1, page_size=600)).data
-    sector_map = {s["ticker"]: s.get("sector", "Unknown") for s in stocks}
-    industry_map = {s["ticker"]: s.get("industry", "Unknown") for s in stocks}
-    group_map = sector_map if group_by == "sector" else industry_map
-
-    # Group trades by date
-    trades_by_date: dict[str, list[dict[str, str]]] = {}
-    for t in trades:
-        trades_by_date.setdefault(t["date"], []).append(t)
-
-    all_dates = _get_all_trading_dates()
-    first_trade_date = trades[0]["date"]
-    start_idx = bisect.bisect_left(all_dates, first_trade_date)
-
-    positions: dict[str, dict[str, Any]] = {}  # ticker -> {side, shares, total_cost}
-    realized_pnl_by_group: dict[str, float] = {}  # group -> accumulated realized PnL
-    initial_gross_mv = 0.0  # set on day 1 for consistent % denominator
-    series: list[dict[str, Any]] = []
-
-    for i in range(start_idx, len(all_dates)):
-        date = all_dates[i]
-
-        # Apply trades for this date
-        for trade in trades_by_date.get(date, []):
-            ticker = trade["ticker"]
-            action = trade["action"]
-            side = trade["side"]
-            shares = float(trade["shares"])
-            price = float(trade["price"])
-            cost = shares * price
-
-            if (action == "buy" and side == "long") or (action == "sell" and side == "short"):
-                if ticker not in positions:
-                    positions[ticker] = {"side": side, "shares": 0.0, "total_cost": 0.0}
-                positions[ticker]["shares"] += shares
-                positions[ticker]["total_cost"] += cost
-            elif (action == "sell" and side == "long") or (action == "buy" and side == "short"):
-                if ticker in positions and positions[ticker]["shares"] > 0:
-                    pos = positions[ticker]
-                    avg_cost = pos["total_cost"] / pos["shares"]
-                    close_shares = min(shares, pos["shares"])
-                    # Track realized PnL by group
-                    if side == "long":
-                        realized = (price - avg_cost) * close_shares
-                    else:
-                        realized = (avg_cost - price) * close_shares
-                    group = group_map.get(ticker, "Unknown")
-                    realized_pnl_by_group[group] = realized_pnl_by_group.get(group, 0.0) + realized
-                    ratio = close_shares / pos["shares"]
-                    pos["total_cost"] *= 1 - ratio
-                    pos["shares"] -= close_shares
-                    if pos["shares"] <= 0.5:
-                        del positions[ticker]
-
-        # Compute gross market value for initial_capital on day 1
-        if i == start_idx:
-            for ticker, pos in positions.items():
-                pr = _price_on_date(ticker, date)
-                if pr is None:
-                    pr = pos["total_cost"] / pos["shares"] if pos["shares"] > 0 else 0
-                initial_gross_mv += pos["shares"] * pr
-
-        # Compute per-group PnL (unrealized + realized)
-        group_pnl: dict[str, float] = {}
-        total_pnl = 0.0
-
-        for ticker, pos in positions.items():
-            pr = _price_on_date(ticker, date)
-            if pr is None:
-                pr = pos["total_cost"] / pos["shares"] if pos["shares"] > 0 else 0
-            current_val = pos["shares"] * pr
-            if pos["side"] == "long":
-                unrealized = current_val - pos["total_cost"]
-            else:
-                unrealized = pos["total_cost"] - current_val
-
-            group = group_map.get(ticker, "Unknown")
-            group_pnl[group] = group_pnl.get(group, 0.0) + unrealized
-
-        # Add realized PnL from closed positions to each group
-        for group, realized in realized_pnl_by_group.items():
-            group_pnl[group] = group_pnl.get(group, 0.0) + realized
-
-        total_pnl = sum(group_pnl.values())
-
-        # Store both percentage and dollar values using initial gross MV
-        total_pnl_pct = (total_pnl / initial_gross_mv * 100) if initial_gross_mv else 0.0
-        point: dict[str, Any] = {
-            "date": date,
-            "Total": round(total_pnl_pct, 2),
-            "Total_dollars": round(total_pnl),
-        }
-        for group, pnl in group_pnl.items():
-            point[group] = round((pnl / initial_gross_mv * 100) if initial_gross_mv else 0.0, 2)
-            point[f"{group}_dollars"] = round(pnl)
-        series.append(point)
-
-    # Filter and re-baseline when start_date is provided
-    if start_date and series:
-        baseline: dict[str, float] = {}
-        for point in series:
-            if point["date"] <= start_date:
-                for key, val in point.items():
-                    if key != "date":
-                        baseline[key] = float(val)
-            else:
-                break
-
-        filtered: list[dict[str, Any]] = []
-        for point in series:
-            if point["date"] < start_date:
-                continue
-            new_point: dict[str, Any] = {"date": point["date"]}
-            for key, val in point.items():
-                if key == "date":
-                    continue
-                new_point[key] = round(float(val) - baseline.get(key, 0.0), 2)
-            filtered.append(new_point)
-        series = filtered
-
-    # Identify top 8 groups by absolute final cumulative PnL
-    if series:
-        last_point = series[-1]
-        group_scores: list[tuple[str, float]] = []
-        for key, val in last_point.items():
-            if key in ("date", "Total") or key.endswith("_dollars"):
-                continue
-            group_scores.append((key, abs(float(val))))
-        group_scores.sort(key=lambda x: x[1], reverse=True)
-        top_groups = [g for g, _ in group_scores[:8]]
-        other_groups = {g for g, _ in group_scores[8:]}
-
-        if other_groups:
-            for point in series:
-                other_pct = 0.0
-                other_dollars = 0.0
-                for g in list(point.keys()):
-                    if g in other_groups:
-                        other_pct += point.pop(g, 0.0)
-                    elif g.endswith("_dollars") and g[:-8] in other_groups:
-                        other_dollars += point.pop(g, 0.0)
-                if other_pct:
-                    point["Other"] = round(other_pct, 2)
-                if other_dollars:
-                    point["Other_dollars"] = round(other_dollars)
-            top_groups.append("Other")
-    else:
-        top_groups = []
-
-    return {"series": series, "groups": top_groups}
 
 
 def _compute_sp500_equal_weight_returns(start_date: str) -> dict[str, float]:

@@ -250,6 +250,29 @@ export function ChatPage() {
             </div>
           )}
 
+          {chat.costWarning && (
+            <div className="chat-page__cost-warning">
+              <span className="chat-page__cost-warning-icon">&#9888;</span>
+              <span className="chat-page__cost-warning-text">
+                {chat.costWarning.message}
+              </span>
+              <div className="chat-page__cost-warning-actions">
+                <button
+                  className="chat-page__cost-warning-btn chat-page__cost-warning-btn--confirm"
+                  onClick={chat.confirmCostWarning}
+                >
+                  Run it
+                </button>
+                <button
+                  className="chat-page__cost-warning-btn chat-page__cost-warning-btn--cancel"
+                  onClick={chat.dismissCostWarning}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           {chat.error && (
             <>
               <div className="chat-page__error">{chat.error}</div>

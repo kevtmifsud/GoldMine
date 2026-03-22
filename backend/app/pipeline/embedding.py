@@ -68,13 +68,20 @@ def store_chunks(
     chunks: list[Chunk],
     embeddings: list[list[float]],
     filing_date=None,
+    metadata: dict | None = None,
 ) -> int:
     """Store chunks with embeddings in Supabase.
 
     Uses batched INSERT via execute_values for fewer round-trips.
+    If *metadata* is provided it is written to the ``metadata`` JSONB column
+    on every chunk row (e.g. user_id, tickers, sectors, industries for
+    analyst notes).
     Returns the number of chunks stored.
     """
+    import json as _json
     from psycopg2.extras import execute_values
+
+    metadata_str = _json.dumps(metadata) if metadata else None
 
     rows = []
     for chunk, embedding in zip(chunks, embeddings):
@@ -84,6 +91,7 @@ def store_chunks(
             chunk.section_name, chunk.section_type,
             fiscal_period, filing_date, chunk.chunk_sequence,
             chunk.word_count, chunk.chunk_text, embedding_str,
+            metadata_str,
         ))
 
     # Batch in pages of 20 — each row includes a 1536-dim vector so keep batches moderate
@@ -92,10 +100,10 @@ def store_chunks(
         """INSERT INTO chunks
            (document_id, ticker, document_type, section_name, section_type,
             fiscal_period, filing_date, chunk_sequence, word_count,
-            chunk_text, embedding, is_active)
+            chunk_text, embedding, is_active, metadata)
            VALUES %s""",
         rows,
-        template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector, TRUE)",
+        template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector, TRUE, %s::jsonb)",
         page_size=20,
     )
 

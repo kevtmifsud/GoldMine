@@ -105,3 +105,76 @@
   color: var(--color-text-secondary);
   grid-column: 2 / 3;
 }
+
+/* Inactive card styling */
+.alerts-page__card--inactive {
+  opacity: 0.65;
+  border-style: dashed;
+}
+
+.alerts-page__card--inactive:hover {
+  opacity: 0.85;
+}
+
+/* Entity label for report-type schedules (no link) */
+.alerts-page__card-entity-label {
+  color: var(--color-text-secondary);
+  text-transform: capitalize;
+}
+
+/* Status badges */
+.alerts-page__status-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+
+.alerts-page__status-badge--active {
+  background: #f0fff4;
+  color: #276749;
+}
+
+.alerts-page__status-badge--paused {
+  background: #fffbeb;
+  color: #975a16;
+}
+
+.alerts-page__status-badge--failed {
+  background: #fff5f5;
+  color: #c53030;
+}
+
+/* Toggle button */
+.alerts-page__toggle-btn {
+  font-size: 0.78rem;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+
+.alerts-page__toggle-btn--pause {
+  background: #fffbeb;
+  color: #975a16;
+  border-color: #fbd38d;
+}
+
+.alerts-page__toggle-btn--pause:hover {
+  background: #fefcbf;
+}
+
+.alerts-page__toggle-btn--activate {
+  background: #f0fff4;
+  color: #276749;
+  border-color: #9ae6b4;
+}
+
+.alerts-page__toggle-btn--activate:hover {
+  background: #c6f6d5;
+}

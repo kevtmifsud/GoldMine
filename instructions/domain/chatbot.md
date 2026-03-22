@@ -12,23 +12,26 @@ The chatbot is the primary interface of GoldMine. The database is its memory. Ev
 User message
     ↓
 WF-06  Query Classifier (Haiku)
-       — extracts: query_type, tickers[], required_sources[], fiscal_periods[], topic
+       — extracts: query_type, tickers[], fiscal_periods[], topic, estimated_ticker_count
+       — no required_sources output — Claude decides retrieval via tool calls
     ↓
 WF-07  Ticker Resolver
        — expands aliases, validates tickers against stocks table, no LLM call
     ↓
-WF-08  Retrieval Orchestrator
-       — runs parallel retrieval against all required_sources
-       — hybrid: vector search (pgvector) + structured SQL per source type
-    ↓
-WF-09  Response Generator (Sonnet)
-       — streams response with enforced inline citations
-       — governed by system prompt (see WF-09_Response_Generation.md)
+WF-09  Agentic Response Generator (Sonnet)
+       — embeds user query (OpenAI), looks up Q&A library
+       — starts Claude with GOLDMINE_TOOLS (14 data tools)
+       — Claude calls tools as needed (search_documents, get_financial_metrics, etc.)
+       — tool results fed back; loop repeats until Claude produces final text
+       — streams final response with enforced inline citations
+       — system prompt loaded from instructions/domain/WF-09_system_prompt.md
     ↓
 WF-10  Session Manager
        — compresses history every 10 turns (Haiku, fire-and-forget)
        — auto-generates session title after first exchange
 ```
+
+WF-08 (Retrieval Orchestration) no longer exists as a separate step. The `_query_*` functions in `retrieval.py` are now tool handlers called by `execute_tool()` in `tools.py`. Claude decides which data sources to query via the agentic tool-calling loop in `generator.py`.
 
 Model assignments are stored in `model_config` table, not hardcoded. Hot-swap without redeploy by updating that table.
 
@@ -61,13 +64,13 @@ The chatbot can read from the following sources. It cannot write to any of them.
 | Prior workflow outputs | `workflow_outputs_earnings_preview` (and others) | SQL (structured lookup) | per workflow type | Not vector search |
 | Workflow registry | `workflow_registry` | SQL | — | Runtime lookup for workflow execution |
 
-The chatbot does NOT have access to: `chat_sessions` (as retrieval context), `api_cost_events`, raw S3 Excel files, `user_profiles` (beyond display_name for attribution).
+The chatbot does NOT have access to: `sessions` (as retrieval context), `api_cost_events`, raw S3 Excel files, `user_profiles` (beyond display_name for attribution).
 
 ---
 
 ## Routing rules
 
-WF-06 must output a `required_sources[]` list, not a single route. Multi-source queries are the norm.
+Claude decides which tools to call during the agentic loop. The tool descriptions in `tools.py` encode routing rules. Multi-source queries are the norm — Claude calls multiple tools in a single turn.
 
 ### Single-dimension routing
 
@@ -87,7 +90,7 @@ WF-06 must output a `required_sources[]` list, not a single route. Multi-source 
 
 ### Multi-source routing
 
-When a query explicitly requires multiple dimensions, WF-08 retrieves all of them in parallel. Examples:
+When a query explicitly requires multiple dimensions, Claude calls multiple tools. Examples:
 
 - "How does AAPL smartphone revenue correlate to credit card spend in California?" → `financial_metrics` + `alt_data` (credit_card)
 - "What is AAPL Q4 revenue estimate?" → `internal_estimates` + `buyside_estimates` + `consensus_estimates` + `sellside_estimates` (all four, always)
@@ -97,13 +100,14 @@ When a query explicitly requires multiple dimensions, WF-08 retrieves all of the
 
 ### Source isolation rules (critical)
 
-These rules are enforced at the routing layer, not left to the response generator:
+These rules are encoded in tool descriptions and the system prompt (WF-09_system_prompt.md):
 
 1. **Portfolio P&L queries** route only to `daily_pnl` / `portfolio_concentration` / `portfolio_risk`. Never pull `financial_metrics` or `stock_history` as a secondary source for portfolio queries.
 2. **Internal analyst note queries** never include `sellside_notes` or `buyside_notes`.
 3. **Sellside queries** never include `analyst_notes` or `buyside_notes`.
 4. **Alt data** always queries with explicit `data_type` filter. Never run `SELECT * FROM alt_data WHERE ticker = X` without a type.
 5. **Estimates** — any query about forward estimates always retrieves all four estimate sources (`internal`, `buyside`, `consensus`, `sellside`). Never present a single estimate source in isolation.
+6. **Portfolio separation** — when portfolio data is returned for multiple portfolios, always present each portfolio in a separate labeled section. Never aggregate across portfolios. This applies to all portfolio tool results: daily_pnl, portfolio_concentration, portfolio_risk. Results are ordered by portfolio first when querying all portfolios.
 
 ---
 
@@ -130,7 +134,7 @@ If the user mentions an alt data type not in this list, surface a message that t
 
 **SQL sources** (structured tables): direct parameterized queries. Always use indexed columns in WHERE clauses (`ticker`, `period`, `as_of_date`, `date`). Never SELECT * without LIMIT. For `internal_estimates`, `model_outputs` — always use DISTINCT ON pattern to get most recent version.
 
-**Hybrid queries** (e.g. estimates comparison): run SQL and vector searches in parallel, merge results in WF-08 before passing to WF-09.
+**Hybrid queries** (e.g. estimates comparison): Claude calls multiple tools in the same turn. Tool results are fed back as context for the final response.
 
 **Cross-source joins**: join key between most sources is `ticker`. Period alignment for alt data (weekly/monthly) to financials (quarterly) is pre-calculated in the `alt_data` table — never ask the LLM to aggregate or align periods.
 
@@ -170,11 +174,11 @@ Scheduled workflows (e.g. earnings preview 7 days before report date) follow the
 
 ## Session rules
 
-**Retrieval context:** the chatbot uses `analyst_notes`, `buyside_notes`, `sellside_notes`, `chunks`, and structured tables as context. It does NOT use `chat_sessions` as retrieval context — conversation history is for user reference only, never fed back to the LLM.
+**Retrieval context:** the chatbot uses `analyst_notes`, `buyside_notes`, `sellside_notes`, `chunks`, and structured tables as context. It does NOT use `sessions` as retrieval context — conversation history is for user reference only, never fed back to the LLM.
 
 **Prior workflow outputs:** when a user asks about a ticker and a prior workflow output exists (e.g. a previous earnings preview), surface it via structured SQL lookup — not vector search.
 
-**Session visibility:** `chat_sessions.visibility` defaults to `private`. Users can set their own sessions to `public`. Admin users (`is_admin=true`) can read all sessions. Visibility is enforced at the API layer, not the LLM layer.
+**Session visibility:** `sessions.visibility` defaults to `private`. Users can set their own sessions to `public`. Admin users (`is_admin=true`) can read all sessions. Visibility is enforced at the API layer, not the LLM layer.
 
 **Session storage:** every session is retained permanently. No hard deletes. WF-10 compresses message history every 10 turns.
 
@@ -184,7 +188,7 @@ Scheduled workflows (e.g. earnings preview 7 days before report date) follow the
 
 The chatbot reads from source tables and writes only to output tables. This is an architectural constraint enforced at the FastAPI route level.
 
-**Chatbot can write to:** `workflow_outputs_*` tables, `workflow_runs`, `chat_sessions`, `api_cost_events`
+**Chatbot can write to:** `workflow_outputs_*` tables, `workflow_runs`, `sessions`, `api_cost_events`
 
 **Chatbot cannot write to:** any source table (`financial_metrics`, `analyst_notes`, `portfolio_trades`, `internal_estimates`, `alt_data`, etc.)
 

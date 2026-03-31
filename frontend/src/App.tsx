@@ -30,6 +30,7 @@ import { AlertsPage } from "./pages/AlertsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { PublicPacksPage } from "./pages/PublicPacksPage";
 import { PortfoliosPage } from "./pages/PortfoliosPage";
+import { EarningsPreviewPage } from "./pages/EarningsPreviewPage";
 import { ChatPage } from "./pages/ChatPage";
 import { ChatHistoryPage } from "./pages/ChatHistoryPage";
 import { ChatDetailPage } from "./pages/ChatDetailPage";
@@ -203,6 +204,14 @@ function App() {
         <Route
           path="/pack/:packId/edit"
           element={<Navigate to=".." replace />}
+        />
+        <Route
+          path="/earnings"
+          element={
+            <AuthGuard>
+              <EarningsPreviewPage />
+            </AuthGuard>
+          }
         />
         <Route
           path="/chat"

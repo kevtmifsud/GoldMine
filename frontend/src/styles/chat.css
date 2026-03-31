@@ -3,7 +3,7 @@
   height: calc(100vh - 56px);
   display: flex;
   flex-direction: column;
-  max-width: 800px;
+  max-width: 1100px;
   margin: 0 auto;
   width: 100%;
 }
@@ -583,6 +583,12 @@
   border-color: #93c5fd;
 }
 
+.chat-citation--active {
+  background: #dbeafe;
+  border-color: #60a5fa;
+  transition: background 0.15s, border-color 0.15s;
+}
+
 .chat-citation__icon {
   flex-shrink: 0;
 }
@@ -995,7 +1001,7 @@
    Chat Detail Page
    ========================================================================= */
 .chat-detail {
-  max-width: 800px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 1rem;
   width: 100%;
@@ -1324,4 +1330,37 @@
   font-size: 0.88rem;
   color: #059669;
   font-weight: 500;
+}
+
+/* Inline chart in chat responses */
+.chat-chart-container {
+  width: 100%;
+  margin: 12px 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--color-bg);
+  padding: 8px 0;
+}
+
+/* Plot Over Time toggle button */
+.chat-plot-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chat-plot-toggle:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-bg);
 }

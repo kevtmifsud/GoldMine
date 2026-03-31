@@ -1,13 +1,46 @@
-import { type ReactNode, useRef, useState, useCallback } from "react";
+import { type ReactNode, useRef, useState, useCallback, lazy, Suspense } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CITATION_REGEX, parseSingleCitation } from "../../utils/citationParser";
 import type { ParsedCitation } from "../../utils/citationParser";
 import { CitationLink } from "./CitationLink";
 
+const ReactECharts = lazy(() => import("echarts-for-react"));
+
+/** Apply JS formatter functions to an ECharts option based on _format hints. */
+function applyChartFormatters(option: Record<string, unknown>): Record<string, unknown> {
+  const formatters: Record<string, (v: number) => string> = {
+    billions: (v) => `$${(v / 1e9).toFixed(1)}B`,
+    millions: (v) => `$${(v / 1e6).toFixed(0)}M`,
+    currency: (v) => `$${v.toLocaleString()}`,
+    percent: (v) => `${v.toFixed(1)}%`,
+    number: (v) => v.toLocaleString(),
+  };
+
+  // Walk yAxis (single or array) and apply formatter from _format hint
+  const processAxisLabel = (label: Record<string, unknown> | undefined) => {
+    if (!label || typeof label !== "object") return;
+    const fmt = label._format as string;
+    if (fmt && formatters[fmt]) {
+      label.formatter = formatters[fmt];
+      delete label._format;
+    }
+  };
+
+  const yAxis = option.yAxis;
+  if (Array.isArray(yAxis)) {
+    for (const ax of yAxis) processAxisLabel(ax?.axisLabel as Record<string, unknown>);
+  } else if (yAxis && typeof yAxis === "object") {
+    processAxisLabel((yAxis as Record<string, unknown>).axisLabel as Record<string, unknown>);
+  }
+
+  return option;
+}
+
 interface ChatMarkdownProps {
   children: string;
   onCitationClick: (citation: ParsedCitation) => void;
+  onSendPrompt?: (prompt: string) => void;
 }
 
 /**
@@ -219,7 +252,7 @@ function ChatTableWrapper({ children: kids }: { children: ReactNode }) {
   );
 }
 
-export function ChatMarkdown({ children, onCitationClick }: ChatMarkdownProps) {
+export function ChatMarkdown({ children, onCitationClick, onSendPrompt }: ChatMarkdownProps) {
   return (
     <Markdown
       remarkPlugins={[remarkGfm]}
@@ -249,6 +282,50 @@ export function ChatMarkdown({ children, onCitationClick }: ChatMarkdownProps) {
         },
         th({ children: kids }) {
           return <th>{processChildren(kids, onCitationClick)}</th>;
+        },
+        pre({ children: kids }) {
+          // Fenced code blocks render as <pre><code className="language-X">...</code></pre>.
+          // Detect ```chart blocks and render ECharts instead of a code block.
+          const child = kids as React.ReactElement;
+          if (child?.props?.className === "language-chart") {
+            try {
+              const chartOption = applyChartFormatters(
+                JSON.parse(String(child.props.children).trim())
+              );
+              return (
+                <Suspense fallback={<div className="chat-chart-container">Loading chart...</div>}>
+                  <div className="chat-chart-container">
+                    <ReactECharts
+                      option={chartOption}
+                      style={{ height: "320px", width: "100%" }}
+                      opts={{ renderer: "canvas" }}
+                      notMerge={true}
+                    />
+                  </div>
+                </Suspense>
+              );
+            } catch {
+              return <pre>{kids}</pre>;
+            }
+          }
+          return <pre>{kids}</pre>;
+        },
+        a({ href, children: kids }) {
+          if (href === "#plot-over-time" && onSendPrompt) {
+            return (
+              <button
+                className="chat-plot-toggle"
+                onClick={() =>
+                  onSendPrompt(
+                    "Plot the data from your last response over time as a line chart"
+                  )
+                }
+              >
+                {kids}
+              </button>
+            );
+          }
+          return <a href={href}>{kids}</a>;
         },
       }}
     >

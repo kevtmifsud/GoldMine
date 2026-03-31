@@ -453,30 +453,40 @@ Key columns:
 ---
 
 ### `alt_data`
-Grain: one row per ticker per data_type per date.
-Writer: vendor ingestion + normalization job. Insert-only (append new periods).
-Chatbot: read. Coverage is sparse — not all tickers have all data types. Always check for null/missing before presenting. Citation label: `[TICKER | Alt Data | Type | Period]`.
+Grain: one row per ticker × data_type × date. Insert-only, never updated.
+Writer: vendor ingestion jobs (future). Currently seeded with fake data for CMG, DPZ, SBUX via `seed_alt_data.py`.
+Chatbot: read via `get_alt_data` tool. NEVER aggregate or transform values. Always include date in results. Always show source_vendor.
+Citation label: `[TICKER | Alt Data | SIGNAL_NAME | DATE]`.
 Key columns:
 - `id` uuid PK
 - `ticker` text
-- `data_type` text (credit_card | web_traffic | app_downloads | google_trends | email_receipts | medical_claims)
-- `date_frequency` text (daily | weekly | monthly | quarterly)
-- `date` date (end date of period)
-- `value` numeric
-- `growth` numeric (pre-calculated YoY or period-over-period — never ask chatbot to calculate)
-- `unit` text
-- `source_vendor` text
-- `data_as_of_date` date
-- `as_of_date` date
+- `data_type` text (credit_card_sss_yoy | credit_card_txn_yoy | credit_card_spv_yoy | foot_traffic_yoy | app_downloads_yoy | web_traffic_yoy | reservations_yoy | job_postings_yoy)
+- `date_frequency` text (daily | weekly | monthly)
+- `date` date (the data point date)
+- `value` numeric (indexed level, base 100 = Jan 2021)
+- `growth` numeric (YoY % change from value 12 months prior)
+- `unit` text (always '%' for YoY signals)
+- `source_vendor` text (Second Measure | Placer.ai | Sensor Tower | SimilarWeb | OpenTable | Revelio Labs)
+- `data_as_of_date` date (date the data point represents)
+- `as_of_date` date (date we receive it = date - lag)
 - `created_at` timestamptz
 
-Alt data keyword → data_type mapping (for WF-06 classifier):
-- credit card, card data, transaction data, consumer spend, CC data → `credit_card`
-- web traffic, website visits, web visits, site traffic → `web_traffic`
-- app downloads, download data, app installs, mobile downloads → `app_downloads`
-- google trends, search trends, search data → `google_trends`
-- email receipts, receipt data, email data → `email_receipts`
-- medical claims, claims data, healthcare data → `medical_claims`
+Data lag by signal:
+- Daily signals (credit card): 3 days
+- Weekly signals (foot traffic, app downloads, web traffic): 7 days
+- Reservations: 14 days
+- Monthly signals (job postings): 14 days
+
+IMPORTANT: Never query with GROUP BY or aggregate functions. Always include date in results. Always show source_vendor.
+
+Alt data keyword → routing (for WF-06 classifier):
+- credit card, card data, transaction data, consumer spend, second measure → get_alt_data
+- foot traffic, store visits, placer → get_alt_data
+- app downloads, sensor tower, mobile downloads → get_alt_data
+- web traffic, similarweb, online traffic → get_alt_data
+- reservations, opentable → get_alt_data
+- job postings, hiring data, revelio → get_alt_data
+- alternative data, alt data → get_alt_data
 
 ---
 

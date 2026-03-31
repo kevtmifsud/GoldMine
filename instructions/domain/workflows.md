@@ -71,7 +71,7 @@ A full pre-earnings briefing for a single ticker covering the reporting quarter 
 
 Key metrics vary by company and change over time. Determination order:
 1. Check `workflow_outputs_earnings_preview` for prior runs on this ticker — use `key_kpis` field from most recent prior preview
-2. If no prior preview: check `analyst_notes` and `sellside_notes` for this ticker to infer which metrics are discussed most
+2. If no prior preview: check `analyst_notes` and `chunks` (doc_type: sellside_note) for this ticker to infer which metrics are discussed most
 3. If neither exists: surface a modal to the user requesting manual KPI input before generation proceeds
 
 The `key_kpis` field is always stored in the output and becomes the reference for the next preview.
@@ -89,10 +89,15 @@ All four estimate sources, side by side, for both reporting quarter and forward 
 | EPS | cite | cite | cite | cite | calculated |
 | Revenue | cite | cite | cite | cite | calculated |
 
-Implied move = calculated from estimates spread (bull/base/bear scenarios from `model_outputs`). No options data required.
+Implied move = calculated from estimates spread (bull/base/bear scenarios from model_outputs — planned, not yet implemented). No options data required.
 
-Sources: `internal_estimates`, `buyside_estimates`, `consensus_estimates`, `sellside_estimates`
+Sources: raw log tables (internal_estimates, buyside_estimates, consensus_estimates, sellside_estimates) queried directly by the workflow. The chatbot queries daily_estimates instead.
 All four always present. If a source has no estimate for a metric, show "N/A" — never omit the column.
+
+Planned — not yet implemented:
+- Implied move calculation from bull/base/bear scenarios (model_outputs)
+- Sellside commentary context for estimate narrative (sellside_notes)
+- Peer comp context for relative valuation (model_peers)
 
 **Section 2 — Most recent quarter actuals**
 
@@ -160,14 +165,14 @@ Generate a standardized 3-statement financial model for a ticker. All models fol
 
 - `ticker` — required
 - `key_kpis` — required (from prior model, analyst notes, or user input)
-- `peers` — from `model_peers` table (auto-populated if not set)
+- `peers` — from model_peers table (auto-populated if not set, planned)
 - `base_assumptions` — revenue growth rates, margin assumptions, discount rate (can be provided by user or defaulted from sector medians in `financial_metrics`)
 
 ### Process
 
 1. Pull `financial_metrics` for historical periods (3 years annual + 8 quarters)
 2. Pull `consensus_estimates` and `internal_estimates` for forward periods
-3. Pull `model_peers` for this ticker; pull comps from `financial_metrics`
+3. Pull model_peers for this ticker (planned); pull comps from `financial_metrics`
 4. Pull prior model version from `model_outputs` if exists (for assumption continuity)
 5. If user provided edit instruction (e.g. "change base case 2027 revenue growth to 15%"): read current `model_outputs` assumptions, apply edit, recalculate affected outputs
 6. Generate Excel file following canonical template (see `instructions/domain/models.md`)

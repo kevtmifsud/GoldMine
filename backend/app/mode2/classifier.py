@@ -38,9 +38,13 @@ You are a financial query classifier. Analyze the user's question and return a J
 
 ## Alt data keyword mapping
 Map natural language terms to alt_data_types values:
-- credit card, card data, transaction data, consumer spend, CC data, card trends, card spend → credit_card
-- web traffic, website visits, web visits, site traffic, online traffic → web_traffic
-- app downloads, download data, app installs, mobile downloads, app activity → app_downloads
+- credit card, card data, transaction data, consumer spend, CC data, card trends, card spend, same store sales (when asking about alt data), second measure → credit_card
+- foot traffic, store visits, location data, placer → foot_traffic
+- web traffic, website visits, web visits, site traffic, online traffic, similarweb → web_traffic
+- app downloads, download data, app installs, mobile downloads, app activity, sensor tower → app_downloads
+- reservations, opentable, reservation trends → reservations
+- job postings, hiring data, revelio, employment data → job_postings
+- alternative data, alt data → (set query_type to alt_data, leave alt_data_types empty to return all signals)
 - google trends, search trends, search data, search interest → google_trends
 - email receipts, receipt data, email data, purchase receipts → email_receipts
 - medical claims, claims data, healthcare data, Rx data → medical_claims
@@ -58,7 +62,9 @@ Return ONLY valid JSON matching this schema (no markdown, no preamble):
   "time_range_quarters": null,
   "alt_data_types": [],
   "workflow_name": null,
-  "estimated_ticker_count": 1
+  "estimated_ticker_count": 1,
+  "chart_requested": false,
+  "chart_type": null
 }}
 
 ## Rules
@@ -70,6 +76,13 @@ Return ONLY valid JSON matching this schema (no markdown, no preamble):
 - For trend_analysis, set time_range_quarters to the number of quarters requested.
 - For workflow queries, set workflow_name to the machine name (e.g. "earnings_preview", "financial_model_generation").
 - Set estimated_ticker_count to the number of tickers the query is about. For screening queries over the full universe, set to 503. For named lists, estimate the list size.
+
+## Chart detection
+Set chart_requested=true when the user asks to: "show me", "plot", "chart", "graph", "visualize", "draw", "over time", "historically", "trend", "evolution", "how has X changed".
+Set chart_type:
+- "line" when asking for trends over time or historical evolution
+- "bar" when asking for comparisons across sources, tickers, or periods
+- null when no chart requested
 
 ## User's ticker lists
 {ticker_lists}
@@ -183,6 +196,7 @@ async def classify_query(
 # chatbot.md. Do not delete this constant.
 # ---------------------------------------------------------------------------
 ALT_DATA_KEYWORD_MAP: dict[str, str] = {
+    # Credit card signals
     "credit card": "credit_card",
     "card data": "credit_card",
     "transaction data": "credit_card",
@@ -190,24 +204,46 @@ ALT_DATA_KEYWORD_MAP: dict[str, str] = {
     "cc data": "credit_card",
     "card trends": "credit_card",
     "card spend": "credit_card",
+    "second measure": "credit_card",
+    # Foot traffic
+    "foot traffic": "foot_traffic",
+    "store visits": "foot_traffic",
+    "location data": "foot_traffic",
+    "placer": "foot_traffic",
+    # Web traffic
     "web traffic": "web_traffic",
     "website visits": "web_traffic",
     "web visits": "web_traffic",
     "site traffic": "web_traffic",
     "online traffic": "web_traffic",
+    "similarweb": "web_traffic",
+    # App downloads
     "app downloads": "app_downloads",
     "download data": "app_downloads",
     "app installs": "app_downloads",
     "mobile downloads": "app_downloads",
     "app activity": "app_downloads",
+    "sensor tower": "app_downloads",
+    # Reservations
+    "reservations": "reservations",
+    "opentable": "reservations",
+    "reservation trends": "reservations",
+    # Job postings
+    "job postings": "job_postings",
+    "hiring data": "job_postings",
+    "revelio": "job_postings",
+    "employment data": "job_postings",
+    # Google trends
     "google trends": "google_trends",
     "search trends": "google_trends",
     "search data": "google_trends",
     "search interest": "google_trends",
+    # Email receipts
     "email receipts": "email_receipts",
     "receipt data": "email_receipts",
     "email data": "email_receipts",
     "purchase receipts": "email_receipts",
+    # Medical claims
     "medical claims": "medical_claims",
     "claims data": "medical_claims",
     "healthcare data": "medical_claims",

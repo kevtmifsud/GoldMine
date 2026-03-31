@@ -20,7 +20,7 @@ Use this skill when the canonical model template in `instructions/domain/models.
 
 ### Step 4 — Documentation (mandatory)
 - [ ] Sheet is already added to `models.md` in Step 1
-- [ ] If new metrics flow to `internal_estimates`, document them in `data-schema.md`
+- [ ] If new metrics flow to estimates: model processing job writes to `model_outputs` → then to `internal_estimates` (Layer 1 log) → surfaced to chatbot via `daily_estimates` (Layer 2 pre-calculated, populated by `daily_estimates_job.py`). Document new metrics in `data-schema.md` under both `model_outputs` and `internal_estimates`.
 
 ### Step 5 — Tests
 - [ ] Run: `cd backend && source .venv/bin/activate && pytest`

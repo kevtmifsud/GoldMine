@@ -89,7 +89,7 @@ export function EmbeddedChat({ onCitationClick }: EmbeddedChatProps) {
                 className={`embedded-chat__bubble embedded-chat__bubble--${msg.role}`}
               >
                 {msg.role === "assistant" ? (
-                  <ChatMarkdown onCitationClick={citationHandler}>
+                  <ChatMarkdown onCitationClick={citationHandler} onSendPrompt={chat.sendMessage}>
                     {msg.content}
                   </ChatMarkdown>
                 ) : (
@@ -122,7 +122,7 @@ export function EmbeddedChat({ onCitationClick }: EmbeddedChatProps) {
 
           {chat.streamingContent && (
             <div className={`embedded-chat__bubble embedded-chat__bubble--assistant${chat.isStreaming ? " embedded-chat__bubble--streaming" : ""}`}>
-              <ChatMarkdown onCitationClick={citationHandler}>
+              <ChatMarkdown onCitationClick={citationHandler} onSendPrompt={chat.sendMessage}>
                 {chat.streamingContent}
               </ChatMarkdown>
               {chat.isStreaming && <span className="streaming-cursor" />}

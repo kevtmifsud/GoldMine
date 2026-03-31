@@ -7,6 +7,9 @@
 # ================================================
 """Seed fake estimates into all four log tables for development/testing.
 
+SQL-first approach: fetches all data upfront in parallel, builds all rows
+in memory, then bulk-inserts with 4 total database round trips (one per table).
+
 Usage:
     python scripts/seed_test_estimates.py --tickers AAPL
     python scripts/seed_test_estimates.py --tickers AAPL MSFT NVDA
@@ -17,14 +20,13 @@ from __future__ import annotations
 
 import argparse
 import random
+import os
 from datetime import date, timedelta
-from decimal import Decimal
 from pathlib import Path
 
 import psycopg2
 from psycopg2.extras import execute_values
 from dotenv import load_dotenv
-import os
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / "backend" / ".env")
@@ -74,35 +76,6 @@ def period_to_dates(period: str) -> tuple[date, date]:
         raise ValueError(f"Unknown period: {period}")
 
 
-def get_actual_value(cur, ticker: str, metric: str, period: str) -> float | None:
-    """Fetch actual from financial_metrics for a given period."""
-    start, end = period_to_dates(period)
-    period_type = "annual" if period.endswith("A") else "quarterly"
-    cur.execute(
-        """SELECT value FROM financial_metrics
-           WHERE ticker = %s AND metric_name = %s
-           AND period_end BETWEEN %s AND %s
-           AND period_type = %s
-           ORDER BY period_end DESC LIMIT 1""",
-        (ticker, metric, start, end, period_type),
-    )
-    row = cur.fetchone()
-    return float(row[0]) if row else None
-
-
-def get_latest_actual(cur, ticker: str, metric: str, period_type: str = "quarterly") -> float | None:
-    """Fetch most recent actual for forward period base, matching period_type."""
-    cur.execute(
-        """SELECT value FROM financial_metrics
-           WHERE ticker = %s AND metric_name = %s
-           AND period_type = %s
-           ORDER BY period_end DESC LIMIT 1""",
-        (ticker, metric, period_type),
-    )
-    row = cur.fetchone()
-    return float(row[0]) if row else None
-
-
 def apply_variance(base: float, source: str, ticker: str, metric: str, period: str, firm: str = "") -> float:
     seed = hash(f"{ticker}{metric}{period}{source}{firm}") % (2**32)
     rng = random.Random(seed)
@@ -111,7 +84,6 @@ def apply_variance(base: float, source: str, ticker: str, metric: str, period: s
 
 
 def estimate_date_for(period: str) -> date:
-    """Generate estimate_date based on period type."""
     if period in PAST_PERIODS:
         _, end = period_to_dates(period)
         return end - timedelta(days=14)
@@ -147,7 +119,40 @@ def main() -> None:
             print(f"Cleared {cur.rowcount} rows from {table}")
         conn.commit()
 
-    # Get analysts by sector
+    # ------------------------------------------------------------------
+    # STEP 1: Fetch all data upfront (3 queries total)
+    # ------------------------------------------------------------------
+
+    # All actuals for target tickers + metrics
+    cur.execute(
+        """SELECT ticker, metric_name, period_end, period_type, value
+           FROM financial_metrics
+           WHERE ticker = ANY(%s) AND metric_name = ANY(%s)
+           ORDER BY ticker, metric_name, period_end DESC""",
+        (args.tickers, TARGET_METRICS),
+    )
+    actuals_raw = cur.fetchall()
+
+    # Build lookup: (ticker, metric, period_type) -> [(period_end, value), ...]
+    actuals_by_key: dict[tuple[str, str, str], list[tuple[date, float]]] = {}
+    for ticker, metric, period_end, period_type, value in actuals_raw:
+        key = (ticker, metric, period_type)
+        actuals_by_key.setdefault(key, []).append((period_end, float(value)))
+
+    # Available metrics per ticker
+    available_metrics: dict[str, list[str]] = {}
+    for ticker, metric, _, _, _ in actuals_raw:
+        available_metrics.setdefault(ticker, set()).add(metric)
+    available_metrics = {t: sorted(m) for t, m in available_metrics.items()}
+
+    # Ticker sectors
+    cur.execute(
+        "SELECT ticker, sector FROM stocks WHERE ticker = ANY(%s)",
+        (args.tickers,),
+    )
+    ticker_sectors = dict(cur.fetchall())
+
+    # All analysts
     cur.execute(
         """SELECT person_id, name, organization, type, sector_coverage
            FROM people
@@ -155,63 +160,59 @@ def main() -> None:
     )
     all_analysts = cur.fetchall()
 
-    # Get user_profiles for internal estimates
-    cur.execute("SELECT user_id, display_name FROM user_profiles WHERE role = 'analyst' ORDER BY display_name")
+    # User profiles for internal estimates
+    cur.execute(
+        "SELECT user_id, display_name FROM user_profiles WHERE role = 'analyst' ORDER BY display_name"
+    )
     user_profiles = cur.fetchall()
 
-    summary = {
-        "consensus_estimates": 0,
-        "buyside_estimates": 0,
-        "internal_estimates": 0,
-        "sellside_estimates": 0,
-    }
+    # ------------------------------------------------------------------
+    # STEP 2: Build all rows in memory (pure Python math, no DB calls)
+    # ------------------------------------------------------------------
+
+    def get_actual_value(ticker: str, metric: str, period: str) -> float | None:
+        start, end = period_to_dates(period)
+        pt = "annual" if period.endswith("A") else "quarterly"
+        entries = actuals_by_key.get((ticker, metric, pt), [])
+        for pe, val in entries:
+            if start <= pe <= end:
+                return val
+        return None
+
+    def get_latest_actual(ticker: str, metric: str, period_type: str) -> float | None:
+        entries = actuals_by_key.get((ticker, metric, period_type), [])
+        return entries[0][1] if entries else None  # already sorted DESC
+
+    consensus_rows: list[tuple] = []
+    buyside_rows: list[tuple] = []
+    internal_rows: list[tuple] = []
+    sellside_rows: list[tuple] = []
 
     for ticker in args.tickers:
-        print(f"\n--- Processing {ticker} ---")
-
-        # Get ticker sector
-        cur.execute("SELECT sector FROM stocks WHERE ticker = %s", (ticker,))
-        row = cur.fetchone()
-        if not row:
+        sector = ticker_sectors.get(ticker)
+        if not sector:
             print(f"  WARNING: {ticker} not found in stocks table, skipping")
             continue
-        ticker_sector = row[0]
 
-        # Find analysts covering this sector
-        matching_buyside = [
-            a for a in all_analysts
-            if a[3] == "buyside_analyst" and ticker_sector in (a[4] or [])
-        ]
-        matching_sellside = [
-            a for a in all_analysts
-            if a[3] == "sellside_analyst" and ticker_sector in (a[4] or [])
-        ]
-
-        # Get available metrics for this ticker
-        cur.execute(
-            """SELECT DISTINCT metric_name FROM financial_metrics
-               WHERE ticker = %s AND metric_name = ANY(%s)""",
-            (ticker, TARGET_METRICS),
-        )
-        available_metrics = [r[0] for r in cur.fetchall()]
-        if not available_metrics:
+        metrics = available_metrics.get(ticker, [])
+        if not metrics:
             print(f"  WARNING: No target metrics found for {ticker}, skipping")
             continue
 
-        print(f"  Sector: {ticker_sector}")
-        print(f"  Metrics: {available_metrics}")
-        print(f"  Buyside analysts: {len(matching_buyside)}")
-        print(f"  Sellside analysts: {len(matching_sellside)}")
+        matching_buyside = [
+            a for a in all_analysts
+            if a[3] == "buyside_analyst" and sector in (a[4] or [])
+        ]
+        matching_sellside = [
+            a for a in all_analysts
+            if a[3] == "sellside_analyst" and sector in (a[4] or [])
+        ]
 
-        # --- CONSENSUS ESTIMATES ---
-        consensus_rows = []
+        # Consensus
         for period in ALL_PERIODS:
             is_past = period in PAST_PERIODS
-            for metric in available_metrics:
-                if is_past:
-                    base = get_actual_value(cur, ticker, metric, period)
-                else:
-                    base = get_latest_actual(cur, ticker, metric, "annual" if period.endswith("A") else "quarterly")
+            for metric in metrics:
+                base = get_actual_value(ticker, metric, period) if is_past else get_latest_actual(ticker, metric, "annual" if period.endswith("A") else "quarterly")
                 if base is None:
                     continue
                 val = apply_variance(base, "consensus", ticker, metric, period)
@@ -220,74 +221,41 @@ def main() -> None:
                     ticker, period, metric, val, "USD",
                     est_date, created_at_for(est_date),
                 ))
-        if consensus_rows and not args.dry_run:
-            execute_values(
-                cur,
-                """INSERT INTO consensus_estimates
-                   (ticker, period, metric, value, unit, estimate_date, created_at)
-                   VALUES %s
-                   ON CONFLICT DO NOTHING""",
-                consensus_rows,
-            )
-        summary["consensus_estimates"] += len(consensus_rows)
-        print(f"  consensus_estimates: {len(consensus_rows)} rows")
 
-        # --- BUYSIDE ESTIMATES ---
-        buyside_rows = []
+        # Buyside
         for analyst in matching_buyside:
             person_id, name, org, _, _ = analyst
             for period in ALL_PERIODS:
                 is_past = period in PAST_PERIODS
-                for metric in available_metrics:
-                    if is_past:
-                        base = get_actual_value(cur, ticker, metric, period)
-                    else:
-                        base = get_latest_actual(cur, ticker, metric, "annual" if period.endswith("A") else "quarterly")
+                for metric in metrics:
+                    base = get_actual_value(ticker, metric, period) if is_past else get_latest_actual(ticker, metric, "annual" if period.endswith("A") else "quarterly")
                     if base is None:
                         continue
-                    # Use analyst name in seed for unique per-analyst values
                     val = apply_variance(base, "buyside", ticker, metric, period, f"{org}:{name}")
                     est_date = estimate_date_for(period)
                     buyside_rows.append((
                         ticker, org, name, person_id, period, metric, val, "USD",
                         est_date, created_at_for(est_date),
                     ))
-        if buyside_rows and not args.dry_run:
-            execute_values(
-                cur,
-                """INSERT INTO buyside_estimates
-                   (ticker, firm, analyst_name, analyst_person_id, period, metric, value, unit, estimate_date, created_at)
-                   VALUES %s
-                   ON CONFLICT DO NOTHING""",
-                buyside_rows,
-            )
-        summary["buyside_estimates"] += len(buyside_rows)
-        print(f"  buyside_estimates: {len(buyside_rows)} rows")
 
-        # --- INTERNAL ESTIMATES ---
-        internal_rows = []
+        # Internal
         analysts_for_internal = user_profiles if user_profiles else [(None, None)]
         for period in ALL_PERIODS:
             is_past = period in PAST_PERIODS
-            # Determine which analyst
             if len(analysts_for_internal) >= 2:
-                # Parse quarter number for alternation
                 if "Q" in period:
                     q_num = int(period[-1])
                     analyst_idx = 0 if q_num % 2 == 1 else 1
                 else:
                     analyst_idx = 0
-                uid, _ = analysts_for_internal[analyst_idx]
+                uid = analysts_for_internal[analyst_idx][0]
             elif analysts_for_internal[0][0] is not None:
                 uid = analysts_for_internal[0][0]
             else:
                 uid = None
 
-            for metric in available_metrics:
-                if is_past:
-                    base = get_actual_value(cur, ticker, metric, period)
-                else:
-                    base = get_latest_actual(cur, ticker, metric, "annual" if period.endswith("A") else "quarterly")
+            for metric in metrics:
+                base = get_actual_value(ticker, metric, period) if is_past else get_latest_actual(ticker, metric, "annual" if period.endswith("A") else "quarterly")
                 if base is None:
                     continue
                 val = apply_variance(base, "internal", ticker, metric, period)
@@ -297,29 +265,14 @@ def main() -> None:
                     est_date, str(uid) if uid else None, "seed_v1",
                     created_at_for(est_date),
                 ))
-        if internal_rows and not args.dry_run:
-            execute_values(
-                cur,
-                """INSERT INTO internal_estimates
-                   (ticker, period, metric, value, unit, estimate_date, user_id, model_version, created_at)
-                   VALUES %s
-                   ON CONFLICT DO NOTHING""",
-                internal_rows,
-            )
-        summary["internal_estimates"] += len(internal_rows)
-        print(f"  internal_estimates: {len(internal_rows)} rows")
 
-        # --- SELLSIDE ESTIMATES ---
-        sellside_rows = []
+        # Sellside
         for analyst in matching_sellside:
             _, name, org, _, _ = analyst
             for period in ALL_PERIODS:
                 is_past = period in PAST_PERIODS
-                for metric in available_metrics:
-                    if is_past:
-                        base = get_actual_value(cur, ticker, metric, period)
-                    else:
-                        base = get_latest_actual(cur, ticker, metric, "annual" if period.endswith("A") else "quarterly")
+                for metric in metrics:
+                    base = get_actual_value(ticker, metric, period) if is_past else get_latest_actual(ticker, metric, "annual" if period.endswith("A") else "quarterly")
                     if base is None:
                         continue
                     val = apply_variance(base, "sellside", ticker, metric, period, org)
@@ -328,34 +281,71 @@ def main() -> None:
                         ticker, org, [name], period, metric, val, "USD",
                         est_date, created_at_for(est_date),
                     ))
-        if sellside_rows and not args.dry_run:
-            execute_values(
-                cur,
+
+    # ------------------------------------------------------------------
+    # STEP 3: Bulk insert (4 DB round trips total)
+    # ------------------------------------------------------------------
+    if not args.dry_run:
+        if consensus_rows:
+            execute_values(cur,
+                """INSERT INTO consensus_estimates
+                   (ticker, period, metric, value, unit, estimate_date, created_at)
+                   VALUES %s ON CONFLICT DO NOTHING""",
+                consensus_rows)
+        if buyside_rows:
+            execute_values(cur,
+                """INSERT INTO buyside_estimates
+                   (ticker, firm, analyst_name, analyst_person_id, period, metric, value, unit, estimate_date, created_at)
+                   VALUES %s ON CONFLICT DO NOTHING""",
+                buyside_rows)
+        if internal_rows:
+            execute_values(cur,
+                """INSERT INTO internal_estimates
+                   (ticker, period, metric, value, unit, estimate_date, user_id, model_version, created_at)
+                   VALUES %s ON CONFLICT DO NOTHING""",
+                internal_rows)
+        if sellside_rows:
+            execute_values(cur,
                 """INSERT INTO sellside_estimates
                    (ticker, firm, analysts, period, metric, value, unit, estimate_date, created_at)
-                   VALUES %s
-                   ON CONFLICT DO NOTHING""",
-                sellside_rows,
-            )
-        summary["sellside_estimates"] += len(sellside_rows)
-        print(f"  sellside_estimates: {len(sellside_rows)} rows")
-
-    if not args.dry_run:
+                   VALUES %s ON CONFLICT DO NOTHING""",
+                sellside_rows)
         conn.commit()
+
+    # ------------------------------------------------------------------
+    # STEP 4: Summary
+    # ------------------------------------------------------------------
+    if not args.dry_run:
+        cur.execute("""
+            SELECT 'consensus' as source, COUNT(*) FROM consensus_estimates WHERE ticker = ANY(%s)
+            UNION ALL
+            SELECT 'buyside', COUNT(*) FROM buyside_estimates WHERE ticker = ANY(%s)
+            UNION ALL
+            SELECT 'internal', COUNT(*) FROM internal_estimates WHERE ticker = ANY(%s)
+            UNION ALL
+            SELECT 'sellside', COUNT(*) FROM sellside_estimates WHERE ticker = ANY(%s)
+        """, (args.tickers, args.tickers, args.tickers, args.tickers))
+        summary_rows = cur.fetchall()
+    else:
+        summary_rows = [
+            ("consensus", len(consensus_rows)),
+            ("buyside", len(buyside_rows)),
+            ("internal", len(internal_rows)),
+            ("sellside", len(sellside_rows)),
+        ]
 
     cur.close()
     conn.close()
 
-    # Final summary
-    total = sum(summary.values())
+    total = sum(r[1] for r in summary_rows)
     print()
-    print("┌──────────────────────┬───────┐")
-    print("│ Table                │ Rows  │")
-    print("├──────────────────────┼───────┤")
-    for table, count in summary.items():
-        print(f"│ {table:<20s} │ {count:>5d} │")
-    print(f"│ {'TOTAL':<20s} │ {total:>5d} │")
-    print("└──────────────────────┴───────┘")
+    print("┌──────────────────────┬─────────┐")
+    print("│ Table                │ Rows    │")
+    print("├──────────────────────┼─────────┤")
+    for source, count in summary_rows:
+        print(f"│ {source + '_estimates':<20s} │ {count:>7,} │")
+    print(f"│ {'TOTAL':<20s} │ {total:>7,} │")
+    print("└──────────────────────┴─────────┘")
     if args.dry_run:
         print("\n(DRY RUN — no rows actually inserted)")
 

@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""Daily estimates forward-fill job.
+"""Daily estimates forward-fill job (hybrid: SQL fetch + Python fill + SQL insert).
 
-Populates daily_estimates by reading all four log tables and forward-filling
-each estimate event across calendar dates.
+Fetches all raw estimate events from the four log tables in one SQL query per
+batch, does the forward-fill date expansion in Python (fast, local), then
+bulk-inserts results.
 
 Usage:
     python scripts/daily_estimates_job.py --tickers AAPL
     python scripts/daily_estimates_job.py --tickers AAPL MSFT --start-date 2023-01-01
     python scripts/daily_estimates_job.py  # all tickers with estimates
+    python scripts/daily_estimates_job.py --batch-size 20
 """
 from __future__ import annotations
 
 import argparse
 import os
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -24,34 +27,144 @@ ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / "backend" / ".env")
 DATABASE_URL = os.environ.get("SUPABASE_DATABASE_URL", "")
 
+# Single query to fetch all raw events for a batch of tickers
+FETCH_EVENTS_SQL = """
+SELECT
+  ticker, metric, period, source, firm, analyst_name,
+  analyst_person_id, user_id, value, unit, estimate_date
+FROM (
+  SELECT ticker, metric, period,
+    'consensus' as source, '' as firm, '' as analyst_name,
+    NULL::varchar as analyst_person_id, NULL::text as user_id,
+    value, unit, estimate_date
+  FROM consensus_estimates WHERE ticker = ANY(%s)
 
-def period_to_dates(period: str) -> tuple[date, date]:
-    if "Q1" in period:
-        y = int(period[:4])
-        return date(y, 1, 1), date(y, 3, 31)
-    elif "Q2" in period:
-        y = int(period[:4])
-        return date(y, 4, 1), date(y, 6, 30)
-    elif "Q3" in period:
-        y = int(period[:4])
-        return date(y, 7, 1), date(y, 9, 30)
-    elif "Q4" in period:
-        y = int(period[:4])
-        return date(y, 10, 1), date(y, 12, 31)
-    elif period.endswith("A"):
-        y = int(period[:4])
-        return date(y, 1, 1), date(y, 12, 31)
-    else:
-        raise ValueError(f"Unknown period: {period}")
+  UNION ALL
+
+  SELECT ticker, metric, period,
+    'buyside', COALESCE(firm,''), COALESCE(analyst_name,''),
+    analyst_person_id::varchar, NULL::text,
+    value, unit, estimate_date
+  FROM buyside_estimates WHERE ticker = ANY(%s)
+
+  UNION ALL
+
+  SELECT ticker, metric, period,
+    'internal', '', '',
+    NULL::varchar, user_id::text,
+    value, unit, estimate_date
+  FROM internal_estimates WHERE ticker = ANY(%s)
+
+  UNION ALL
+
+  SELECT ticker, metric, period,
+    'sellside', COALESCE(firm,''), COALESCE(analysts[1],''),
+    NULL::varchar, NULL::text,
+    value, unit, estimate_date
+  FROM sellside_estimates WHERE ticker = ANY(%s)
+) combined
+ORDER BY ticker, metric, period, source, firm, analyst_name, estimate_date
+"""
+
+SUMMARY_SQL = """
+SELECT source, COUNT(*) as rows,
+  MIN(as_of_date)::text as earliest,
+  MAX(as_of_date)::text as latest,
+  ROUND(AVG(staleness_days), 1) as avg_staleness
+FROM daily_estimates
+WHERE ticker = ANY(%s)
+GROUP BY source
+ORDER BY source;
+"""
 
 
-# Source table configs: (source_name, table_name, firm_col, analyst_name_expr, user_id_col)
-SOURCE_CONFIGS = [
-    ("consensus", "consensus_estimates", None, None, None),
-    ("buyside", "buyside_estimates", "firm", "analyst_name", None),
-    ("internal", "internal_estimates", None, None, "user_id"),
-    ("sellside", "sellside_estimates", "firm", "analysts[1]", None),
-]
+def period_to_dates(period: str) -> tuple[date, date] | None:
+    try:
+        if "Q1" in period:
+            y = int(period[:4]); return date(y,1,1), date(y,3,31)
+        elif "Q2" in period:
+            y = int(period[:4]); return date(y,4,1), date(y,6,30)
+        elif "Q3" in period:
+            y = int(period[:4]); return date(y,7,1), date(y,9,30)
+        elif "Q4" in period:
+            y = int(period[:4]); return date(y,10,1), date(y,12,31)
+        elif period.endswith("A"):
+            y = int(period[:4]); return date(y,1,1), date(y,12,31)
+    except (ValueError, IndexError):
+        pass
+    return None
+
+
+def forward_fill(events: list[tuple], start_date: date, end_date: date) -> list[tuple]:
+    """Group events by combo key, forward-fill across calendar dates.
+
+    Returns list of tuples ready for INSERT.
+    """
+    # Group events by (ticker, metric, period, source, firm, analyst_name)
+    combos: dict[tuple, list[dict]] = {}
+    for row in events:
+        ticker, metric, period, source, firm, analyst_name, \
+            analyst_person_id, user_id, value, unit, estimate_date = row
+        key = (ticker, metric, period, source, firm, analyst_name)
+        if key not in combos:
+            combos[key] = []
+        combos[key].append({
+            "analyst_person_id": analyst_person_id,
+            "user_id": user_id,
+            "value": value,
+            "unit": unit,
+            "estimate_date": estimate_date,
+        })
+
+    results: list[tuple] = []
+
+    for key, events_list in combos.items():
+        ticker, metric, period, source, firm, analyst_name = key
+
+        dates = period_to_dates(period)
+        if dates is None:
+            continue
+        period_start, period_end = dates
+
+        # Sort events by estimate_date ascending
+        events_list.sort(key=lambda e: e["estimate_date"])
+
+        first_estimate_date = events_list[0]["estimate_date"]
+        fill_start = max(start_date, first_estimate_date)
+        fill_end = min(end_date, period_end + timedelta(days=90))
+
+        if fill_start > fill_end:
+            continue
+
+        # Forward-fill: walk calendar dates, advance event pointer
+        event_idx = 0
+        cal_date = fill_start
+        while cal_date <= fill_end:
+            while (
+                event_idx + 1 < len(events_list)
+                and events_list[event_idx + 1]["estimate_date"] <= cal_date
+            ):
+                event_idx += 1
+
+            active = events_list[event_idx]
+            if active["estimate_date"] > cal_date:
+                cal_date += timedelta(days=1)
+                continue
+
+            results.append((
+                ticker, metric, period,
+                period_start, period_end,
+                source, firm, analyst_name,
+                active["analyst_person_id"],
+                active["user_id"],
+                float(active["value"]) if active["value"] is not None else None,
+                active["unit"],
+                active["estimate_date"],
+                cal_date,
+            ))
+            cal_date += timedelta(days=1)
+
+    return results
 
 
 def main() -> None:
@@ -59,6 +172,12 @@ def main() -> None:
     parser.add_argument("--tickers", nargs="+", default=None)
     parser.add_argument("--start-date", default="2023-01-01")
     parser.add_argument("--end-date", default=date.today().isoformat())
+    parser.add_argument("--batch-size", type=int, default=1,
+                        help="Tickers per batch (default 1)")
+    parser.add_argument("--skip-existing", action="store_true",
+                        help="Skip tickers that already have rows in daily_estimates")
+    parser.add_argument("--pause", type=float, default=2.0,
+                        help="Seconds to pause between batches (default 2)")
     args = parser.parse_args()
 
     start_date = date.fromisoformat(args.start_date)
@@ -66,233 +185,100 @@ def main() -> None:
 
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
-
-    # Build analyst lookup: (name, org) -> person_id
-    cur.execute(
-        """SELECT person_id, name, organization
-           FROM people
-           WHERE type IN ('buyside_analyst', 'sellside_analyst')"""
-    )
-    analyst_lookup = {(r[1], r[2]): r[0] for r in cur.fetchall()}
-
-    # Build user display_name lookup
-    cur.execute("SELECT user_id, display_name FROM user_profiles")
-    user_display_names = {str(r[0]): r[1] for r in cur.fetchall()}
+    cur.execute("SET statement_timeout = '0'")
 
     # Determine tickers
     if args.tickers:
         tickers = args.tickers
     else:
-        # All tickers with any estimates
-        ticker_set = set()
-        for _, table, _, _, _ in SOURCE_CONFIGS:
-            cur.execute(f"SELECT DISTINCT ticker FROM {table}")
-            for r in cur.fetchall():
-                ticker_set.add(r[0])
-        tickers = sorted(ticker_set)
+        cur.execute("""
+            SELECT DISTINCT ticker FROM (
+              SELECT ticker FROM consensus_estimates
+              UNION SELECT ticker FROM buyside_estimates
+              UNION SELECT ticker FROM internal_estimates
+              UNION SELECT ticker FROM sellside_estimates
+            ) t ORDER BY ticker
+        """)
+        tickers = [r[0] for r in cur.fetchall()]
 
     if not tickers:
         print("No tickers found with estimates.")
         return
 
-    print(f"Processing {len(tickers)} ticker(s): {', '.join(tickers[:10])}{'...' if len(tickers) > 10 else ''}")
-    print(f"Date range: {start_date} to {end_date}")
+    # Skip tickers already in daily_estimates
+    if args.skip_existing:
+        cur.execute("SELECT DISTINCT ticker FROM daily_estimates")
+        existing = {r[0] for r in cur.fetchall()}
+        before = len(tickers)
+        tickers = [t for t in tickers if t not in existing]
+        print(f"Skipping {before - len(tickers)} tickers already in daily_estimates")
 
-    total_inserted = 0
+    if not tickers:
+        print("All tickers already processed.")
+        return
 
-    for ticker in tickers:
-        ticker_counts = {}
+    batches = [tickers[i:i + args.batch_size] for i in range(0, len(tickers), args.batch_size)]
 
-        for source, table, firm_col, analyst_expr, user_id_col in SOURCE_CONFIGS:
-            source_count = 0
+    print(f"Processing {len(tickers)} ticker(s) in {len(batches)} batch(es) of {args.batch_size}")
+    print(f"Date range: {start_date} to {end_date}", flush=True)
 
-            # Build SELECT columns
-            select_cols = "metric, period, value, unit, estimate_date"
-            if firm_col:
-                select_cols += f", {firm_col}"
-            if analyst_expr:
-                select_cols += f", {analyst_expr} AS analyst_name"
-            if user_id_col:
-                select_cols += f", {user_id_col}"
+    t0 = time.monotonic()
+    total_rows = 0
 
-            # Get distinct combos
-            group_cols = "metric, period"
-            if firm_col:
-                group_cols += f", {firm_col}"
-            if analyst_expr:
-                group_cols += f", {analyst_expr}"
+    for i, batch in enumerate(batches, 1):
+        batch_preview = ", ".join(batch[:3]) + ("..." if len(batch) > 3 else "")
+        print(f"\nBatch {i}/{len(batches)}: {batch_preview} ({len(batch)} tickers)", end="", flush=True)
 
-            cur.execute(
-                f"SELECT DISTINCT {group_cols} FROM {table} WHERE ticker = %s",
-                (ticker,),
-            )
-            combos = cur.fetchall()
+        batch_t0 = time.monotonic()
 
-            for combo in combos:
-                metric = combo[0]
-                period = combo[1]
-                col_idx = 2
-                firm = None
-                combo_analyst_name = None
-                if firm_col:
-                    firm = combo[col_idx]
-                    col_idx += 1
-                if analyst_expr:
-                    combo_analyst_name = combo[col_idx]
-                    col_idx += 1
+        # 1. Fetch all raw events for this batch (one query)
+        cur.execute("SET statement_timeout = '0'")
+        cur.execute(FETCH_EVENTS_SQL, (batch, batch, batch, batch))
+        events = cur.fetchall()
 
-                try:
-                    period_start, period_end = period_to_dates(period)
-                except ValueError:
-                    continue
+        # 2. Forward-fill in Python (fast, local)
+        filled = forward_fill(events, start_date, end_date)
 
-                # Fetch all events for this combo
-                where = "ticker = %s AND metric = %s AND period = %s"
-                params: list = [ticker, metric, period]
-                if firm_col and firm is not None:
-                    where += f" AND {firm_col} = %s"
-                    params.append(firm)
-                if analyst_expr and combo_analyst_name is not None:
-                    where += f" AND {analyst_expr} = %s"
-                    params.append(combo_analyst_name)
-
-                cur.execute(
-                    f"SELECT {select_cols} FROM {table} WHERE {where} ORDER BY estimate_date ASC",
-                    params,
+        # 3. Bulk insert in small chunks to avoid overwhelming remote DB
+        INSERT_CHUNK = 10_000
+        if filled:
+            for chunk_start in range(0, len(filled), INSERT_CHUNK):
+                chunk = filled[chunk_start:chunk_start + INSERT_CHUNK]
+                cur.execute("SET statement_timeout = '0'")
+                execute_values(
+                    cur,
+                    """INSERT INTO daily_estimates
+                       (ticker, metric, period, period_start_date, period_end_date,
+                        source, firm, analyst_name, analyst_person_id, user_id,
+                        value, unit, estimate_date, as_of_date)
+                       VALUES %s
+                       ON CONFLICT ON CONSTRAINT daily_estimates_unique_key
+                       DO NOTHING""",
+                    chunk,
+                    page_size=1000,
                 )
-                events = cur.fetchall()
-                if not events:
-                    continue
+                conn.commit()
+                time.sleep(0.5)  # give the DB a breather
 
-                # Parse events into dicts
-                parsed_events = []
-                for ev in events:
-                    d = {
-                        "metric": ev[0],
-                        "period": ev[1],
-                        "value": ev[2],
-                        "unit": ev[3],
-                        "estimate_date": ev[4],
-                    }
-                    col_idx = 5
-                    if firm_col:
-                        d["firm"] = ev[col_idx]
-                        col_idx += 1
-                    if analyst_expr:
-                        d["analyst_name"] = ev[col_idx]
-                        col_idx += 1
-                    if user_id_col:
-                        d["user_id"] = ev[col_idx]
-                        col_idx += 1
-                    parsed_events.append(d)
+        batch_elapsed = round(time.monotonic() - batch_t0, 1)
+        total_rows += len(filled)
+        print(f"  {len(filled):,} rows ({batch_elapsed}s)", flush=True)
 
-                # Forward fill
-                first_estimate_date = parsed_events[0]["estimate_date"]
-                fill_start = max(start_date, first_estimate_date)
-                fill_end = min(end_date, period_end + timedelta(days=90))
+        # Pause between batches to reduce DB load
+        if i < len(batches) and args.pause > 0:
+            time.sleep(args.pause)
 
-                if fill_start > fill_end:
-                    continue
+    elapsed = round(time.monotonic() - t0, 1)
+    print(f"\nTotal: {total_rows:,} rows inserted in {elapsed}s")
 
-                rows_to_insert = []
-                event_idx = 0
-                cal_date = fill_start
+    # Summary across all tickers
+    cur.execute(SUMMARY_SQL, (tickers,))
+    rows = cur.fetchall()
 
-                while cal_date <= fill_end:
-                    # Advance to most recent event for this date
-                    while (
-                        event_idx + 1 < len(parsed_events)
-                        and parsed_events[event_idx + 1]["estimate_date"] <= cal_date
-                    ):
-                        event_idx += 1
-
-                    active = parsed_events[event_idx]
-                    if active["estimate_date"] > cal_date:
-                        cal_date += timedelta(days=1)
-                        continue
-
-                    # Resolve analyst info
-                    analyst_name = None
-                    analyst_person_id = None
-                    user_id = None
-
-                    if source == "internal":
-                        user_id = active.get("user_id")
-                        if user_id:
-                            analyst_name = user_display_names.get(str(user_id))
-                    elif source in ("buyside", "sellside"):
-                        analyst_name = active.get("analyst_name")
-                        if analyst_name and firm:
-                            analyst_person_id = analyst_lookup.get((analyst_name, firm))
-
-                    rows_to_insert.append((
-                        ticker,
-                        active["metric"],
-                        period,
-                        period_start,
-                        period_end,
-                        source,
-                        firm or "",
-                        analyst_name or "",
-                        analyst_person_id,
-                        str(user_id) if user_id else None,
-                        float(active["value"]),
-                        active.get("unit"),
-                        active["estimate_date"],
-                        cal_date,
-                    ))
-
-                    # Batch insert every 1000 rows
-                    if len(rows_to_insert) >= 1000:
-                        execute_values(
-                            cur,
-                            """INSERT INTO daily_estimates
-                               (ticker, metric, period, period_start_date, period_end_date,
-                                source, firm, analyst_name, analyst_person_id, user_id,
-                                value, unit, estimate_date, as_of_date)
-                               VALUES %s
-                               ON CONFLICT ON CONSTRAINT daily_estimates_unique_key
-                               DO NOTHING""",
-                            rows_to_insert,
-                        )
-                        source_count += len(rows_to_insert)
-                        total_inserted += len(rows_to_insert)
-                        rows_to_insert = []
-                        if total_inserted % 10000 < 1000:
-                            print(f"  ... {total_inserted:,} rows inserted so far")
-
-                    cal_date += timedelta(days=1)
-
-                if rows_to_insert:
-                    execute_values(
-                        cur,
-                        """INSERT INTO daily_estimates
-                           (ticker, metric, period, period_start_date, period_end_date,
-                            source, firm, analyst_name, analyst_person_id, user_id,
-                            value, unit, estimate_date, as_of_date)
-                           VALUES %s
-                           ON CONFLICT ON CONSTRAINT daily_estimates_unique_key
-                           DO NOTHING""",
-                        rows_to_insert,
-                    )
-                    source_count += len(rows_to_insert)
-                    total_inserted += len(rows_to_insert)
-
-            ticker_counts[source] = source_count
-            conn.commit()
-
-        # Print ticker summary
-        ticker_total = sum(ticker_counts.values())
-        print(f"\n{ticker} daily_estimates complete:")
-        for src, cnt in ticker_counts.items():
-            print(f"  {src + ':':12s} {cnt:>8,} rows")
-        print(f"  {'Total:':12s} {ticker_total:>8,} rows")
-        print(f"  Date range: {start_date} to {end_date}")
-
-    # Final summary
-    cur.execute("SELECT ROUND(AVG(staleness_days), 1) FROM daily_estimates WHERE ticker = ANY(%s)", (tickers,))
-    avg_staleness = cur.fetchone()[0]
-    print(f"\nAll done. {total_inserted:,} total rows inserted. Avg staleness: {avg_staleness} days")
+    print(f"\n{'Source':<12} {'Rows':>10} {'Earliest':>12} {'Latest':>12} {'Avg Stale':>10}")
+    print("-" * 58)
+    for source, count, earliest, latest, avg_stale in rows:
+        print(f"{source:<12} {count:>10,} {earliest:>12} {latest:>12} {avg_stale:>10}")
 
     cur.close()
     conn.close()

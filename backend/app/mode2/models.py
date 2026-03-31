@@ -36,6 +36,8 @@ class ClassifiedQuery(BaseModel):
     alt_data_types: list[str] = Field(default_factory=list)
     workflow_name: str | None = None
     estimated_ticker_count: int = 0
+    chart_requested: bool = False
+    chart_type: str | None = None  # "line" | "bar" | None
 
 
 # ---------------------------------------------------------------------------

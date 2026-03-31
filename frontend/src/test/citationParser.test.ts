@@ -10,12 +10,13 @@ describe("parseSingleCitation", () => {
     const result = parseSingleCitation(
       "[AAPL | Earnings Transcript | Q1 2026 | CFO Remarks]"
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       raw: "[AAPL | Earnings Transcript | Q1 2026 | CFO Remarks]",
       ticker: "AAPL",
       docType: "Earnings Transcript",
       period: "Q1 2026",
       section: "CFO Remarks",
+      citationType: "transcript",
     });
   });
 

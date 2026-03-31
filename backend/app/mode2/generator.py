@@ -22,7 +22,12 @@ from .db import get_conn
 from .models import ClassifiedQuery, ResolvedUniverse
 from .retrieval import _embed_query, _lookup_qa_library
 from .steps import StepCollector
-from .tools import GOLDMINE_TOOLS, execute_tool
+from .tools import (
+    ALWAYS_LOADED_TOOL_NAMES,
+    execute_tool,
+    get_always_loaded_tools,
+    get_tool_definitions,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +135,97 @@ def _build_qa_context(qa_hits: list) -> str:
     return "\n".join(parts)
 
 
+def _has_chartable_data(tool_results: list) -> bool:
+    """Check if tool results contain data that could be plotted."""
+    for result in tool_results:
+        if not isinstance(result, list):
+            continue
+        for row in result:
+            if isinstance(row, dict) and row.get("_table") in (
+                "daily_estimates", "daily_pnl", "stock_history",
+            ):
+                return True
+    return False
+
+
+async def _build_chart_from_results(
+    tool_results: list,
+    classified: ClassifiedQuery,
+) -> str | None:
+    """Build a chart spec from tool results if chart was requested.
+
+    For line charts, fetches the full time series (the tool results only
+    contain the latest snapshot). Returns a ```chart code block or None.
+    """
+    if not classified.chart_requested:
+        return None
+
+    from .chart_builder import (
+        format_estimates_for_line_chart,
+        format_estimates_for_bar_chart,
+        format_pnl_for_line_chart,
+    )
+    from .retrieval import _query_estimates_timeseries
+    from .tools import _safe_json_dumps
+    from collections import Counter
+
+    estimates_rows = []
+    pnl_rows = []
+
+    for result in tool_results:
+        if not isinstance(result, list):
+            continue
+        for row in result:
+            if isinstance(row, dict):
+                table = row.get("_table", "")
+                if table == "daily_estimates":
+                    estimates_rows.append(row)
+                elif table == "daily_pnl":
+                    pnl_rows.append(row)
+
+    chart_spec = None
+
+    if estimates_rows:
+        # Pick the metric that best matches the user's topic
+        topic = (classified.topic or "").lower()
+        metric_candidates = list({r.get("metric") for r in estimates_rows})
+        top_metric = metric_candidates[0]  # fallback
+        for m in metric_candidates:
+            if m and m.replace("_", " ") in topic:
+                top_metric = m
+                break
+        # Prefer revenue/eps if topic doesn't narrow it
+        if top_metric == metric_candidates[0]:
+            for preferred in ["total_revenue", "diluted_eps", "ebitda"]:
+                if preferred in metric_candidates:
+                    top_metric = preferred
+                    break
+
+        period_counts = Counter(r.get("period") for r in estimates_rows)
+        top_period = period_counts.most_common(1)[0][0]
+        tickers = list({r.get("ticker") for r in estimates_rows if r.get("ticker")})
+
+        if classified.chart_type == "line":
+            # Line chart needs full time series — fetch it
+            ts_rows = await _query_estimates_timeseries(tickers, top_metric, top_period)
+            ts_parsed = json.loads(_safe_json_dumps(ts_rows))
+            chart_spec = format_estimates_for_line_chart(
+                ts_parsed, top_metric, top_period,
+            )
+        else:
+            # Bar chart (default for estimates) — compare sources side by side
+            chart_spec = format_estimates_for_bar_chart(
+                estimates_rows, top_metric, top_period,
+            )
+    elif pnl_rows:
+        chart_spec = format_pnl_for_line_chart(pnl_rows, metric="itd_pnl")
+
+    if not chart_spec:
+        return None
+
+    return f"\n\n```chart\n{json.dumps(chart_spec)}\n```\n"
+
+
 async def generate_response(
     user_message: str,
     classified: ClassifiedQuery,
@@ -224,12 +320,22 @@ async def generate_response(
     total_input_tokens = 0
     total_output_tokens = 0
     all_tool_names_used: list[str] = []
+    all_tool_result_data: list = []  # parsed tool results for chart building
     cost_warning_emitted = False
     tool_loop_iteration = 0
     max_tool_loops = 10  # safety limit
 
+    # Dynamic tool loading: start with always-loaded tools,
+    # expand as Claude discovers more via search_tools
+    discovered_tool_names: set[str] = set()
+
     while tool_loop_iteration < max_tool_loops:
         tool_loop_iteration += 1
+
+        # Build tool list: always-loaded + any discovered tools
+        active_tools = get_always_loaded_tools() + get_tool_definitions(
+            discovered_tool_names - ALWAYS_LOADED_TOOL_NAMES,
+        )
 
         # Call Claude with retry logic for transient errors
         response = None
@@ -240,14 +346,16 @@ async def generate_response(
                     max_tokens=4096,
                     system=system,
                     messages=messages,
-                    tools=GOLDMINE_TOOLS,
+                    tools=active_tools,
                 )
                 break  # Success — exit retry loop
             except (anthropic.APIError, anthropic.APIConnectionError) as api_err:
                 user_msg, should_retry, max_retries = _friendly_api_error(api_err)
-                logger.error("anthropic_api_error",
-                             status=getattr(api_err, "status_code", None),
-                             error=str(api_err), attempt=attempt)
+                logger.error(
+                    "anthropic_api_error status=%s error=%s attempt=%s",
+                    getattr(api_err, "status_code", None),
+                    str(api_err), attempt,
+                )
 
                 if should_retry and attempt < max_retries:
                     wait_seconds = 2 ** (attempt + 1)  # 2, 4, 8
@@ -366,6 +474,24 @@ async def generate_response(
                     "content": result_str,
                 })
 
+                # Track tools discovered via search_tools
+                if block.name == "search_tools":
+                    try:
+                        search_result = json.loads(result_str)
+                        if isinstance(search_result, dict):
+                            for tool_info in search_result.get("matching_tools", []):
+                                discovered_tool_names.add(tool_info["name"])
+                    except (json.JSONDecodeError, TypeError, KeyError):
+                        pass
+
+                # Collect parsed data for chart building
+                try:
+                    parsed_result = json.loads(result_str)
+                    if isinstance(parsed_result, list):
+                        all_tool_result_data.append(parsed_result)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
             # Emit retrieval steps
             if steps:
                 for step in steps.drain():
@@ -379,6 +505,11 @@ async def generate_response(
             break
 
     # ------------------------------------------------------------------
+    # 6b. Build chart spec if requested
+    # ------------------------------------------------------------------
+    chart_block = await _build_chart_from_results(all_tool_result_data, classified)
+
+    # ------------------------------------------------------------------
     # 7. Stream the final text response
     # ------------------------------------------------------------------
     # Extract text from the final response content blocks
@@ -386,6 +517,12 @@ async def generate_response(
     for block in response.content:
         if hasattr(block, "text"):
             full_response += block.text
+
+    # Append chart block if one was built, or add plot toggle if chartable data exists
+    if chart_block:
+        full_response += chart_block
+    elif _has_chartable_data(all_tool_result_data):
+        full_response += "\n\n[📈 Plot Over Time?](#plot-over-time)"
 
     # Stream the response token-by-token to preserve SSE behavior
     # Since we already have the full text from the non-streaming final call,

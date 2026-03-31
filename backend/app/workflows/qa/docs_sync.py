@@ -53,11 +53,17 @@ class DocsSyncWorkflow(WorkflowBase):
         self._check_5_pipeline_architecture(files_checked, gaps, files_updated, human_review)
         self._check_6_project_structure(files_checked, gaps, files_updated, human_review)
         self._check_7_skill_files(files_checked, gaps, human_review)
+        self._check_A_chatbot_routing(files_checked, gaps, human_review)
+        self._check_B_workflow_docs_vs_code(files_checked, gaps, human_review)
+        self._check_C_new_tools_not_in_docs(files_checked, gaps, human_review)
+        await self._check_D_workflows_not_in_registry(files_checked, gaps, human_review)
+        self._check_E_skill_stale_tables(files_checked, gaps, human_review)
+        await self._check_F_table_freshness(files_checked, gaps, human_review)
 
         # Build summary
         auto_fixed = sum(1 for g in gaps if g.get("auto_fixed"))
         n_human = len(human_review)
-        summary = f"{len(gaps)} gaps found. {auto_fixed} auto-fixed. {n_human} need human review."
+        summary = f"{len(gaps)} gaps found across 14 checks. {auto_fixed} auto-fixed. {n_human} need human review."
 
         # Write output row
         output_id = str(uuid.uuid4())
@@ -92,8 +98,10 @@ class DocsSyncWorkflow(WorkflowBase):
             "workflow_name": "docs_sync",
             "display_name": "Documentation Sync",
             "description": (
-                "Scans codebase and infrastructure, compares against markdown "
-                "documentation, reconciles gaps, and produces a sync report."
+                "Scans codebase, database, and all markdown documentation for consistency gaps. "
+                "Checks: DB schema vs docs, tool definitions vs chatbot.md, alt data keywords, "
+                "workflow registry vs code, pipeline architecture, project structure, skill files, "
+                "chatbot routing rules, pre-calculated table freshness, and workflow code vs specs."
             ),
             "required_inputs": {},
             "output_table": "workflow_outputs_docs_sync",
@@ -282,7 +290,7 @@ class DocsSyncWorkflow(WorkflowBase):
         tool_source_map = {
             "search_documents": "chunks",
             "get_financial_metrics": "financial_metrics",
-            "get_all_estimates": "internal_estimates",  # proxy for all 4
+            "get_all_estimates": "daily_estimates",
             "get_daily_pnl": "daily_pnl",
             "get_portfolio_concentration": "portfolio_concentration",
             "get_portfolio_risk": "portfolio_risk",
@@ -387,14 +395,16 @@ class DocsSyncWorkflow(WorkflowBase):
                     "auto_fixed": False,
                 })
 
-        # Check each data_type in get_alt_data tool enum has keywords
+        # Check each data_type in get_alt_data tool description has keywords
+        # Extract signal names from the tool description (not enum — tool no longer uses enum)
         alt_data_types_in_tool = set()
-        enum_match = re.search(
-            r'"name":\s*"get_alt_data".*?"enum":\s*\[(.*?)\]',
+        alt_tool_section = re.search(
+            r'"name":\s*"get_alt_data".*?"description":\s*\((.*?)\)',
             tools_text, re.DOTALL,
         )
-        if enum_match:
-            alt_data_types_in_tool = set(re.findall(r'"(\w+)"', enum_match.group(1)))
+        if alt_tool_section:
+            # Extract data_type names from description lines like "credit_card_sss_yoy —"
+            alt_data_types_in_tool = set(re.findall(r'(\w+_yoy)\b', alt_tool_section.group(1)))
 
         keyword_data_types = set(ALT_DATA_KEYWORD_MAP.values())
         for dt in sorted(alt_data_types_in_tool - keyword_data_types):
@@ -665,6 +675,298 @@ class DocsSyncWorkflow(WorkflowBase):
                         "file": f"instructions/skills/{f}",
                         "description": f"Skill file '{f}' not yet created",
                         "suggested_fix": f"Create instructions/skills/{f} with step-by-step instructions for this task",
+                    })
+
+
+    # ==================================================================
+    # CHECK A: Chatbot data source routing
+    # ==================================================================
+    _PREFERRED_QUERY_TABLES = {
+        "consensus_estimates": "daily_estimates",
+        "buyside_estimates": "daily_estimates",
+        "internal_estimates": "daily_estimates",
+        "sellside_estimates": "daily_estimates",
+    }
+
+    def _check_A_chatbot_routing(self, files_checked, gaps, human_review):
+        chatbot_path = REPO_ROOT / "instructions" / "domain" / "chatbot.md"
+        files_checked.append(str(chatbot_path.relative_to(REPO_ROOT)))
+        chatbot_text = chatbot_path.read_text(encoding="utf-8")
+
+        # Extract the data source access map section
+        m = re.search(r"## Data source access map.*?(?=\n---|\n##[^#]|\Z)", chatbot_text, re.DOTALL)
+        access_map = m.group() if m else ""
+
+        for raw_table, preferred in self._PREFERRED_QUERY_TABLES.items():
+            if raw_table in access_map and preferred not in access_map:
+                gaps.append({
+                    "file": "instructions/domain/chatbot.md",
+                    "type": "stale_content",
+                    "description": (
+                        f"{raw_table} listed as chatbot accessible but "
+                        f"{preferred} should be queried instead. Raw table is Layer 1 (log only)."
+                    ),
+                    "auto_fixed": False,
+                })
+                human_review.append({
+                    "file": "instructions/domain/chatbot.md",
+                    "description": f"{raw_table} should be replaced with {preferred} in access map",
+                    "suggested_fix": (
+                        f"Replace {raw_table} in the data source access map with {preferred}. "
+                        f"Add a note that {preferred} is the single query point for all estimate sources."
+                    ),
+                })
+
+    # ==================================================================
+    # CHECK B: Workflow docs vs actual code
+    # ==================================================================
+    def _check_B_workflow_docs_vs_code(self, files_checked, gaps, human_review):
+        workflows_dir = REPO_ROOT / "backend" / "app" / "workflows"
+        workflows_md_path = REPO_ROOT / "instructions" / "domain" / "workflows.md"
+        if not workflows_md_path.exists():
+            return
+        files_checked.append(str(workflows_md_path.relative_to(REPO_ROOT)))
+        workflows_text = workflows_md_path.read_text(encoding="utf-8")
+
+        skip = {"__init__.py", "base.py", "registry.py", "storage.py", "excel_builder.py"}
+        wf_files = [
+            f for f in workflows_dir.iterdir()
+            if f.is_file() and f.suffix == ".py" and f.name not in skip
+        ]
+        # Exclude qa/ subfolder files
+        qa_files = list((workflows_dir / "qa").glob("*.py")) if (workflows_dir / "qa").exists() else []
+        qa_names = {f.name for f in qa_files}
+
+        for wf_file in wf_files:
+            if wf_file.name in qa_names:
+                continue
+            files_checked.append(str(wf_file.relative_to(REPO_ROOT)))
+            code_text = wf_file.read_text(encoding="utf-8")
+
+            # Extract table references from code
+            code_tables = set(re.findall(
+                r'(?:FROM|JOIN|INTO)\s+(\w+)', code_text, re.IGNORECASE
+            ))
+            # Filter to likely table names — must be in our known DB tables
+            known_tables = {
+                "chunks", "stocks", "messages", "sessions", "people", "financial_metrics",
+                "daily_pnl", "daily_estimates", "portfolio_trades", "portfolio_concentration",
+                "portfolio_risk", "stock_history", "stock_betas", "model_outputs", "model_peers",
+                "consensus_estimates", "buyside_estimates", "internal_estimates", "sellside_estimates",
+                "alt_data", "guidance", "analyst_notes", "buyside_notes", "sellside_notes",
+                "workflow_registry", "workflow_runs", "workflow_outputs_earnings_preview",
+                "workflow_outputs_financial_model", "workflow_outputs_docs_sync",
+                "earnings_calendar", "sec_filings", "transcripts_list", "trade_requests",
+            }
+            code_tables = {t.lower() for t in code_tables} & known_tables
+
+            # Find matching section in workflows.md
+            wf_name_match = re.search(r"workflow_name\s*=\s*['\"](\w+)['\"]", code_text)
+            if not wf_name_match:
+                continue
+            wf_name = wf_name_match.group(1)
+
+            # Find spec section
+            spec_match = re.search(
+                rf"Registry name:\*\*\s*`{wf_name}`.*?(?=\n## |\Z)",
+                workflows_text, re.DOTALL,
+            )
+            if not spec_match:
+                continue
+            spec_text = spec_match.group()
+            spec_tables = set(re.findall(r"`(\w+)`", spec_text))
+            spec_tables = {t.lower() for t in spec_tables} & known_tables
+
+            for table in sorted(spec_tables - code_tables):
+                gaps.append({
+                    "file": "instructions/domain/workflows.md",
+                    "type": "stale_content",
+                    "description": f"workflows.md {wf_name} spec references `{table}` but the workflow code does not use it",
+                    "auto_fixed": False,
+                })
+
+    # ==================================================================
+    # CHECK C: New tools not in chatbot.md
+    # ==================================================================
+    def _check_C_new_tools_not_in_docs(self, files_checked, gaps, human_review):
+        chatbot_path = REPO_ROOT / "instructions" / "domain" / "chatbot.md"
+        chatbot_text = chatbot_path.read_text(encoding="utf-8")
+
+        from app.mode2.tools import GOLDMINE_TOOLS
+        tool_names = {t["name"] for t in GOLDMINE_TOOLS}
+
+        # Tools mentioned anywhere in chatbot.md (tool name or underlying table)
+        # Only flag tools that are completely absent — not even their table is documented
+        for tool_name in sorted(tool_names):
+            if tool_name in chatbot_text:
+                continue
+            # Check if tool is documented via its underlying table in CHECK 2's map
+            # These are covered by existing CHECK 2 — skip them here
+            known_tools = {
+                "search_documents", "get_financial_metrics", "get_all_estimates",
+                "get_daily_pnl", "get_portfolio_concentration", "get_portfolio_risk",
+                "get_trade_requests", "get_stock_history", "get_guidance", "get_alt_data",
+                "get_model_outputs", "get_workflow_registry", "run_workflow",
+                "get_workflow_output", "model_edit",
+            }
+            if tool_name in known_tools:
+                continue
+            gaps.append({
+                "file": "instructions/domain/chatbot.md",
+                "type": "missing_entry",
+                "description": f"Tool '{tool_name}' exists in tools.py but is not documented in chatbot.md",
+                "auto_fixed": False,
+            })
+            human_review.append({
+                "file": "instructions/domain/chatbot.md",
+                "description": f"Tool '{tool_name}' not documented",
+                "suggested_fix": (
+                    f"Add '{tool_name}' to the data source access map in chatbot.md "
+                    f"with: table queried, retrieval method, citation label, and routing rules."
+                ),
+            })
+
+    # ==================================================================
+    # CHECK D: New workflows not in registry
+    # ==================================================================
+    async def _check_D_workflows_not_in_registry(self, files_checked, gaps, human_review):
+        workflows_dir = REPO_ROOT / "backend" / "app" / "workflows"
+        skip = {"__init__.py", "base.py", "registry.py", "storage.py", "excel_builder.py"}
+
+        wf_files = [
+            f for f in workflows_dir.iterdir()
+            if f.is_file() and f.suffix == ".py" and f.name not in skip
+        ]
+
+        for wf_file in wf_files:
+            code_text = wf_file.read_text(encoding="utf-8")
+            wf_name_match = re.search(r"workflow_name\s*=\s*['\"](\w+)['\"]", code_text)
+            if not wf_name_match:
+                continue
+            wf_name = wf_name_match.group(1)
+
+            async with get_conn() as conn:
+                row = await conn.fetchrow(
+                    "SELECT COUNT(*) as cnt FROM workflow_registry WHERE workflow_name = $1",
+                    wf_name,
+                )
+            if row and row["cnt"] == 0:
+                gaps.append({
+                    "file": str(wf_file.relative_to(REPO_ROOT)),
+                    "type": "missing_entry",
+                    "description": f"Workflow file {wf_file.name} exists but '{wf_name}' is not in workflow_registry",
+                    "auto_fixed": False,
+                })
+                human_review.append({
+                    "file": str(wf_file.relative_to(REPO_ROOT)),
+                    "description": f"Workflow '{wf_name}' not registered",
+                    "suggested_fix": f"Run: python scripts/seed_workflow_registry.py to register '{wf_name}'",
+                })
+
+    # ==================================================================
+    # CHECK E: Skill files reference stale tables
+    # ==================================================================
+    _CHATBOT_RESTRICTED_TABLES = {
+        "consensus_estimates": "Use daily_estimates instead",
+        "buyside_estimates": "Use daily_estimates instead",
+        "internal_estimates": "Use daily_estimates instead",
+        "sellside_estimates": "Use daily_estimates instead",
+    }
+
+    def _check_E_skill_stale_tables(self, files_checked, gaps, human_review):
+        skills_dir = REPO_ROOT / "instructions" / "skills"
+        if not skills_dir.exists():
+            return
+
+        for skill_file in skills_dir.glob("*.md"):
+            files_checked.append(str(skill_file.relative_to(REPO_ROOT)))
+            skill_text = skill_file.read_text(encoding="utf-8")
+
+            for table, reason in self._CHATBOT_RESTRICTED_TABLES.items():
+                if table in skill_text:
+                    # Skip if the reference also mentions daily_estimates nearby
+                    # (indicates a pipeline flow description, not a direct query instruction)
+                    lines_with_table = [
+                        line for line in skill_text.splitlines()
+                        if table in line
+                    ]
+                    all_have_context = all(
+                        "daily_estimates" in line for line in lines_with_table
+                    )
+                    if all_have_context:
+                        continue
+                    gaps.append({
+                        "file": str(skill_file.relative_to(REPO_ROOT)),
+                        "type": "stale_content",
+                        "description": (
+                            f"{skill_file.name} references '{table}' which should not "
+                            f"be queried directly by the chatbot"
+                        ),
+                        "auto_fixed": False,
+                    })
+                    human_review.append({
+                        "file": str(skill_file.relative_to(REPO_ROOT)),
+                        "description": f"References restricted table '{table}'",
+                        "suggested_fix": f"Update to reference 'daily_estimates' instead. {reason}",
+                    })
+
+    # ==================================================================
+    # CHECK F: Pre-calculated table freshness
+    # ==================================================================
+    _FRESHNESS_REQUIREMENTS: dict[str, tuple[str, int]] = {
+        "daily_estimates": ("as_of_date", 2),
+        "daily_pnl": ("date", 2),
+        "portfolio_concentration": ("date", 2),
+        "portfolio_risk": ("date", 2),
+    }
+
+    async def _check_F_table_freshness(self, files_checked, gaps, human_review):
+        from datetime import date as date_type
+
+        today = date_type.today()
+
+        async with get_conn() as conn:
+            for table, (date_col, threshold) in self._FRESHNESS_REQUIREMENTS.items():
+                try:
+                    row = await conn.fetchrow(
+                        f"SELECT MAX({date_col})::date as max_date FROM {table}"
+                    )
+                except Exception:
+                    continue
+
+                if not row or not row["max_date"]:
+                    gaps.append({
+                        "file": f"scripts/ (job for {table})",
+                        "type": "needs_human_review",
+                        "description": f"{table} is empty — nightly job may never have run.",
+                        "auto_fixed": False,
+                    })
+                    human_review.append({
+                        "file": f"scripts/ (job for {table})",
+                        "description": f"{table} is empty",
+                        "suggested_fix": "Run the appropriate nightly job to populate this table.",
+                    })
+                    continue
+
+                max_date = row["max_date"]
+                days_stale = (today - max_date).days
+                if days_stale > threshold:
+                    gaps.append({
+                        "file": f"scripts/ (job for {table})",
+                        "type": "needs_human_review",
+                        "description": (
+                            f"{table} last updated {max_date} — {days_stale} days ago. "
+                            f"Nightly job may not be running."
+                        ),
+                        "auto_fixed": False,
+                    })
+                    human_review.append({
+                        "file": f"scripts/ (job for {table})",
+                        "description": f"{table} is {days_stale} days stale (threshold: {threshold})",
+                        "suggested_fix": (
+                            "Check scheduler logs and run the appropriate job manually: "
+                            "python scripts/run_portfolio_jobs.py or python scripts/daily_estimates_job.py"
+                        ),
                     })
 
 

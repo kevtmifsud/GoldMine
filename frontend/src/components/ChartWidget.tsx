@@ -403,7 +403,6 @@ export function ChartWidget({ config, entityId }: ChartWidgetProps) {
       ...(isLineChart ? {
         dataZoom: [
           { type: "inside", xAxisIndex: 0 },
-          { type: "slider", xAxisIndex: 0, height: 20, bottom: showLegend ? 22 : 5 },
         ],
       } : {}),
     };

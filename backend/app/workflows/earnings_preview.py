@@ -30,7 +30,7 @@ from app.workflows.base import WorkflowBase
 logger = structlog.get_logger(__name__)
 
 # Key metrics always included in estimates table per spec
-_DEFAULT_METRICS = ["eps", "revenue"]
+_DEFAULT_METRICS = ["diluted_eps", "total_revenue"]
 
 # Actuals metrics per spec (Section 2)
 _ACTUALS_METRICS = [
@@ -98,7 +98,10 @@ class EarningsPreviewWorkflow(WorkflowBase):
         key_kpis: list[str] = []
         kpis_need_user_input = False
 
-        if prior_preview and prior_preview.get("key_kpis"):
+        # Priority: user-provided > prior preview > inferred from notes
+        if inputs.get("key_kpis"):
+            key_kpis = inputs["key_kpis"]
+        elif prior_preview and prior_preview.get("key_kpis"):
             key_kpis = prior_preview["key_kpis"]
         elif kpi_from_notes:
             key_kpis = kpi_from_notes
@@ -238,31 +241,35 @@ class EarningsPreviewWorkflow(WorkflowBase):
                 ORDER BY ticker, metric, period, created_at DESC""",
             "buyside_estimates": """
                 SELECT DISTINCT ON (ticker, metric, period)
-                    ticker, firm, metric, period, value, unit, as_of_date,
+                    ticker, firm, metric, period, value, unit, estimate_date,
                     'buyside_estimates' AS _table
                 FROM buyside_estimates
                 WHERE ticker = $1 AND period = ANY($2)
-                ORDER BY ticker, metric, period, as_of_date DESC""",
+                ORDER BY ticker, metric, period, estimate_date DESC""",
             "consensus_estimates": """
                 SELECT DISTINCT ON (ticker, metric, period)
-                    ticker, metric, period, value, unit, as_of_date,
+                    ticker, metric, period, value, unit, estimate_date,
                     'consensus_estimates' AS _table
                 FROM consensus_estimates
                 WHERE ticker = $1 AND period = ANY($2)
-                ORDER BY ticker, metric, period, as_of_date DESC""",
+                ORDER BY ticker, metric, period, estimate_date DESC""",
             "sellside_estimates": """
                 SELECT DISTINCT ON (ticker, metric, period)
-                    ticker, firm, metric, period, value, unit, as_of_date,
+                    ticker, firm, metric, period, value, unit, estimate_date,
                     'sellside_estimates' AS _table
                 FROM sellside_estimates
                 WHERE ticker = $1 AND period = ANY($2)
-                ORDER BY ticker, metric, period, as_of_date DESC""",
+                ORDER BY ticker, metric, period, estimate_date DESC""",
         }
 
         results: list[dict] = []
-        async with get_conn() as conn:
-            coros = [conn.fetch(sql, ticker, periods) for sql in queries.values()]
-            fetched = await asyncio.gather(*coros, return_exceptions=True)
+
+        async def _fetch_one(sql: str) -> list:
+            async with get_conn() as conn:
+                return await conn.fetch(sql, ticker, periods)
+
+        coros = [_fetch_one(sql) for sql in queries.values()]
+        fetched = await asyncio.gather(*coros, return_exceptions=True)
 
         for table_name, rows_or_err in zip(queries.keys(), fetched):
             if isinstance(rows_or_err, Exception):
@@ -347,7 +354,8 @@ class EarningsPreviewWorkflow(WorkflowBase):
                 """SELECT date, ticker, portfolio, side, sector,
                           unrealized_pnl, realized_pnl, daily_return,
                           cumulative_return, contribution_to_portfolio,
-                          shares_held, market_value, cost_basis
+                          shares_held, market_value, cost_basis,
+                          ytd_pnl
                    FROM daily_pnl
                    WHERE ticker = $1
                      AND date = (SELECT MAX(date) FROM daily_pnl WHERE ticker = $1)""",
@@ -421,7 +429,8 @@ class EarningsPreviewWorkflow(WorkflowBase):
         async with get_conn() as conn:
             row = await conn.fetchrow(
                 """SELECT ticker, reporting_period, forward_period,
-                          key_kpis, estimates_table, actuals_section,
+                          key_kpis, selected_alt_signals,
+                          estimates_table, actuals_section,
                           generated_at
                    FROM workflow_outputs_earnings_preview
                    WHERE ticker = $1
@@ -538,9 +547,9 @@ class EarningsPreviewWorkflow(WorkflowBase):
                         # Citation
                         cite_label = {
                             "internal_estimates": f"[{ticker} | Internal Estimate | {match.get('model_version', '')} | {match.get('created_at', '')}]",
-                            "buyside_estimates": f"[{ticker} | Buyside Estimate | {match.get('firm', '')} | {match.get('as_of_date', '')}]",
-                            "consensus_estimates": f"[{ticker} | Consensus | {period} | {match.get('as_of_date', '')}]",
-                            "sellside_estimates": f"[{ticker} | Sellside Estimate | {match.get('firm', '')} | {match.get('as_of_date', '')}]",
+                            "buyside_estimates": f"[{ticker} | Buyside Estimate | {match.get('firm', '')} | {match.get('estimate_date', '')}]",
+                            "consensus_estimates": f"[{ticker} | Consensus | {period} | {match.get('estimate_date', '')}]",
+                            "sellside_estimates": f"[{ticker} | Sellside Estimate | {match.get('firm', '')} | {match.get('estimate_date', '')}]",
                         }
                         citations.append({
                             "ticker": ticker,
@@ -666,6 +675,7 @@ class EarningsPreviewWorkflow(WorkflowBase):
                 "unrealized_pnl": float(row["unrealized_pnl"]) if row.get("unrealized_pnl") else 0,
                 "realized_pnl": float(row["realized_pnl"]) if row.get("realized_pnl") else 0,
                 "cumulative_return": float(row["cumulative_return"]) if row.get("cumulative_return") else 0,
+                "ytd_pnl": float(row["ytd_pnl"]) if row.get("ytd_pnl") else 0,
             }
             # Add concentration data if available
             conc = next(

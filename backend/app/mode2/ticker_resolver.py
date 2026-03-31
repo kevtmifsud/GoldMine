@@ -10,7 +10,7 @@ from .models import ClassifiedQuery, ResolvedUniverse
 
 # Maximum tickers per query type
 _MAX_TICKERS = {
-    "cross_ticker": 50,
+    "cross_ticker": None,  # No cap — screening SQL aggregates server-side
     "screening": None,  # No cap
     "trend_analysis": 1,
     "single_ticker_qualitative": 1,

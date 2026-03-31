@@ -20,8 +20,10 @@ WF-07  Ticker Resolver
     ↓
 WF-09  Agentic Response Generator (Sonnet)
        — embeds user query (OpenAI), looks up Q&A library
-       — starts Claude with GOLDMINE_TOOLS (14 data tools)
-       — Claude calls tools as needed (search_documents, get_financial_metrics, etc.)
+       — starts Claude with always-loaded tools (5: search_tools, search_documents,
+         get_financial_metrics, get_all_estimates, get_daily_pnl)
+       — deferred tools (11) discovered on demand via search_tools
+       — Claude calls tools as needed; discovered tools added to active set
        — tool results fed back; loop repeats until Claude produces final text
        — streams final response with enforced inline citations
        — system prompt loaded from instructions/domain/WF-09_system_prompt.md
@@ -30,6 +32,29 @@ WF-10  Session Manager
        — compresses history every 10 turns (Haiku, fire-and-forget)
        — auto-generates session title after first exchange
 ```
+
+### Tool search architecture
+
+To reduce context token consumption, tools are split into two tiers:
+
+**Always loaded** (sent in every API call):
+- `search_tools` — discovers deferred tools by keyword
+- `search_documents` — vector search over document chunks
+- `get_financial_metrics` — reported company financials
+- `get_all_estimates` — forward estimates (all four sources)
+- `get_daily_pnl` — portfolio P&L data
+
+**Deferred** (discovered on demand via `search_tools`):
+- `get_portfolio_concentration`, `get_portfolio_risk`, `get_trade_requests`
+- `get_stock_history`, `get_guidance`, `get_alt_data`
+- `get_model_outputs`, `get_workflow_registry`, `run_workflow`, `get_workflow_output`
+- `model_edit`
+
+Search uses keyword/substring matching against `_DEFERRED_TOOL_INDEX` in `tools.py`. Falls back to returning all deferred tools if no keywords match.
+
+When adding a new tool, decide which tier it belongs to:
+- **Always loaded** if used in >50% of queries or on the critical path
+- **Deferred** otherwise — add keywords to `_DEFERRED_TOOL_INDEX`
 
 WF-08 (Retrieval Orchestration) no longer exists as a separate step. The `_query_*` functions in `retrieval.py` are now tool handlers called by `execute_tool()` in `tools.py`. Claude decides which data sources to query via the agentic tool-calling loop in `generator.py`.
 
@@ -49,17 +74,14 @@ The chatbot can read from the following sources. It cannot write to any of them.
 | Internal analyst notes | `analyst_notes` + `chunks` (doc_type: analyst_note) | Vector | `[TICKER | Analyst Note | Author | Date]` | Our team's notes only |
 | External buyside notes | `buyside_notes` + `chunks` (doc_type: buyside_note) | Vector | `[TICKER | Buyside Note | Firm | Date]` | External buyside firms only |
 | Sellside notes | `sellside_notes` + `chunks` (doc_type: sellside_note) | Vector | `[TICKER | Sellside Note | Firm | Date]` | |
-| Internal estimates | `internal_estimates` | SQL (most recent per ticker/metric/period) | `[TICKER | Internal Estimate | Author | Date]` | PIT, from model processing job |
-| Buyside estimates | `buyside_estimates` | SQL (most recent as_of_date) | `[TICKER | Buyside Estimate | Firm | Date]` | |
-| Consensus estimates | `consensus_estimates` | SQL (most recent as_of_date) | `[TICKER | Consensus | Period | Date]` | |
-| Sellside estimates | `sellside_estimates` | SQL | `[TICKER | Sellside Estimate | Firm | Date]` | |
+| All estimates (all sources) | `daily_estimates` | SQL (most recent as_of_date) | Consensus: `[TICKER | Consensus | Period | Date]`, Buyside/Sellside: `[TICKER | {firm} | {analyst} | Period]`, Internal: `[TICKER | Internal | {analyst} | Period]` | Single query point for all four estimate sources. Returns consensus, buyside, internal, and sellside in one query grouped by source and firm. `staleness_days` column shows how many days since estimate was last updated. Layer 1 log tables (`consensus_estimates`, `buyside_estimates`, `internal_estimates`, `sellside_estimates`) are never queried directly by the chatbot. |
 | Guidance | `guidance` | SQL | `[TICKER | Guidance | Period | Date]` | |
 | Portfolio positions/P&L | `daily_pnl` | SQL | exempt — no citation required | |
 | Portfolio concentration | `portfolio_concentration` | SQL | exempt | |
 | Portfolio risk | `portfolio_risk` | SQL | exempt | |
 | Trade requests | `trade_requests` | SQL (read-only) | exempt | |
 | Market prices | `stock_history` | SQL | exempt — no citation required | |
-| Alt data | `alt_data` | SQL (filter by data_type) | `[TICKER | Alt Data | Type | Period]` | Sparse coverage — handle missing gracefully |
+| Alt data signals | `alt_data` | SQL via get_alt_data (per-signal limits, no aggregation) | `[TICKER | Alt Data | SIGNAL_NAME | DATE]` | Currently available: CMG, DPZ, SBUX (restaurant signals). Signals: credit_card_sss_yoy, credit_card_txn_yoy, credit_card_spv_yoy, foot_traffic_yoy, app_downloads_yoy, web_traffic_yoy, reservations_yoy (CMG/SBUX only), job_postings_yoy. NEVER use GROUP BY or aggregate functions on alt_data. |
 | Model outputs | `model_outputs` | SQL (most recent version) | `[TICKER | Model | Date]` | |
 | Prior workflow outputs | `workflow_outputs_earnings_preview` (and others) | SQL (structured lookup) | per workflow type | Not vector search |
 | Workflow registry | `workflow_registry` | SQL | — | Runtime lookup for workflow execution |
@@ -84,8 +106,8 @@ Claude decides which tools to call during the agentic loop. The tool description
 | Sellside views on a name | `sellside_notes` — NEVER include internal or buyside notes |
 | Portfolio positions, P&L, concentration | `daily_pnl`, `portfolio_concentration` — NEVER pull financial_metrics for P&L |
 | Stock price, performance vs index | `stock_history` — self-contained, no secondary source |
-| Alt data signals | `alt_data` filtered by `data_type` — always specify type, never query without filter |
-| Forward estimates (all) | `internal_estimates` + `buyside_estimates` + `consensus_estimates` + `sellside_estimates` — always all four |
+| Alt data signals | `alt_data` via get_alt_data — credit card, foot traffic, app downloads, web traffic, reservations, job postings |
+| Forward estimates (all) | `daily_estimates` — always returns all four sources (consensus, buyside, internal, sellside) in one query |
 | Model assumptions or scenario outputs | `model_outputs` (most recent version) |
 
 ### Multi-source routing
@@ -93,7 +115,7 @@ Claude decides which tools to call during the agentic loop. The tool description
 When a query explicitly requires multiple dimensions, Claude calls multiple tools. Examples:
 
 - "How does AAPL smartphone revenue correlate to credit card spend in California?" → `financial_metrics` + `alt_data` (credit_card)
-- "What is AAPL Q4 revenue estimate?" → `internal_estimates` + `buyside_estimates` + `consensus_estimates` + `sellside_estimates` (all four, always)
+- "What is AAPL Q4 revenue estimate?" → `daily_estimates` (returns all four sources in one query)
 - "Earnings preview for NVDA" → triggers earnings_preview workflow (see workflows.md)
 - "Top 5 holdings by unrealized gain" → `daily_pnl` only
 - "What restaurants show highest YoY credit card growth and have spoken about it on earnings calls?" → `alt_data` (credit_card) + `chunks` (earnings_transcript) — this is a large query, apply cost warning check
@@ -117,9 +139,12 @@ WF-06 maps natural language terms to `alt_data.data_type` values:
 
 | Query terms | data_type filter |
 |---|---|
-| credit card, card data, transaction data, consumer spend, CC data, card trends, card spend | `credit_card` |
-| web traffic, website visits, web visits, site traffic, online traffic | `web_traffic` |
-| app downloads, download data, app installs, mobile downloads, app activity | `app_downloads` |
+| credit card, card data, transaction data, consumer spend, CC data, card trends, card spend, second measure | `credit_card` |
+| foot traffic, store visits, location data, placer | `foot_traffic` |
+| web traffic, website visits, web visits, site traffic, online traffic, similarweb | `web_traffic` |
+| app downloads, download data, app installs, mobile downloads, app activity, sensor tower | `app_downloads` |
+| reservations, opentable, reservation trends | `reservations` |
+| job postings, hiring data, revelio, employment data | `job_postings` |
 | google trends, search trends, search data, search interest | `google_trends` |
 | email receipts, receipt data, email data, purchase receipts | `email_receipts` |
 | medical claims, claims data, healthcare data, Rx data | `medical_claims` |

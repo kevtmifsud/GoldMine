@@ -1,12 +1,21 @@
 """Tool definitions and dispatch for the agentic Mode 2 pipeline.
 
-Defines GOLDMINE_TOOLS (Anthropic tool-use format) and execute_tool()
-which routes tool calls to the _query_* functions in retrieval.py.
+Defines tool registry with always-loaded and deferred (on-demand) tools.
+The search_tools tool lets Claude discover deferred tools dynamically,
+reducing context token usage while maintaining access to the full library.
+
+Public API:
+  get_always_loaded_tools()  — tools sent in every API call
+  get_tool_definitions(names) — full definitions for specific tools
+  get_all_tools()            — all tool definitions (backwards compat)
+  execute_tool()             — routes tool calls to retrieval.py
+  GOLDMINE_TOOLS             — backwards-compatible alias for get_all_tools()
 """
 from __future__ import annotations
 
 import json
 import logging
+import re
 import traceback as _traceback
 import uuid as _uuid
 from datetime import date, datetime
@@ -20,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 # Friendly labels for tool names shown to users
 _TOOL_LABELS: dict[str, str] = {
+    "search_tools": "tool search",
     "search_documents": "document search",
     "get_financial_metrics": "financial metrics",
     "get_all_estimates": "estimates",
@@ -35,6 +45,64 @@ _TOOL_LABELS: dict[str, str] = {
     "run_workflow": "workflow execution",
     "get_workflow_output": "workflow output",
     "model_edit": "model edit",
+}
+
+# ---------------------------------------------------------------------------
+# Tool search configuration
+# ---------------------------------------------------------------------------
+
+# Tools always sent to the API (high-frequency, core path)
+ALWAYS_LOADED_TOOL_NAMES: set[str] = {
+    "search_tools",
+    "search_documents",
+    "get_financial_metrics",
+    "get_all_estimates",
+    "get_daily_pnl",
+}
+
+# Keyword index for deferred tool discovery (substring matching)
+_DEFERRED_TOOL_INDEX: dict[str, list[str]] = {
+    "get_portfolio_concentration": [
+        "concentration", "exposure", "weight", "sector weight",
+        "position weight", "neutrality",
+    ],
+    "get_portfolio_risk": [
+        "risk", "beta", "beta exposure", "weighted beta",
+    ],
+    "get_trade_requests": [
+        "trade", "trades", "order", "pending", "trade request",
+    ],
+    "get_stock_history": [
+        "stock price", "price history", "close price", "performance",
+        "stock history", "price",
+    ],
+    "get_guidance": [
+        "guidance", "forward guidance", "outlook", "raised", "lowered",
+        "withdrawn", "company guidance",
+    ],
+    "get_alt_data": [
+        "alt data", "alternative data", "credit card", "web traffic",
+        "app downloads", "google trends", "email receipts", "medical claims",
+    ],
+    "get_model_outputs": [
+        "model", "model output", "assumptions", "scenario", "kpi",
+        "financial model", "valuation",
+    ],
+    "get_workflow_registry": [
+        "workflow", "registry", "available workflows", "list workflows",
+    ],
+    "run_workflow": [
+        "run workflow", "execute workflow", "earnings preview",
+        "generate model", "docs sync",
+    ],
+    "get_workflow_output": [
+        "workflow output", "prior workflow", "previous workflow",
+        "workflow result",
+    ],
+    "model_edit": [
+        "edit model", "change assumption", "modify model", "update assumption",
+        "model edit",
+    ],
 }
 
 
@@ -59,7 +127,31 @@ def _safe_json_dumps(obj: Any) -> str:
 # Tool definitions (Anthropic tool-use format)
 # ---------------------------------------------------------------------------
 
-GOLDMINE_TOOLS: list[dict[str, Any]] = [
+_TOOL_DEFINITIONS: list[dict[str, Any]] = [
+    {
+        "name": "search_tools",
+        "description": (
+            "Search for additional data tools by keyword. Returns full tool "
+            "definitions for matching tools so you can use them in subsequent "
+            "calls. Use this when you need a tool that isn't in your current "
+            "tool set — for example, tools for stock prices, guidance, alt data, "
+            "portfolio risk/concentration, trade requests, workflows, or model editing."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Keywords describing the data you need "
+                        "(e.g. 'stock price history', 'portfolio risk', "
+                        "'workflow', 'guidance', 'alt data', 'model edit')."
+                    ),
+                },
+            },
+            "required": ["query"],
+        },
+    },
     {
         "name": "search_documents",
         "description": (
@@ -155,9 +247,14 @@ GOLDMINE_TOOLS: list[dict[str, Any]] = [
     {
         "name": "get_all_estimates",
         "description": (
-            "Returns forward estimates for a ticker from daily_estimates table. Always "
-            "returns all four sources side by side: consensus (no firm), buyside (by firm "
-            "and analyst), internal (by analyst), sellside (by firm and analyst). "
+            "Returns forward estimates from daily_estimates table. "
+            "For screening/ranking across the full universe, omit tickers entirely — "
+            "the query runs against ALL tickers without filtering. "
+            "For specific tickers, pass them all in a single call. "
+            "Always returns all four sources side by side: consensus (no firm), buyside "
+            "(by firm and analyst), internal (by analyst), sellside (by firm and analyst). "
+            "\n\nWhen querying many tickers or the full universe, ALWAYS set the metric "
+            "filter (e.g. 'eps', 'revenue') to keep results compact. "
             "\n\nstaleness_days shows how many days since the estimate was last updated. "
             "High staleness (>90 days) means the estimate may be outdated. "
             "\n\nAll four sources always returned — never present a single source alone. "
@@ -176,10 +273,14 @@ GOLDMINE_TOOLS: list[dict[str, Any]] = [
                 "tickers": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Ticker symbols to query estimates for.",
+                    "description": "Ticker symbols to query. Omit or pass empty array to query ALL tickers (for screening/ranking across the full universe).",
+                },
+                "metric": {
+                    "type": "string",
+                    "description": "Filter to a single metric. DB values: 'diluted_eps', 'total_revenue', 'ebitda', 'gross_profit', 'operating_income', 'free_cash_flow'. Aliases also accepted: 'eps', 'revenue', 'fcf'. Strongly recommended when querying many tickers or the full universe.",
                 },
             },
-            "required": ["tickers"],
+            "required": [],
         },
     },
     {
@@ -355,37 +456,50 @@ GOLDMINE_TOOLS: list[dict[str, Any]] = [
     {
         "name": "get_alt_data",
         "description": (
-            "Query alternative data signals. You MUST specify at least one data_type — "
-            "never query alt_data without an explicit type filter. "
-            "Coverage is sparse; not all tickers have all data types. Handle missing "
-            "data gracefully."
-            "\n\nSupported data_types: credit_card, web_traffic, app_downloads, "
-            "google_trends, email_receipts, medical_claims."
-            "\n\nIf the user mentions an alt data type not in this list, tell them "
-            "it is not yet available rather than querying without a filter."
-            "\n\nCite as [TICKER | Alt Data | Type | Period]."
+            "Retrieve alternative data signals for a ticker. Returns raw values "
+            "exactly as stored — never aggregates, calculates, or transforms the data. "
+            "Always show the raw values from the database to the analyst."
+            "\n\nAvailable signals by industry:"
+            "\nRestaurants (CMG, DPZ, SBUX):"
+            "\n  credit_card_sss_yoy — same-store sales YoY % (daily, 3-day lag)"
+            "\n  credit_card_txn_yoy — transaction count YoY % (daily, 3-day lag)"
+            "\n  credit_card_spv_yoy — spend per visit YoY % (daily, 3-day lag)"
+            "\n  foot_traffic_yoy — store visits YoY % (weekly, 1-week lag)"
+            "\n  app_downloads_yoy — app downloads YoY % (weekly, 1-week lag)"
+            "\n  web_traffic_yoy — web traffic YoY % (weekly, 1-week lag)"
+            "\n  reservations_yoy — reservations YoY % (weekly, 2-week lag, CMG and SBUX only)"
+            "\n  job_postings_yoy — job postings YoY % (monthly, 2-week lag)"
+            "\n\nIMPORTANT: Never aggregate or transform values. Always show raw values "
+            "as stored. Include date, value, growth, unit, and source_vendor. "
+            "Always note the data lag when presenting results."
+            "\n\nCite as [TICKER | Alt Data | SIGNAL_NAME | DATE]."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "tickers": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Ticker symbols to query.",
+                "ticker": {
+                    "type": "string",
+                    "description": "Stock ticker symbol.",
                 },
                 "data_types": {
                     "type": "array",
-                    "items": {
-                        "type": "string",
-                        "enum": [
-                            "credit_card", "web_traffic", "app_downloads",
-                            "google_trends", "email_receipts", "medical_claims",
-                        ],
-                    },
-                    "description": "Alt data types to query. Required — never empty.",
+                    "items": {"type": "string"},
+                    "description": "Signal names to query. Empty list = all available signals for this ticker.",
+                },
+                "date_from": {
+                    "type": "string",
+                    "description": "Start date YYYY-MM-DD. Default: signal-appropriate lookback.",
+                },
+                "date_to": {
+                    "type": "string",
+                    "description": "End date YYYY-MM-DD. Default: most recent available.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max rows per signal. Default: 30 for daily, 12 for weekly/monthly.",
                 },
             },
-            "required": ["tickers", "data_types"],
+            "required": ["ticker"],
         },
     },
     {
@@ -530,6 +644,62 @@ GOLDMINE_TOOLS: list[dict[str, Any]] = [
     },
 ]
 
+# ---------------------------------------------------------------------------
+# Tool registry — keyed by name for fast lookup
+# ---------------------------------------------------------------------------
+
+_ALL_TOOLS: dict[str, dict[str, Any]] = {t["name"]: t for t in _TOOL_DEFINITIONS}
+
+
+def get_always_loaded_tools() -> list[dict[str, Any]]:
+    """Return tool definitions that are sent in every API call."""
+    return [_ALL_TOOLS[name] for name in ALWAYS_LOADED_TOOL_NAMES if name in _ALL_TOOLS]
+
+
+def get_tool_definitions(names: set[str]) -> list[dict[str, Any]]:
+    """Return full tool definitions for the given tool names."""
+    return [_ALL_TOOLS[n] for n in names if n in _ALL_TOOLS]
+
+
+def get_all_tools() -> list[dict[str, Any]]:
+    """Return all tool definitions (backwards-compatible)."""
+    return list(_ALL_TOOLS.values())
+
+
+# Backwards-compatible alias
+GOLDMINE_TOOLS: list[dict[str, Any]] = get_all_tools()
+
+
+# ---------------------------------------------------------------------------
+# Tool search implementation
+# ---------------------------------------------------------------------------
+
+def _search_tools(query: str) -> list[dict[str, Any]]:
+    """Search deferred tools by keyword matching.
+
+    Returns full tool definitions for matching deferred tools.
+    Uses substring matching against the keyword index.
+    Falls back to returning all deferred tools if no matches found.
+    """
+    query_lower = query.lower()
+    matched_names: set[str] = set()
+
+    for tool_name, keywords in _DEFERRED_TOOL_INDEX.items():
+        # Match against keywords
+        for kw in keywords:
+            if kw in query_lower:
+                matched_names.add(tool_name)
+                break
+        # Match against tool name (underscores → spaces)
+        if tool_name.replace("_", " ") in query_lower:
+            matched_names.add(tool_name)
+
+    # Fallback: return all deferred tools if no keyword match
+    if not matched_names:
+        matched_names = set(_DEFERRED_TOOL_INDEX.keys())
+
+    return get_tool_definitions(matched_names)
+
 
 # ---------------------------------------------------------------------------
 # Tool dispatch
@@ -554,7 +724,21 @@ async def execute_tool(
     from . import retrieval
 
     try:
-        if tool_name == "search_documents":
+        if tool_name == "search_tools":
+            results = _search_tools(tool_input.get("query", ""))
+            return _safe_json_dumps({
+                "matching_tools": [
+                    {"name": t["name"], "description": t["description"]}
+                    for t in results
+                ],
+                "tool_count": len(results),
+                "instruction": (
+                    "These tools are now available. Call them with the "
+                    "parameters shown in their definitions."
+                ),
+            })
+
+        elif tool_name == "search_documents":
             chunks = await retrieval._vector_search(
                 query_embedding=query_embedding,
                 tickers=tool_input.get("tickers", []),
@@ -582,6 +766,7 @@ async def execute_tool(
                 tickers=tool_input.get("tickers", []),
                 classified=classified,
                 steps=steps,
+                metric=tool_input.get("metric"),
             )
             return _safe_json_dumps(rows)
 
@@ -651,15 +836,14 @@ async def execute_tool(
             return _safe_json_dumps(rows)
 
         elif tool_name == "get_alt_data":
-            # Temporarily override alt_data_types on classified for the query
-            original_types = classified.alt_data_types
-            classified.alt_data_types = tool_input.get("data_types", [])
             rows = await retrieval._query_alt_data(
-                tickers=tool_input.get("tickers", []),
-                classified=classified,
+                ticker=tool_input.get("ticker", ""),
+                data_types=tool_input.get("data_types", []),
+                date_from=tool_input.get("date_from"),
+                date_to=tool_input.get("date_to"),
+                limit=tool_input.get("limit"),
                 steps=steps,
             )
-            classified.alt_data_types = original_types
             return _safe_json_dumps(rows)
 
         elif tool_name == "get_model_outputs":

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Layout } from "../components/Layout";
 import { useMode2Chat } from "../hooks/useMode2Chat";
 import { ChatMarkdown } from "../components/chat/ChatMarkdown";
@@ -43,7 +43,9 @@ interface ReportingMessage {
 export function ChatPage() {
   const chat = useMode2Chat();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [input, setInput] = useState("");
+  const promptHandled = useRef(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [viewingTranscript, setViewingTranscript] =
@@ -53,6 +55,16 @@ export function ChatPage() {
   const [reporting, setReporting] = useState<ReportingMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-send prompt from query param (e.g. ?prompt=Show+me+...)
+  useEffect(() => {
+    const prompt = searchParams.get("prompt");
+    if (prompt && !promptHandled.current && !chat.chatLoading) {
+      promptHandled.current = true;
+      chat.sendMessage(prompt);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, chat, setSearchParams]);
 
   // Auto-scroll on new content
   useEffect(() => {
@@ -80,6 +92,11 @@ export function ChatPage() {
   };
 
   const handleCitationClick = (citation: ParsedCitation) => {
+    // Estimate citations — no page to navigate to (structured DB data)
+    if (citation.citationType === "estimate") {
+      return;
+    }
+
     if (isFinancialData(citation.docType)) {
       setViewingFinancials({
         ticker: citation.ticker,
@@ -202,7 +219,7 @@ export function ChatPage() {
                 className={`chat-page__msg chat-page__msg--${msg.role}`}
               >
                 {msg.role === "assistant" ? (
-                  <ChatMarkdown onCitationClick={handleCitationClick}>
+                  <ChatMarkdown onCitationClick={handleCitationClick} onSendPrompt={chat.sendMessage}>
                     {msg.content}
                   </ChatMarkdown>
                 ) : (
@@ -238,7 +255,7 @@ export function ChatPage() {
 
           {chat.streamingContent && (
             <div className="chat-page__msg chat-page__msg--streaming">
-              <ChatMarkdown onCitationClick={handleCitationClick}>
+              <ChatMarkdown onCitationClick={handleCitationClick} onSendPrompt={chat.sendMessage}>
                 {chat.streamingContent}
               </ChatMarkdown>
             </div>

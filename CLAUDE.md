@@ -55,6 +55,7 @@ backend/
     workflows/      # Workflow framework: base class, registry, qa/docs_sync
     views/          # Saved view persistence
     tests/          # pytest suite
+    mcp/            # MCP registry, base server, and legacy adapter
     object_storage/ # File storage abstraction layer
   .env              # Environment config (see backend/.env.example)
 

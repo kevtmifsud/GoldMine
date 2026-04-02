@@ -21,7 +21,7 @@ WF-07  Ticker Resolver
 WF-09  Agentic Response Generator (Sonnet)
        — embeds user query (OpenAI), looks up Q&A library
        — starts Claude with always-loaded tools (5: search_tools, search_documents,
-         get_financial_metrics, get_all_estimates, get_daily_pnl)
+         get_financial_metrics, get_estimates, get_estimate_history, get_daily_pnl)
        — deferred tools (11) discovered on demand via search_tools
        — Claude calls tools as needed; discovered tools added to active set
        — tool results fed back; loop repeats until Claude produces final text
@@ -39,16 +39,26 @@ To reduce context token consumption, tools are split into two tiers:
 
 **Always loaded** (sent in every API call):
 - `search_tools` — discovers deferred tools by keyword
-- `search_documents` — vector search over document chunks
-- `get_financial_metrics` — reported company financials
-- `get_all_estimates` — forward estimates (all four sources)
-- `get_daily_pnl` — portfolio P&L data
+- `search_documents` — vector search over document chunks (MCP: search namespace). pgvector similarity on chunks table. Returns text passages with citations.
+- `search_universe` — find tickers by name, sector, or industry (MCP: search namespace). Queries stocks table.
+- `get_financial_metrics` — reported company financials (MCP: financials namespace). Historical actuals from financial_metrics table.
+- `get_estimates` — unified estimates tool (MCP: estimates namespace). Returns individual rows per analyst, never averages. Supports tickers[], metrics[], periods[], sources[] filters. Includes YoY vs prior year actual.
+- `get_estimate_history` — estimate revision history (MCP: estimates namespace). Returns all as_of_dates for a ticker+metric+period. preferred_presentation: chart. Use for "Plot Over Time" requests.
+- `get_daily_pnl` — portfolio P&L data (MCP: portfolio namespace). Position-level and portfolio P&L. Covers daily_realized_pnl, ytd_pnl, itd_pnl, unrealized_pnl. Never mixes Flagship and Long Only.
 
 **Deferred** (discovered on demand via `search_tools`):
-- `get_portfolio_concentration`, `get_portfolio_risk`, `get_trade_requests`
-- `get_stock_history`, `get_guidance`, `get_alt_data`
-- `get_model_outputs`, `get_workflow_registry`, `run_workflow`, `get_workflow_output`
-- `model_edit`
+- `get_pnl_history` — portfolio P&L time series for charting (MCP: portfolio namespace). preferred_presentation: chart. Use for "Plot Over Time" on P&L.
+- `get_portfolio_concentration` — position weights by ticker/sector/industry (MCP: portfolio namespace)
+- `get_portfolio_risk` — beta exposures and weighted beta contributions (MCP: portfolio namespace)
+- `get_trade_requests`
+- `get_stock_history` — price history with configurable lookback (MCP: financials namespace). preferred_presentation: chart.
+- `get_guidance` — management guidance statements (MCP: financials namespace)
+- `get_alt_data`
+- `run_workflow` — trigger earnings_preview, financial_model_generation, or docs_sync (MCP: workflows namespace)
+- `get_workflow_output` — retrieve completed workflow output (MCP: workflows namespace)
+- `get_workflow_registry` — list all registered workflows (MCP: workflows namespace)
+- `get_model_outputs` — financial model outputs for a ticker (MCP: workflows namespace)
+- `model_edit` — edit a model assumption and regenerate (MCP: workflows namespace)
 
 Search uses keyword/substring matching against `_DEFERRED_TOOL_INDEX` in `tools.py`. Falls back to returning all deferred tools if no keywords match.
 
@@ -81,7 +91,7 @@ The chatbot can read from the following sources. It cannot write to any of them.
 | Portfolio risk | `portfolio_risk` | SQL | exempt | |
 | Trade requests | `trade_requests` | SQL (read-only) | exempt | |
 | Market prices | `stock_history` | SQL | exempt — no citation required | |
-| Alt data signals | `alt_data` | SQL via get_alt_data (per-signal limits, no aggregation) | `[TICKER | Alt Data | SIGNAL_NAME | DATE]` | Currently available: CMG, DPZ, SBUX (restaurant signals). Signals: credit_card_sss_yoy, credit_card_txn_yoy, credit_card_spv_yoy, foot_traffic_yoy, app_downloads_yoy, web_traffic_yoy, reservations_yoy (CMG/SBUX only), job_postings_yoy. NEVER use GROUP BY or aggregate functions on alt_data. |
+| Alt data signals | `alt_data` | SQL via get_alt_data (per-signal limits, no aggregation) | `[TICKER | Alt Data | SIGNAL_NAME | DATE]` | Currently available: CMG, DPZ, SBUX (restaurant signals). Signals: credit_card_sss_yoy, credit_card_txn_yoy, credit_card_spv_yoy, foot_traffic_yoy, app_downloads_yoy, web_traffic_yoy, reservations_yoy (CMG/SBUX only), job_postings_yoy. Default: weekly frequency, ~150 week lookback. Override to daily for short-term analysis, earnings prep, recent credit card reads. NEVER use GROUP BY or aggregate functions on alt_data. |
 | Model outputs | `model_outputs` | SQL (most recent version) | `[TICKER | Model | Date]` | |
 | Prior workflow outputs | `workflow_outputs_earnings_preview` (and others) | SQL (structured lookup) | per workflow type | Not vector search |
 | Workflow registry | `workflow_registry` | SQL | — | Runtime lookup for workflow execution |

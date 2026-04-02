@@ -6,9 +6,17 @@ import {
   renameConversation,
 } from "../config/mode2Api";
 
+export interface ToolCall {
+  name: string;
+  input: Record<string, unknown>;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  steps?: ChatStep[];
+  tools_used?: string[];
+  tool_calls?: ToolCall[];
 }
 
 export interface ChatStep {
@@ -44,6 +52,8 @@ export interface Mode2ChatState {
   renameChat: (newTitle: string) => void;
   confirmCostWarning: () => void;
   dismissCostWarning: () => void;
+  /** Load external messages (e.g. from a saved session) */
+  loadMessages: (msgs: ChatMessage[], sessId: string) => void;
 }
 
 export function useMode2Chat(): Mode2ChatState {
@@ -60,6 +70,8 @@ export function useMode2Chat(): Mode2ChatState {
 
   const abortRef = useRef<AbortController | null>(null);
   const pendingQueryRef = useRef<string | null>(null);
+  const toolsUsedRef = useRef<string[]>([]);
+  const toolCallsRef = useRef<ToolCall[]>([]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -164,46 +176,73 @@ export function useMode2Chat(): Mode2ChatState {
               });
               setChatLoading(false);
             } else if (event.type === "done") {
-              // Finalize: move streaming content into messages
-              setStreamingContent((prev) => {
-                if (prev) {
-                  setMessages((msgs) => [
-                    ...msgs,
-                    { role: "assistant", content: prev },
-                  ]);
-                }
-                return "";
+              // Finalize: move streaming content + steps into messages
+              const capturedTools = toolsUsedRef.current.length > 0 ? [...toolsUsedRef.current] : undefined;
+              const capturedToolCalls = toolCallsRef.current.length > 0 ? [...toolCallsRef.current] : undefined;
+              toolsUsedRef.current = [];
+              toolCallsRef.current = [];
+              setSteps((currentSteps) => {
+                setStreamingContent((prev) => {
+                  if (prev) {
+                    setMessages((msgs) => [
+                      ...msgs,
+                      {
+                        role: "assistant",
+                        content: prev,
+                        steps: currentSteps.length > 0 ? [...currentSteps] : undefined,
+                        tools_used: capturedTools,
+                        tool_calls: capturedToolCalls,
+                      },
+                    ]);
+                  }
+                  return "";
+                });
+                return []; // clear steps for next message
               });
               setIsStreaming(false);
             }
-            if (event.type === "metadata" && event.title) {
-              setConversationTitle(event.title as string);
+            if (event.type === "metadata") {
+              if (event.title) {
+                setConversationTitle(event.title as string);
+              }
+              if (event.tools_used) {
+                toolsUsedRef.current = event.tools_used as string[];
+              }
+              if (event.tool_calls) {
+                toolCallsRef.current = event.tool_calls as ToolCall[];
+              }
             }
           }
         }
 
         // If stream ended without a "done" event, finalize whatever we have
-        setStreamingContent((prev) => {
-          if (prev) {
-            setMessages((msgs) => [
-              ...msgs,
-              { role: "assistant", content: prev },
-            ]);
-          }
-          return "";
+        setSteps((currentSteps) => {
+          setStreamingContent((prev) => {
+            if (prev) {
+              setMessages((msgs) => [
+                ...msgs,
+                { role: "assistant", content: prev, steps: currentSteps.length > 0 ? [...currentSteps] : undefined },
+              ]);
+            }
+            return "";
+          });
+          return [];
         });
         setIsStreaming(false);
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === "AbortError") {
           // User cancelled — keep whatever was streamed so far
-          setStreamingContent((prev) => {
-            if (prev) {
-              setMessages((msgs) => [
-                ...msgs,
-                { role: "assistant", content: prev },
-              ]);
-            }
-            return "";
+          setSteps((currentSteps) => {
+            setStreamingContent((prev) => {
+              if (prev) {
+                setMessages((msgs) => [
+                  ...msgs,
+                  { role: "assistant", content: prev, steps: currentSteps.length > 0 ? [...currentSteps] : undefined },
+                ]);
+              }
+              return "";
+            });
+            return [];
           });
         } else {
           const msg =
@@ -267,6 +306,16 @@ export function useMode2Chat(): Mode2ChatState {
     ]);
   }, []);
 
+  const loadMessages = useCallback(
+    (msgs: ChatMessage[], sessId: string) => {
+      setMessages(msgs);
+      setSessionId(sessId);
+      setError(null);
+      setCostWarning(null);
+    },
+    [],
+  );
+
   return {
     messages,
     chatLoading,
@@ -284,5 +333,6 @@ export function useMode2Chat(): Mode2ChatState {
     renameChat,
     confirmCostWarning,
     dismissCostWarning,
+    loadMessages,
   };
 }

@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Layout } from "../components/Layout";
+import { GlobalChatProvider } from "../context/GlobalChatContext";
 
 vi.mock("../auth/useAuth", () => ({
   useAuth: vi.fn(() => ({
@@ -21,12 +22,18 @@ vi.mock("../components/SearchBar", () => ({
   SearchBar: () => <div data-testid="search-bar" />,
 }));
 
+vi.mock("../components/GlobalChatPanel", () => ({
+  GlobalChatPanel: () => null,
+}));
+
 function renderLayout() {
   return render(
     <MemoryRouter initialEntries={["/packs"]}>
-      <Layout>
-        <div>Page Content</div>
-      </Layout>
+      <GlobalChatProvider>
+        <Layout>
+          <div>Page Content</div>
+        </Layout>
+      </GlobalChatProvider>
     </MemoryRouter>
   );
 }
@@ -40,7 +47,7 @@ describe("Layout", () => {
   it("renders nav links when user is logged in", () => {
     renderLayout();
     expect(screen.getByText("My Packs")).toBeInTheDocument();
-    expect(screen.getByText("Chat")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Chat" })).toBeInTheDocument();
     expect(screen.getByText("Portfolios")).toBeInTheDocument();
     expect(screen.getByText("Alerts")).toBeInTheDocument();
     expect(screen.getByText("Reports")).toBeInTheDocument();

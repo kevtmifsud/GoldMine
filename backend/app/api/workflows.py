@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
@@ -617,6 +617,55 @@ async def get_preview_detail(preview_id: str) -> dict[str, Any]:
     return result
 
 
+async def _get_comparison_quarters(
+    ticker: str,
+    reporting_period: str,
+) -> dict[str, date]:
+    """Find the previous quarter and YoY comp quarter-end dates for a ticker.
+
+    prev_quarter = the most recent reported quarter (ends[0]).
+    yoy_comp = same quarter as reporting_period but one year ago.
+
+    To find yoy_comp: the reporting quarter is 1 ahead of ends[0].
+    So yoy = 4 quarters back from reporting = 3 quarters back from ends[0] = ends[3].
+
+    Example for AES reporting 2026Q1:
+      ends = [2025-12-31(Q4), 2025-09-30(Q3), 2025-06-30(Q2), 2025-03-31(Q1), 2024-12-31(Q4)...]
+      prev_quarter = ends[0] = 2025-12-31 (Q4 2025)
+      yoy_comp = ends[3] = 2025-03-31 (Q1 2025) — same quarter, one year ago
+    """
+    import re as _re
+    if not _re.match(r"^\d{4}Q[1-4]$", reporting_period):
+        return {}
+
+    async with get_conn() as conn:
+        rows = await conn.fetch(
+            """SELECT DISTINCT period_end
+               FROM financial_metrics
+               WHERE ticker = $1 AND period_type = 'quarterly'
+               ORDER BY period_end DESC
+               LIMIT 8""",
+            ticker,
+        )
+
+    if not rows:
+        return {}
+
+    ends = [r["period_end"] for r in rows]
+
+    targets: dict[str, date] = {}
+    # Most recent reported quarter = prev_quarter
+    if len(ends) >= 1:
+        targets["prev_quarter"] = ends[0]
+    # yoy_comp = same quarter as reporting period but one year ago
+    # = 3 quarters back from prev_quarter (since reporting is 1 ahead of prev)
+    if len(ends) >= 4:
+        targets["yoy_comp"] = ends[3]
+
+    return targets
+
+
+
 @router.get("/earnings-preview/{ticker}/quarterly-actuals")
 async def get_quarterly_actuals(
     ticker: str,
@@ -625,9 +674,9 @@ async def get_quarterly_actuals(
 ) -> dict[str, Any]:
     """Return actuals for comparison quarters, keyed by label.
 
-    Uses position-based logic: finds the most recent quarterly period_ends
-    in the DB and assigns labels relative to the reporting quarter.
-    No calendar math — purely ordinal from what the DB has.
+    Uses the reporting_period to compute exact quarter-end dates for
+    prev_quarter and yoy_comp. If either date does not exist in the
+    database, that key is omitted — no fallback or guessing.
 
     Returns: {
       "prev_quarter": {"total_revenue": 123, ...},
@@ -637,31 +686,8 @@ async def get_quarterly_actuals(
     ticker = ticker.upper()
     metric_list = [m.strip() for m in metrics.split(",") if m.strip()]
 
-    async with get_conn() as conn:
-        # Get all distinct quarterly period_ends sorted descending
-        period_rows = await conn.fetch(
-            """SELECT DISTINCT period_end
-               FROM financial_metrics
-               WHERE ticker = $1 AND period_type = 'quarterly'
-               ORDER BY period_end DESC""",
-            ticker,
-        )
-    period_ends = [r["period_end"] for r in period_rows]
-
-    if not period_ends:
-        return {}
-
-    # Position 0 = most recently reported quarter (prev quarter to the reporting one)
-    # Position 1 = the quarter before that
-    # Position 3 = same quarter last year (4 quarters back from most recent = position 3)
-    # So: prev_quarter = period_ends[0], yoy_comp = period_ends[3]
-
-    targets: dict[str, object] = {}
-    if len(period_ends) > 0:
-        targets["prev_quarter"] = period_ends[0]
-    if len(period_ends) > 3:
-        targets["yoy_comp"] = period_ends[3]
-
+    # Look up actual quarter-end dates from the DB (handles non-standard fiscal years)
+    targets = await _get_comparison_quarters(ticker, reporting_period)
     if not targets:
         return {}
 
@@ -704,26 +730,13 @@ async def get_beat_miss(
 ) -> dict[str, Any]:
     """Compare actuals vs pre-report consensus for the prev quarter and YoY comp.
 
-    Uses position-based logic matching the quarterly-actuals endpoint.
+    Uses exact quarter-end dates derived from reporting_period.
+    If a date does not exist in the database, that comparison is omitted.
     """
     ticker = ticker.upper()
 
-    async with get_conn() as conn:
-        # Get period_ends by position (same logic as quarterly-actuals)
-        period_rows = await conn.fetch(
-            """SELECT DISTINCT period_end
-               FROM financial_metrics
-               WHERE ticker = $1 AND period_type = 'quarterly'
-               ORDER BY period_end DESC""",
-            ticker,
-        )
-    period_ends = [r["period_end"] for r in period_rows]
-
-    targets: dict[str, object] = {}
-    if len(period_ends) > 0:
-        targets["prev_quarter"] = period_ends[0]
-    if len(period_ends) > 3:
-        targets["yoy_comp"] = period_ends[3]
+    # Look up actual quarter-end dates from the DB (handles non-standard fiscal years)
+    targets = await _get_comparison_quarters(ticker, reporting_period)
 
     result: dict[str, dict] = {}
 
@@ -738,13 +751,16 @@ async def get_beat_miss(
             )
             actual_map = {r["metric_name"]: float(r["value"]) for r in actuals if r["value"] is not None}
 
-            # Find the consensus estimate period that corresponds to this period_end
-            # by looking for estimates with as_of_date <= period_end
+            # Find the consensus estimate for this quarter
+            # Filter by period_end_date AND exclude annual periods (which share
+            # the same period_end_date as Q4 for calendar-year companies)
             consensus = await conn.fetch(
                 """SELECT DISTINCT ON (metric)
                       metric, value
                    FROM daily_estimates
                    WHERE ticker = $1 AND source = 'consensus'
+                   AND period_end_date = $2
+                   AND period NOT LIKE '%A'
                    AND as_of_date <= $2
                    ORDER BY metric, as_of_date DESC""",
                 ticker, pe,
@@ -757,7 +773,7 @@ async def get_beat_miss(
                 est = consensus_map.get(metric)
                 if actual is not None and est is not None and est != 0:
                     diff_pct = round(((actual - est) / abs(est)) * 100, 2)
-                    if abs(diff_pct) <= 2:
+                    if abs(diff_pct) <= 0.5:
                         verdict = "inline"
                     elif diff_pct > 0:
                         verdict = "beat"
@@ -856,7 +872,11 @@ async def get_alt_data_chart(
                           WHEN de.period LIKE '%%Q4' THEN (CAST(LEFT(de.period,4) AS int)-1 || '-12-31')::date
                       END)
                WHERE de.ticker = $1 AND de.metric = 'total_revenue' AND de.source = 'consensus'
-               AND de.as_of_date = (SELECT MAX(as_of_date) FROM daily_estimates WHERE ticker = $1)
+               AND de.as_of_date = (
+                   SELECT MAX(de2.as_of_date) FROM daily_estimates de2
+                   WHERE de2.ticker = de.ticker AND de2.metric = de.metric
+                     AND de2.source = de.source AND de2.period = de.period
+               )
                AND de.period LIKE '%%Q%%'
                ORDER BY de.period""",
             ticker,
@@ -1014,16 +1034,27 @@ async def get_estimates_deepdive(
     ticker: str,
     period: str = Query(...),
 ) -> list[dict[str, Any]]:
-    """Full analyst-level estimate breakdown for a ticker+period from daily_estimates."""
+    """Full analyst-level estimate breakdown for a ticker+period from daily_estimates.
+
+    Uses DISTINCT ON to get the most recent row per metric/source/firm/analyst,
+    rather than filtering on a global MAX(as_of_date) which misses estimates
+    that were last updated on a different date.
+
+    Enriches each row with yoy_vs_actual (% vs most recent quarterly actual).
+    """
+    ticker = ticker.upper()
     async with get_conn() as conn:
         rows = await conn.fetch(
             """SELECT source, firm, analyst_name, analyst_person_id,
                       metric, value, unit, estimate_date, as_of_date, staleness_days
-               FROM daily_estimates
-               WHERE ticker = $1 AND period = $2
-               AND as_of_date = (
-                   SELECT MAX(as_of_date) FROM daily_estimates WHERE ticker = $1
-               )
+               FROM (
+                   SELECT DISTINCT ON (metric, source, firm, analyst_name)
+                          source, firm, analyst_name, analyst_person_id,
+                          metric, value, unit, estimate_date, as_of_date, staleness_days
+                   FROM daily_estimates
+                   WHERE ticker = $1 AND period = $2
+                   ORDER BY metric, source, firm, analyst_name, as_of_date DESC
+               ) latest
                ORDER BY
                    CASE source
                        WHEN 'internal' THEN 1
@@ -1032,9 +1063,43 @@ async def get_estimates_deepdive(
                        WHEN 'sellside' THEN 4
                    END,
                    firm, analyst_name, metric""",
-            ticker.upper(), period,
+            ticker, period,
         )
-    return [dict(r) for r in rows]
+
+        # Fetch most recent quarterly actuals per metric for YoY enrichment
+        est_metrics = list({r["metric"] for r in rows})
+        actuals_rows = await conn.fetch(
+            """SELECT DISTINCT ON (metric_name)
+                      metric_name, value
+               FROM financial_metrics
+               WHERE ticker = $1
+                 AND metric_name = ANY($2)
+                 AND period_type = 'quarterly'
+                 AND value IS NOT NULL
+               ORDER BY metric_name, period_end DESC""",
+            ticker, est_metrics,
+        ) if est_metrics else []
+
+    actual_map = {
+        r["metric_name"]: float(r["value"])
+        for r in actuals_rows
+        if r["value"] is not None
+    }
+
+    results = []
+    for r in rows:
+        d = dict(r)
+        val = float(d["value"]) if d.get("value") is not None else None
+        actual = actual_map.get(d["metric"])
+        if val is not None and actual is not None and actual != 0:
+            d["yoy_vs_actual"] = round((val / actual - 1) * 100, 2)
+            d["prior_year_actual"] = actual
+        else:
+            d["yoy_vs_actual"] = None
+            d["prior_year_actual"] = None
+        results.append(d)
+
+    return results
 
 
 @router.get("/earnings-preview/{ticker}/available-kpis")

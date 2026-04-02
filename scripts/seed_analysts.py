@@ -21,28 +21,28 @@ load_dotenv(ROOT / "backend" / ".env")
 DATABASE_URL = os.environ.get("SUPABASE_DATABASE_URL", "")
 
 ANALYSTS = [
-    # Buyside analysts
-    {"name": "James Wei", "organization": "Tiger Global Management", "title": "Senior Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Technology", "Semiconductors"]},
-    {"name": "Sarah Park", "organization": "Tiger Global Management", "title": "Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Consumer", "Internet"]},
-    {"name": "Michael Torres", "organization": "Coatue Management", "title": "Senior Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Technology", "Software"]},
-    {"name": "Emily Chen", "organization": "Coatue Management", "title": "Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Healthcare", "Biotech"]},
+    # Buyside analysts — sector_coverage uses GICS sector names from stocks table
+    {"name": "James Wei", "organization": "Tiger Global Management", "title": "Senior Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Technology"]},
+    {"name": "Sarah Park", "organization": "Tiger Global Management", "title": "Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Consumer Discretionary", "Consumer Staples", "Communication Services"]},
+    {"name": "Michael Torres", "organization": "Coatue Management", "title": "Senior Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Technology"]},
+    {"name": "Emily Chen", "organization": "Coatue Management", "title": "Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Healthcare"]},
     {"name": "David Kim", "organization": "D1 Capital Partners", "title": "Senior Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Technology", "Financials"]},
-    {"name": "Rachel Goldman", "organization": "D1 Capital Partners", "title": "Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Consumer", "Retail"]},
+    {"name": "Rachel Goldman", "organization": "D1 Capital Partners", "title": "Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Consumer Discretionary", "Consumer Staples"]},
     {"name": "Thomas Brennan", "organization": "Viking Global Investors", "title": "Senior Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Technology", "Energy"]},
     {"name": "Lisa Nakamura", "organization": "Viking Global Investors", "title": "Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Healthcare", "Industrials"]},
-    {"name": "Andrew Scott", "organization": "Lone Pine Capital", "title": "Senior Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Technology", "Media"]},
-    {"name": "Jennifer Walsh", "organization": "Lone Pine Capital", "title": "Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Consumer", "Real Estate"]},
-    # Sellside analysts
-    {"name": "Alex Rivera", "organization": "Goldman Sachs", "title": "Managing Director, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Technology", "Semiconductors"]},
-    {"name": "Megan Foster", "organization": "Goldman Sachs", "title": "Vice President, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Consumer", "Retail"]},
-    {"name": "Chris Hammond", "organization": "Morgan Stanley", "title": "Managing Director, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Technology", "Software"]},
-    {"name": "Diana Patel", "organization": "Morgan Stanley", "title": "Vice President, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Healthcare", "Biotech"]},
-    {"name": "Ryan O'Brien", "organization": "JPMorgan", "title": "Managing Director, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Financials", "Banks"]},
+    {"name": "Andrew Scott", "organization": "Lone Pine Capital", "title": "Senior Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Technology", "Communication Services"]},
+    {"name": "Jennifer Walsh", "organization": "Lone Pine Capital", "title": "Portfolio Manager", "type": "buyside_analyst", "sector_coverage": ["Consumer Discretionary", "Consumer Staples", "Real Estate"]},
+    # Sellside analysts — sector_coverage uses GICS sector names from stocks table
+    {"name": "Alex Rivera", "organization": "Goldman Sachs", "title": "Managing Director, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Technology"]},
+    {"name": "Megan Foster", "organization": "Goldman Sachs", "title": "Vice President, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Consumer Discretionary", "Consumer Staples"]},
+    {"name": "Chris Hammond", "organization": "Morgan Stanley", "title": "Managing Director, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Technology"]},
+    {"name": "Diana Patel", "organization": "Morgan Stanley", "title": "Vice President, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Healthcare"]},
+    {"name": "Ryan O'Brien", "organization": "JPMorgan", "title": "Managing Director, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Financials"]},
     {"name": "Stephanie Liu", "organization": "JPMorgan", "title": "Vice President, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Energy", "Industrials"]},
-    {"name": "Marcus Johnson", "organization": "Bank of America", "title": "Managing Director, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Technology", "Internet"]},
-    {"name": "Karen White", "organization": "Bank of America", "title": "Vice President, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Consumer", "Restaurants"]},
-    {"name": "Tyler Brooks", "organization": "Jefferies", "title": "Managing Director, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Technology", "Hardware"]},
-    {"name": "Amanda Chen", "organization": "Jefferies", "title": "Vice President, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Real Estate", "REITs"]},
+    {"name": "Marcus Johnson", "organization": "Bank of America", "title": "Managing Director, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Technology", "Communication Services"]},
+    {"name": "Karen White", "organization": "Bank of America", "title": "Vice President, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Consumer Discretionary", "Consumer Staples"]},
+    {"name": "Tyler Brooks", "organization": "Jefferies", "title": "Managing Director, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Technology"]},
+    {"name": "Amanda Chen", "organization": "Jefferies", "title": "Vice President, Equity Research", "type": "sellside_analyst", "sector_coverage": ["Real Estate"]},
 ]
 
 

@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Layout } from "../components/Layout";
 import { PackGrid } from "../components/PackGrid";
 import { ScheduleEmailDialog } from "../components/ScheduleEmailDialog";
 import { useAuth } from "../auth/useAuth";
 import { usePackEditor } from "../hooks/usePackEditor";
+import { usePageContext } from "../hooks/usePageContext";
+import { useGlobalChat } from "../context/GlobalChatContext";
 import * as viewsApi from "../config/viewsApi";
 import "../styles/entity.css";
 import "../styles/packs.css";
@@ -28,6 +30,44 @@ export function PackPage() {
 
   const isOwner = true; // Will be refined after pack loads
   const editor = usePackEditor(packId ?? null, isOwner);
+  const { open, openWithContext, loadConversation, setActivePack } = useGlobalChat();
+
+  const tickerCtx = editor.pack?.ticker_context ?? undefined;
+  usePageContext({
+    page: "pack",
+    ticker: tickerCtx,
+    suggestions: editor.pack
+      ? [
+          "Summarize this pack for me",
+          tickerCtx ? `Add ${tickerCtx} P&L chart` : "Add another chart",
+          "What data is missing from this pack?",
+        ]
+      : undefined,
+  });
+
+  // Register this pack as the active pack for "Add to Pack" routing
+  useEffect(() => {
+    if (editor.pack?.pack_id) setActivePack(editor.pack.pack_id);
+    return () => setActivePack(null);
+  }, [editor.pack?.pack_id, setActivePack]);
+
+  // Auto-open chat panel on first visit to a chat-generated pack
+  // and restore the originating conversation
+  useEffect(() => {
+    if (!editor.pack?.source_conversation_id || !editor.pack.pack_id) return;
+    const key = `pack_chat_opened_${editor.pack.pack_id}`;
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, "1");
+      loadConversation(editor.pack.source_conversation_id).then(() => open());
+    }
+  }, [editor.pack?.pack_id, editor.pack?.source_conversation_id, open, loadConversation]);
+
+  // Reload pack when a tile is added via the chat panel
+  useEffect(() => {
+    const handler = () => window.location.reload();
+    window.addEventListener("pack-tile-added", handler);
+    return () => window.removeEventListener("pack-tile-added", handler);
+  }, []);
 
   // Sync header state from pack when it loads
   if (editor.pack && !headerInitialized) {
@@ -53,6 +93,7 @@ export function PackPage() {
         name: packName.trim(),
         description: packDesc.trim(),
         widgets: editor.packWidgets,
+        mcp_tiles: editor.pack?.mcp_tiles,
         is_shared: packShared,
         row_columns: editor.rowColumns,
         row_descriptions: editor.rowDescriptions,
@@ -100,6 +141,29 @@ export function PackPage() {
         <Link to="/packs" className="entity-page__back">
           &larr; Back to Packs
         </Link>
+
+        {/* Chat origin banner */}
+        {editor.pack?.source_conversation_id && (
+          <div className="pack-page__chat-banner">
+            <span>Generated from chat</span>
+            <button
+              className="pack-page__chat-banner-link"
+              onClick={() =>
+                openWithContext({
+                  page: "pack",
+                  ticker: tickerCtx,
+                  suggestions: [
+                    tickerCtx ? `Add ${tickerCtx} credit card chart` : "Add a chart",
+                    tickerCtx ? `Add ${tickerCtx} P&L history` : "Add P&L chart",
+                    "Add estimates comparison table",
+                  ],
+                })
+              }
+            >
+              Open Chat
+            </button>
+          </div>
+        )}
 
         {/* Header */}
         <div className="pack-page__header">
@@ -195,6 +259,22 @@ export function PackPage() {
                 Delete
               </button>
             )}
+            <button
+              className="entity-page__action-btn"
+              onClick={() =>
+                openWithContext({
+                  page: "pack",
+                  ticker: tickerCtx,
+                  suggestions: [
+                    tickerCtx ? `Add ${tickerCtx} credit card chart` : "Add a chart",
+                    tickerCtx ? `Add ${tickerCtx} P&L history` : "Add P&L chart",
+                    "Add estimates comparison table",
+                  ],
+                })
+              }
+            >
+              Add via Chat
+            </button>
             <button
               className="entity-page__action-btn entity-page__action-btn--primary"
               onClick={() => setShowAlertDialog(true)}

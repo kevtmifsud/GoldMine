@@ -112,7 +112,7 @@ class EarningsPreviewWorkflow(WorkflowBase):
         # Section 1 — Estimates table
         # ------------------------------------------------------------------
         estimates_table = self._build_estimates_table(
-            estimates_raw, reporting_period, forward_period,
+            estimates_raw, actuals_raw, reporting_period, forward_period,
             key_kpis, citations, ticker,
         )
 
@@ -290,7 +290,7 @@ class EarningsPreviewWorkflow(WorkflowBase):
         return results
 
     async def _fetch_actuals(self, ticker: str, steps: StepCollector) -> list[dict]:
-        """Fetch most recent quarter financial metrics."""
+        """Fetch 8 quarters of financial metrics for YoY comparisons."""
         t0 = time.time()
         async with get_conn() as conn:
             rows = await conn.fetch(
@@ -300,7 +300,7 @@ class EarningsPreviewWorkflow(WorkflowBase):
                      AND metric_name = ANY($2)
                      AND period_type = 'quarterly'
                    ORDER BY period_end DESC
-                   LIMIT 20""",
+                   LIMIT 80""",
                 ticker, _ACTUALS_METRICS,
             )
         results = [dict(r) for r in rows]
@@ -504,14 +504,20 @@ class EarningsPreviewWorkflow(WorkflowBase):
     def _build_estimates_table(
         self,
         estimates_raw: list[dict],
+        actuals_raw: list[dict],
         reporting_period: str,
         forward_period: str,
         key_kpis: list[str],
         citations: list[dict[str, str]],
         ticker: str,
     ) -> dict[str, Any]:
-        """Build the estimates comparison table (Section 1)."""
-        # All metrics to include: key KPIs + default (eps, revenue)
+        """Build the estimates comparison table (Section 1).
+
+        Enriches each estimate with:
+        - yoy_vs_actual: % growth vs prior year actual
+        - prior_year_actual: the actual value used for YoY
+        - vs_consensus: value minus consensus (in dollar/unit terms)
+        """
         all_metrics = list(dict.fromkeys(key_kpis + _DEFAULT_METRICS))
 
         source_map = {
@@ -521,6 +527,29 @@ class EarningsPreviewWorkflow(WorkflowBase):
             "sellside_estimates": "Sellside",
         }
 
+        # Build actuals lookup by (metric, period_end) for YoY calculation
+        from collections import defaultdict
+        from datetime import date as date_type
+
+        actuals_by_period: dict[str, dict[str, float]] = defaultdict(dict)
+        for r in actuals_raw:
+            p = str(r["period_end"])
+            if r.get("value") is not None:
+                actuals_by_period[p][r["metric_name"]] = float(r["value"])
+
+        sorted_actual_periods = sorted(actuals_by_period.keys(), reverse=True)
+
+        def find_prior_year_actual(metric: str) -> float | None:
+            """Find most recent annual-equivalent actual for YoY comp."""
+            if not sorted_actual_periods:
+                return None
+            # Use most recent quarter's actual for the metric
+            for p in sorted_actual_periods:
+                val = actuals_by_period[p].get(metric)
+                if val is not None:
+                    return val
+            return None
+
         table: dict[str, Any] = {
             "reporting_period": reporting_period,
             "forward_period": forward_period,
@@ -528,9 +557,14 @@ class EarningsPreviewWorkflow(WorkflowBase):
         }
 
         for metric in all_metrics:
+            prior_actual = find_prior_year_actual(metric)
+
             metric_data: dict[str, Any] = {}
             for period in [reporting_period, forward_period]:
                 period_data: dict[str, Any] = {}
+
+                # First pass: collect all source values to find consensus
+                source_values: dict[str, float | None] = {}
                 for table_name, display_name in source_map.items():
                     match = next(
                         (r for r in estimates_raw
@@ -539,12 +573,46 @@ class EarningsPreviewWorkflow(WorkflowBase):
                          and r.get("period") == period),
                         None,
                     )
+                    if match and match.get("value") is not None:
+                        source_values[display_name] = float(match["value"])
+                    else:
+                        source_values[display_name] = None
+
+                consensus_val = source_values.get("Consensus")
+
+                # Second pass: build enriched entries
+                for table_name, display_name in source_map.items():
+                    match = next(
+                        (r for r in estimates_raw
+                         if r.get("_table") == table_name
+                         and r.get("metric", "").lower() == metric.lower()
+                         and r.get("period") == period),
+                        None,
+                    )
+                    val = source_values[display_name]
+
+                    entry: dict[str, Any] = {"value": val, "unit": match.get("unit") if match else None}
+
+                    # YoY vs actual
+                    if val is not None and prior_actual is not None and prior_actual != 0:
+                        entry["yoy_vs_actual"] = round((val / prior_actual - 1) * 100, 2)
+                        entry["prior_year_actual"] = prior_actual
+                    else:
+                        entry["yoy_vs_actual"] = None
+                        entry["prior_year_actual"] = prior_actual
+
+                    # vs Consensus (value difference, not percentage)
+                    if display_name == "Consensus":
+                        entry["vs_consensus"] = None
+                    elif val is not None and consensus_val is not None:
+                        entry["vs_consensus"] = round(val - consensus_val, 2)
+                    else:
+                        entry["vs_consensus"] = None
+
+                    period_data[display_name] = entry
+
+                    # Citation
                     if match:
-                        period_data[display_name] = {
-                            "value": float(match["value"]) if match.get("value") is not None else None,
-                            "unit": match.get("unit"),
-                        }
-                        # Citation
                         cite_label = {
                             "internal_estimates": f"[{ticker} | Internal Estimate | {match.get('model_version', '')} | {match.get('created_at', '')}]",
                             "buyside_estimates": f"[{ticker} | Buyside Estimate | {match.get('firm', '')} | {match.get('estimate_date', '')}]",
@@ -558,8 +626,6 @@ class EarningsPreviewWorkflow(WorkflowBase):
                             "period": period,
                             "citation": cite_label.get(table_name, ""),
                         })
-                    else:
-                        period_data[display_name] = {"value": None, "unit": None}
 
                 metric_data[period] = period_data
             table["metrics"][metric] = metric_data
@@ -572,33 +638,86 @@ class EarningsPreviewWorkflow(WorkflowBase):
         citations: list[dict[str, str]],
         ticker: str,
     ) -> dict[str, Any]:
-        """Build most recent quarter actuals (Section 2)."""
+        """Build actuals section with all quarters and YoY growth."""
         if not actuals_raw:
-            return {"note": "No recent quarterly actuals available.", "metrics": {}}
+            return {
+                "note": "No recent quarterly actuals available.",
+                "metrics": {},
+                "quarters": {},
+                "yoy_growth": {},
+            }
 
-        # Group by the most recent period_end
-        most_recent_period = actuals_raw[0].get("period_end")
-        recent = [r for r in actuals_raw if r.get("period_end") == most_recent_period]
+        from collections import defaultdict
+        from datetime import date as date_type
 
-        metrics: dict[str, Any] = {}
-        for r in recent:
-            name = r["metric_name"]
-            metrics[name] = {
+        # Group all rows by period_end
+        by_period: dict[str, dict[str, Any]] = defaultdict(dict)
+        for r in actuals_raw:
+            period = str(r["period_end"])
+            metric = r["metric_name"]
+            by_period[period][metric] = {
                 "value": float(r["value"]) if r.get("value") is not None else None,
-                "period_end": str(r["period_end"]),
+                "period_end": period,
                 "period_type": r["period_type"],
             }
+
+        sorted_periods = sorted(by_period.keys(), reverse=True)
+        most_recent_period = sorted_periods[0]
+
+        # Find prior year period: within 45 days of exactly 1 year ago
+        def find_prior_year(period: str) -> str | None:
+            pd = date_type.fromisoformat(period)
+            try:
+                target = date_type(pd.year - 1, pd.month, pd.day)
+            except ValueError:
+                # Handle Feb 29 → Feb 28
+                target = date_type(pd.year - 1, pd.month, pd.day - 1)
+            for p in sorted_periods:
+                candidate = date_type.fromisoformat(p)
+                if abs((candidate - target).days) <= 45:
+                    return p
+            return None
+
+        # Build YoY growth for each period that has a prior year comp
+        yoy_growth: dict[str, dict[str, Any]] = {}
+        for period in sorted_periods:
+            prior = find_prior_year(period)
+            if not prior:
+                continue
+            period_yoy: dict[str, Any] = {}
+            for metric, current_data in by_period[period].items():
+                prior_data = by_period[prior].get(metric)
+                if not prior_data:
+                    continue
+                cur_val = current_data["value"]
+                pri_val = prior_data["value"]
+                growth = None
+                if cur_val is not None and pri_val is not None and pri_val != 0:
+                    growth = round((cur_val / pri_val - 1) * 100, 2)
+                period_yoy[metric] = {
+                    "current": cur_val,
+                    "prior": pri_val,
+                    "prior_period": prior,
+                    "growth_pct": growth,
+                }
+            if period_yoy:
+                yoy_growth[period] = period_yoy
+
+        # Citations for most recent period
+        for metric in by_period[most_recent_period]:
             citations.append({
                 "ticker": ticker,
                 "source": "financial_metrics",
-                "metric": name,
-                "period": str(r["period_end"]),
-                "citation": f"[{ticker} | Financials | {r['period_end']}]",
+                "metric": metric,
+                "period": most_recent_period,
+                "citation": f"[{ticker} | Financials | {most_recent_period}]",
             })
 
         return {
-            "period_end": str(most_recent_period),
-            "metrics": metrics,
+            "period_end": most_recent_period,
+            "metrics": by_period[most_recent_period],
+            "quarters": dict(by_period),
+            "yoy_growth": yoy_growth,
         }
 
     def _build_price_section(

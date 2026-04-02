@@ -251,6 +251,28 @@ Writer: WF-01 ingestion scanner. Upsertable.
 Key columns: tracks MD5 change detection to avoid reprocessing unchanged docs.
 Chatbot: no access.
 
+### `pages`
+Grain: one row per analyst page/dashboard.
+Writer: pages API, triggered by "Add to Page" in chat or manual page builder. Upsertable.
+Chatbot: no direct access.
+Key columns:
+- `id` uuid PK
+- `user_id` text (analyst username)
+- `title` text
+- `description` text (nullable)
+- `tiles` jsonb (array of tile configs — see below)
+- `is_shared` boolean DEFAULT false
+- `created_at` timestamptz
+- `updated_at` timestamptz
+
+Tile schema (each element of `tiles[]`):
+- `id`: uuid (generated server-side)
+- `title`: display name for tile
+- `tool`: MCP tool name e.g. "get_alt_data"
+- `params`: tool parameters dict
+- `chart`: `{type, x_column, y_column}`
+- `position`: `{row, col, width, height}`
+
 ### `pipeline_runs`
 Grain: one row per pipeline execution.
 Writer: WF-05 orchestrator. Insert-only.

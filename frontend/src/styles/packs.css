@@ -14,8 +14,25 @@
 .packs-list__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 1.5rem;
+}
+
+.packs-list__header h2 + * {
+  margin-left: auto;
+}
+
+.packs-list__chat-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.packs-list__chat-hint code {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 0.7rem;
 }
 
 .packs-list__header h2 {
@@ -152,6 +169,34 @@
   background: var(--color-primary);
   color: white;
   border-color: var(--color-primary);
+}
+
+/* Pack Page — chat origin banner */
+.pack-page__chat-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+}
+
+.pack-page__chat-banner-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+}
+
+.pack-page__chat-banner-link:hover {
+  text-decoration: underline;
 }
 
 /* Pack Page */
@@ -827,4 +872,197 @@
   font-size: 1.15rem;
   font-weight: 700;
   margin: 0;
+}
+
+/* ── MCP Tile Components ── */
+
+.mcp-tile {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.mcp-tile__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+  min-height: 32px;
+  flex-shrink: 0;
+}
+
+.mcp-tile__title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mcp-tile__title-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  font-family: inherit;
+  padding: 0;
+  outline: none;
+}
+
+.mcp-tile__title-input:focus {
+  border-bottom: 1px solid var(--color-primary);
+}
+
+.mcp-tile__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.mcp-tile__refresh {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  padding: 2px;
+  line-height: 1;
+}
+
+.mcp-tile__refresh:hover {
+  color: var(--color-primary);
+}
+
+.mcp-tile__refresh:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mcp-tile__freshness {
+  font-size: 0.65rem;
+  color: var(--color-text-secondary);
+}
+
+.mcp-tile__remove {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.mcp-tile__remove:hover {
+  color: #e53e3e;
+}
+
+.mcp-tile__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+.mcp-tile__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  color: #e53e3e;
+  font-size: 0.8rem;
+  padding: 12px;
+}
+
+.mcp-tile__error button {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.mcp-tile__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+.mcp-tile__grid {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Number card */
+.mcp-number-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+}
+
+.mcp-number-card__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mcp-number-card__label {
+  font-size: 0.65rem;
+  color: var(--color-text-secondary);
+  text-transform: capitalize;
+}
+
+.mcp-number-card__value {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Markdown tile (ChatMarkdown in pack) */
+.mcp-tile__markdown {
+  padding: 8px 12px;
+  overflow-y: auto;
+  flex: 1;
+  font-size: 13px;
+}
+
+.mcp-tile__markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.mcp-tile__markdown th {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 2px solid var(--color-border);
+  font-weight: 600;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.mcp-tile__markdown td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.mcp-tile__markdown td[style*="right"] {
+  font-variant-numeric: tabular-nums;
 }

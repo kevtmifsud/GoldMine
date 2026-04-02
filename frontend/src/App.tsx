@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
+import { GlobalChatProvider } from "./context/GlobalChatContext";
 import { AuthGuard } from "./auth/AuthGuard";
 import { LoginPage } from "./auth/LoginPage";
 import { HomePage } from "./pages/HomePage";
@@ -46,6 +47,7 @@ function ScrollToTop() {
 function App() {
   return (
     <AuthProvider>
+      <GlobalChatProvider>
       <ScrollToTop />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -239,6 +241,7 @@ function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </GlobalChatProvider>
     </AuthProvider>
   );
 }

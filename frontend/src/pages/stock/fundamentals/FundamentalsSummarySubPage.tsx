@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import ReactECharts from "echarts-for-react";
-import type { EChartsOption } from "echarts";
+import Plot from "react-plotly.js";
 import api from "../../../config/api";
 import { formatDateLabel, downloadFinancialsExcel } from "../../../config/financialsApi";
 import type { FinancialSummaryResponse, SummaryMetric } from "../../../types/financials";
@@ -17,6 +16,34 @@ const SECTION_ORDER = ["income_statement", "balance_sheet", "cash_flow"];
 
 type ChartMode = "value" | "yoy" | "qoq";
 
+const PLOTLY_LAYOUT_DEFAULTS: Partial<Plotly.Layout> = {
+  paper_bgcolor: "transparent",
+  plot_bgcolor: "transparent",
+  font: { family: "Inter", size: 11 },
+  hovermode: "x unified" as const,
+  margin: { l: 60, r: 8, t: 30, b: 30 },
+  xaxis: {
+    tickfont: { size: 10 },
+    showgrid: false,
+    showline: false,
+    zeroline: false,
+  },
+  yaxis: {
+    tickfont: { size: 10 },
+    showline: false,
+    gridcolor: "#e2e8f0",
+    griddash: "dash",
+    zeroline: false,
+  },
+};
+
+const PLOTLY_CONFIG: Partial<Plotly.Config> = {
+  displayModeBar: false,
+  responsive: true,
+};
+
+// Retained for potential use in custom Plotly tick formatting
+// @ts-expect-error TS6133 — kept for future use
 function formatAxisValue(value: number, formatType: string): string {
   if (formatType === "per_share") {
     return `$${value.toFixed(0)}`;
@@ -123,61 +150,52 @@ function MetricGrowthChart({
   growthLabel: string;
   metric: SummaryMetric;
 }) {
-  const option: EChartsOption = useMemo(() => ({
-    grid: { left: 50, right: 8, top: 30, bottom: 10, containLabel: false },
-    xAxis: {
-      type: "category",
-      data: data.map((d) => d.label),
-      axisLabel: { fontSize: 10 },
-      axisTick: { show: false },
-      axisLine: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      axisLabel: { fontSize: 10, formatter: (v: number) => `${v}%` },
-      axisTick: { show: false },
-      axisLine: { show: false },
-      splitLine: { lineStyle: { type: "dashed" as const, color: "#e2e8f0" } },
-    },
-    tooltip: {
-      trigger: "axis",
-      formatter: (params: unknown) => {
-        const items = Array.isArray(params) ? params : [params];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const first = items[0] as any;
-        const idx = first.dataIndex as number;
-        const entry = data[idx];
-        let html = `<div style="font-weight:600;margin-bottom:4px">${first.axisValue}</div>`;
-        html += `<div>${growthLabel} Growth: ${entry.growthVal != null ? `${entry.growthVal.toFixed(1)}%` : "\u2014"}</div>`;
-        html += `<div>Value: ${formatTooltipValue(entry.value, metric.format_type)}</div>`;
-        return html;
-      },
-    },
-    series: [{
+  const { plotData, layout } = useMemo(() => {
+    const labels = data.map((d) => d.label);
+    const growthVals = data.map((d) => d.growthVal);
+    const colors = data.map((d) => (d.growthVal >= 0 ? "#38a169" : "#e53e3e"));
+    const textLabels = data.map((d) => formatTooltipValue(d.value, metric.format_type));
+    const hoverTexts = data.map((d) => {
+      const growthStr = d.growthVal != null ? `${d.growthVal.toFixed(1)}%` : "\u2014";
+      const valueStr = formatTooltipValue(d.value, metric.format_type);
+      return `${growthLabel} Growth: ${growthStr}<br>Value: ${valueStr}`;
+    });
+
+    const trace: Plotly.Data = {
       type: "bar",
-      data: data.map((d) => ({
-        value: d.growthVal,
-        itemStyle: { color: d.growthVal >= 0 ? "#38a169" : "#e53e3e" },
-        label: {
-          show: true,
-          position: "top" as const,
-          fontSize: 8,
-          fontWeight: 500,
-          color: "#1a202c",
-          formatter: () => formatTooltipValue(d.value, metric.format_type),
-        },
-      })),
-      barMaxWidth: 40,
-      itemStyle: { borderRadius: [3, 3, 0, 0] },
-      markLine: {
-        silent: true,
-        symbol: "none",
-        lineStyle: { color: "#e2e8f0", width: 1 },
-        data: [{ yAxis: 0 }],
-        label: { show: false },
+      x: labels,
+      y: growthVals,
+      marker: { color: colors },
+      text: textLabels,
+      textposition: "outside" as const,
+      textfont: { size: 8, color: "#1a202c" },
+      hovertext: hoverTexts,
+      hoverinfo: "text" as const,
+    };
+
+    const chartLayout: Partial<Plotly.Layout> = {
+      ...PLOTLY_LAYOUT_DEFAULTS,
+      margin: { l: 50, r: 8, t: 30, b: 30 },
+      yaxis: {
+        ...PLOTLY_LAYOUT_DEFAULTS.yaxis,
+        ticksuffix: "%",
       },
-    }],
-  }), [data, growthLabel, metric.format_type]);
+      shapes: [
+        {
+          type: "line",
+          x0: 0,
+          x1: 1,
+          xref: "paper",
+          y0: 0,
+          y1: 0,
+          yref: "y",
+          line: { color: "#e2e8f0", width: 1 },
+        },
+      ],
+    };
+
+    return { plotData: [trace], layout: chartLayout };
+  }, [data, growthLabel, metric.format_type]);
 
   return (
     <div className="fundamentals-summary__card">
@@ -185,7 +203,13 @@ function MetricGrowthChart({
         {metric.label} — {growthLabel} Growth
       </div>
       <div className="fundamentals-summary__card-chart">
-        <ReactECharts option={option} style={{ height: "100%", width: "100%" }} notMerge />
+        <Plot
+          data={plotData}
+          layout={layout}
+          config={PLOTLY_CONFIG}
+          style={{ height: "100%", width: "100%" }}
+          useResizeHandler
+        />
       </div>
     </div>
   );
@@ -198,68 +222,67 @@ function MetricValueChart({
   data: ChartDataPoint[];
   metric: SummaryMetric;
 }) {
-  const option: EChartsOption = useMemo(() => ({
-    grid: { left: 60, right: 8, top: 30, bottom: 10, containLabel: false },
-    xAxis: {
-      type: "category",
-      data: data.map((d) => d.label),
-      axisLabel: { fontSize: 10 },
-      axisTick: { show: false },
-      axisLine: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      axisLabel: { fontSize: 10, formatter: (v: number) => formatAxisValue(v, metric.format_type) },
-      axisTick: { show: false },
-      axisLine: { show: false },
-      splitLine: { lineStyle: { type: "dashed" as const, color: "#e2e8f0" } },
-    },
-    tooltip: {
-      trigger: "axis",
-      formatter: (params: unknown) => {
-        const items = Array.isArray(params) ? params : [params];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const first = items[0] as any;
-        const idx = first.dataIndex as number;
-        const entry = data[idx];
-        let html = `<div style="font-weight:600;margin-bottom:4px">${first.axisValue}</div>`;
-        html += `<div>${metric.label}: ${formatTooltipValue(entry.value, metric.format_type)}</div>`;
-        return html;
-      },
-    },
-    series: [{
+  const { plotData, layout } = useMemo(() => {
+    const labels = data.map((d) => d.label);
+    const values = data.map((d) => d.value);
+    const colors = data.map((d) => (d.value < 0 ? "#e53e3e" : "#1a365d"));
+    const yoyLabels = data.map((d) => {
+      if (d.yoy === null || d.yoy === undefined) return "";
+      return `${d.yoy > 0 ? "+" : ""}${d.yoy.toFixed(1)}%`;
+    });
+    const yoyColors = data.map((d) => {
+      if (d.yoy == null) return "#718096";
+      return d.yoy > 0 ? "#38a169" : d.yoy < 0 ? "#e53e3e" : "#718096";
+    });
+    const hoverTexts = data.map((d) =>
+      `${metric.label}: ${formatTooltipValue(d.value, metric.format_type)}`
+    );
+
+    const trace: Plotly.Data = {
       type: "bar",
-      data: data.map((d) => ({
-        value: d.value,
-        itemStyle: { color: d.value < 0 ? "#e53e3e" : "#1a365d" },
-        label: {
-          show: true,
-          position: "top" as const,
-          fontSize: 9,
-          fontWeight: 500,
-          formatter: () => {
-            if (d.yoy === null || d.yoy === undefined) return "";
-            return `{growth|${d.yoy > 0 ? "+" : ""}${d.yoy.toFixed(1)}%}`;
-          },
-          rich: {
-            growth: {
-              fontSize: 9,
-              fontWeight: 500,
-              color: d.yoy != null ? (d.yoy > 0 ? "#38a169" : d.yoy < 0 ? "#e53e3e" : "#718096") : "#718096",
-            },
-          },
-        },
-      })),
-      barMaxWidth: 40,
-      itemStyle: { borderRadius: [3, 3, 0, 0] },
-    }],
-  }), [data, metric.label, metric.format_type]);
+      x: labels,
+      y: values,
+      marker: { color: colors },
+      text: yoyLabels,
+      textposition: "outside" as const,
+      textfont: { size: 9, color: yoyColors },
+      hovertext: hoverTexts,
+      hoverinfo: "text" as const,
+    };
+
+    const chartLayout: Partial<Plotly.Layout> = {
+      ...PLOTLY_LAYOUT_DEFAULTS,
+      yaxis: {
+        ...PLOTLY_LAYOUT_DEFAULTS.yaxis,
+        tickformat: "",
+        // Use custom tick formatting via tickvals/ticktext if needed
+        // For now rely on Plotly's auto-formatting with our axis formatter
+      },
+    };
+
+    // Apply custom y-axis tick formatting
+    // Plotly doesn't support arbitrary formatter functions, so we use tickprefix for currency
+    if (metric.format_type === "currency" || metric.format_type === "per_share") {
+      chartLayout.yaxis = {
+        ...chartLayout.yaxis,
+        tickprefix: "$",
+      };
+    }
+
+    return { plotData: [trace], layout: chartLayout };
+  }, [data, metric.label, metric.format_type]);
 
   return (
     <div className="fundamentals-summary__card">
       <div className="fundamentals-summary__card-title">{metric.label}</div>
       <div className="fundamentals-summary__card-chart">
-        <ReactECharts option={option} style={{ height: "100%", width: "100%" }} notMerge />
+        <Plot
+          data={plotData}
+          layout={layout}
+          config={PLOTLY_CONFIG}
+          style={{ height: "100%", width: "100%" }}
+          useResizeHandler
+        />
       </div>
     </div>
   );

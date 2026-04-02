@@ -1,0 +1,485 @@
+/* =========================================================================
+   Slash Command Menu
+   ========================================================================= */
+
+.slash-menu {
+  position: relative;
+  margin: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.slash-menu__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.slash-menu__header-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.slash-menu__dismiss {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.68rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.slash-menu__dismiss:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.slash-menu__list {
+  padding: 0.25rem 0;
+}
+
+.slash-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.slash-menu__item:hover,
+.slash-menu__item--selected {
+  background: var(--color-bg);
+}
+
+.slash-menu__item--selected {
+  border-left: 3px solid var(--color-primary);
+  padding-left: calc(0.75rem - 3px);
+}
+
+.slash-menu__item-icon {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+}
+
+.slash-menu__item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.slash-menu__item-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.slash-menu__item-name--mono {
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.82rem;
+}
+
+.slash-menu__item-desc {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slash-menu__item-badge {
+  flex-shrink: 0;
+  padding: 0.15rem 0.5rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.slash-menu__item-params-hint {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  color: var(--color-text-secondary);
+  opacity: 0.7;
+}
+
+.slash-menu__category {
+  padding: 0.35rem 0.75rem 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.slash-menu__category:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
+.slash-menu__empty {
+  padding: 1rem 0.75rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+}
+
+.slash-menu__loading {
+  padding: 1rem 0.75rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+}
+
+/* Help item */
+.slash-menu__item--help .slash-menu__item-icon--help {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: #eff6ff;
+  border-radius: 50%;
+}
+
+/* Tool detail view */
+.slash-menu__tool-detail {
+  padding: 0.75rem;
+}
+
+.slash-menu__tool-desc {
+  font-size: 0.82rem;
+  color: var(--color-text);
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+
+.slash-menu__param-req {
+  color: var(--color-error);
+  margin-left: 1px;
+}
+
+/* Tool form fields */
+.slash-menu__tool-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.slash-menu__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.slash-menu__field-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  color: var(--color-text);
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.slash-menu__field-type {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--color-primary);
+}
+
+.slash-menu__field-input,
+.slash-menu__field-select {
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.slash-menu__field-input:focus,
+.slash-menu__field-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.slash-menu__field-help {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+  line-height: 1.3;
+}
+
+/* Preview area */
+.slash-menu__preview {
+  margin: 0.6rem 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.slash-menu__preview-table-wrap {
+  overflow-x: auto;
+}
+
+.slash-menu__preview-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.75rem;
+}
+
+.slash-menu__preview-table th {
+  text-align: left;
+  padding: 0.35rem 0.55rem;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+}
+
+.slash-menu__preview-table td {
+  padding: 0.3rem 0.55rem;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.slash-menu__preview-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.slash-menu__preview-count {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+}
+
+.slash-menu__preview-chart-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.slash-menu__preview-error {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--color-error);
+  background: #fff5f5;
+  border: 1px solid var(--color-error);
+  border-radius: 4px;
+  margin: 0.5rem 0;
+}
+
+/* Loading skeleton */
+.slash-menu__preview-skeleton {
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.slash-menu__skeleton-row {
+  height: 12px;
+  background: var(--color-border);
+  border-radius: 3px;
+  animation: slash-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.slash-menu__skeleton-row--short {
+  width: 65%;
+}
+
+@keyframes slash-skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* =========================================================================
+   Inline param hints (Excel-style function signature)
+   ========================================================================= */
+
+.slash-menu--params {
+  max-height: none;
+  overflow: visible;
+}
+
+/* Function signature bar: tool_name( param1*, param2*, param3 ) */
+.slash-param-sig {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 0.45rem 0.75rem;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.slash-param-sig__name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.slash-param-sig__comma {
+  color: var(--color-text-secondary);
+}
+
+.slash-param-sig__param {
+  color: var(--color-text-secondary);
+}
+
+.slash-param-sig__param--active {
+  color: var(--color-primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+}
+
+.slash-param-sig__param--filled {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.slash-param-sig__param--missing {
+  color: var(--color-error);
+  opacity: 0.7;
+}
+
+.slash-param-sig__req {
+  color: var(--color-error);
+  font-weight: 400;
+}
+
+.slash-param-sig .slash-menu__dismiss {
+  margin-left: auto;
+}
+
+/* Current param detail line */
+.slash-param-detail {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+}
+
+.slash-param-detail__label {
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.slash-param-detail__req {
+  color: var(--color-error);
+  font-weight: 500;
+  font-size: 0.7rem;
+}
+
+.slash-param-detail__opt {
+  color: var(--color-text-secondary);
+  font-weight: 400;
+  font-size: 0.7rem;
+  font-style: italic;
+}
+
+.slash-param-detail__type {
+  font-size: 0.7rem;
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.slash-param-detail__desc {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+/* Enum options as clickable chips */
+.slash-param-enum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.35rem 0.75rem 0.5rem;
+}
+
+.slash-param-enum__item {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.75rem;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color 0.1s, background-color 0.1s;
+}
+
+.slash-param-enum__item:hover,
+.slash-param-enum__item--selected {
+  border-color: var(--color-primary);
+  background: #eff6ff;
+  color: var(--color-primary);
+}
+
+/* Slash mode input styling */
+.chat-page__input-area--slash {
+  border-top-color: var(--color-primary);
+}
+
+.chat-page__textarea--slash {
+  background: var(--color-bg);
+  border-left: 3px solid var(--color-primary);
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.85rem;
+}
+
+/* Ghost text below input */
+.chat-page__ghost-text {
+  padding: 0 1rem 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  opacity: 0.7;
+  font-style: italic;
+}

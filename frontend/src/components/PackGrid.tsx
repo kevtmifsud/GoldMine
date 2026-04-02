@@ -1,5 +1,8 @@
+import { useMemo } from "react";
 import type { PackEditorState } from "../hooks/usePackEditor";
+import type { MCPTileRef } from "../types/entities";
 import { WidgetContainer } from "./WidgetContainer";
+import { MCPTileContainer } from "./MCPTileContainer";
 import { EntityPicker } from "./EntityPicker";
 import "../styles/packs.css";
 
@@ -9,6 +12,7 @@ interface PackGridProps {
 
 export function PackGrid({ editor }: PackGridProps) {
   const {
+    pack,
     rowColumns,
     rowHeights,
     rowDescriptions,
@@ -39,7 +43,18 @@ export function PackGrid({ editor }: PackGridProps) {
     setPickedEntity,
     setEditingTitle,
     getWidgetTitle,
+    removeMCPTile,
+    updateMCPTileTitle,
   } = editor;
+
+  // Build MCP tile lookup: "row-col" → MCPTileRef
+  const mcpTileMap = useMemo(() => {
+    const map: Record<string, MCPTileRef> = {};
+    for (const tile of pack?.mcp_tiles || []) {
+      map[`${tile.row}-${tile.col}`] = tile;
+    }
+    return map;
+  }, [pack?.mcp_tiles]);
 
   const MAX_ROWS = 15;
   const MAX_COLS = 3;
@@ -196,6 +211,37 @@ export function PackGrid({ editor }: PackGridProps) {
                             <WidgetContainer config={resolved} entityId={widgetRef.source_entity_id} />
                           </div>
                         )}
+                      </div>
+                    );
+                  }
+
+                  // MCP tile cell
+                  const mcpTile = mcpTileMap[key];
+                  if (mcpTile) {
+                    return (
+                      <div
+                        key={key}
+                        className={
+                          "pack-builder__cell pack-builder__cell--filled" +
+                          (isDragOver ? " pack-builder__cell--drag-over" : "")
+                        }
+                      >
+                        <MCPTileContainer
+                          tile={mcpTile}
+                          packId={pack!.pack_id}
+                          isOwner={isOwner}
+                          onRemove={
+                            isOwner
+                              ? () => removeMCPTile(mcpTile.tile_id)
+                              : undefined
+                          }
+                          onTitleChange={
+                            isOwner
+                              ? (title) =>
+                                  updateMCPTileTitle(mcpTile.tile_id, title)
+                              : undefined
+                          }
+                        />
                       </div>
                     );
                   }

@@ -72,6 +72,8 @@ export interface PackEditorState {
   setEditingTitle: React.Dispatch<React.SetStateAction<string | null>>;
   setDragOverCell: React.Dispatch<React.SetStateAction<string | null>>;
   getWidgetTitle: (ref: PackWidgetRef) => string;
+  removeMCPTile: (tileId: string) => void;
+  updateMCPTileTitle: (tileId: string, title: string) => void;
 }
 
 export function usePackEditor(
@@ -152,6 +154,7 @@ export function usePackEditor(
           row_columns: cols,
           row_heights: heights,
           row_descriptions: descs,
+          mcp_tiles: pack?.mcp_tiles,
         });
         setPack(updated);
         setDirty(false);
@@ -161,7 +164,7 @@ export function usePackEditor(
         setSaving(false);
       }
     },
-    [packId]
+    [packId, pack?.mcp_tiles]
   );
 
   const handleSave = () => {
@@ -477,6 +480,36 @@ export function usePackEditor(
     return resolved?.title || ref.widget_id;
   };
 
+  const removeMCPTile = useCallback(
+    (tileId: string) => {
+      setPack((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          mcp_tiles: (prev.mcp_tiles || []).filter((t) => t.tile_id !== tileId),
+        };
+      });
+      setDirty(true);
+    },
+    [],
+  );
+
+  const updateMCPTileTitle = useCallback(
+    (tileId: string, title: string) => {
+      setPack((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          mcp_tiles: (prev.mcp_tiles || []).map((t) =>
+            t.tile_id === tileId ? { ...t, title_override: title } : t,
+          ),
+        };
+      });
+      setDirty(true);
+    },
+    [],
+  );
+
   return {
     pack,
     loading,
@@ -521,5 +554,7 @@ export function usePackEditor(
     setEditingTitle,
     setDragOverCell,
     getWidgetTitle,
+    removeMCPTile,
+    updateMCPTileTitle,
   };
 }

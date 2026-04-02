@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import type { ParsedCitation } from "../../utils/citationParser";
 
 interface CitationLinkProps {
@@ -37,37 +37,29 @@ function DocumentIcon() {
   );
 }
 
-function ChartIcon() {
-  return (
-    <svg className="chat-citation__icon" width="14" height="14" viewBox="0 0 24 24"
-      fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="20" x2="18" y2="10" />
-      <line x1="12" y1="20" x2="12" y2="4" />
-      <line x1="6" y1="20" x2="6" y2="14" />
-    </svg>
-  );
-}
+/** Citation types for structured database data — these link nowhere useful. */
+const SUPPRESSED_TYPES = new Set(["estimate", "financial", "alt_data", "unknown"]);
 
 export function CitationLink({ citation, onClick }: CitationLinkProps) {
-  const [active, setActive] = useState(false);
+  // Suppress citations for structured data — they add visual clutter
+  // with no actionable link. The source is shown inline in tables.
+  if (SUPPRESSED_TYPES.has(citation.citationType)) {
+    return null;
+  }
+
   const label = getCitationLabel(citation);
-  const isEstimate = citation.citationType === "estimate";
 
   const handleClick = useCallback(() => {
     onClick(citation);
-    if (isEstimate) {
-      setActive(true);
-      setTimeout(() => setActive(false), 500);
-    }
-  }, [citation, onClick, isEstimate]);
+  }, [citation, onClick]);
 
   return (
     <button
-      className={`chat-citation${active ? " chat-citation--active" : ""}`}
+      className="chat-citation"
       onClick={handleClick}
       title={label}
     >
-      {isEstimate ? <ChartIcon /> : <DocumentIcon />}
+      <DocumentIcon />
       <span className="chat-citation__text">{label}</span>
     </button>
   );

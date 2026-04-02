@@ -161,12 +161,14 @@
 }
 
 .portfolios-page__chart-section {
-  flex: 1;
+  width: calc(50% - 0.5rem);
+  flex: none;
   min-width: 0;
   padding: 1.25rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
+  overflow: hidden;
 }
 
 .portfolios-page__chart-header {

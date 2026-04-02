@@ -26,7 +26,7 @@ from .models import (
     ClassifiedQuery,
     QALibraryEntry,
 )
-from .steps import StepCollector
+from .steps import StepCollector, format_sql
 
 logger = logging.getLogger(__name__)
 
@@ -242,13 +242,7 @@ async def _vector_search(
             source="supabase",
             duration_ms=search_duration_ms,
             result_summary=f"{len(results)} chunks found",
-            query=(
-                f"Vector search: doc_types={doc_types} "
-                f"tickers={tickers[:3]}{'...' if len(tickers) > 3 else ''} "
-                f"limit_per_ticker={limit_per_ticker}"
-                + (f" section_type={section_type}" if section_type else "")
-                + (f" fiscal_periods={fiscal_periods}" if fiscal_periods else "")
-            ),
+            query=format_sql(query, params),
         )
     return results
 
@@ -282,14 +276,12 @@ async def _structured_query(
     if not metrics:
         metrics = ["total_revenue", "gross_profit", "operating_income", "net_income", "diluted_eps"]
 
-    async with get_conn() as conn:
-        rows = await conn.fetch(
-            """SELECT metric_name, period_end, period_type, value
+    metrics_sql = """SELECT metric_name, period_end, period_type, value
                FROM financial_metrics
                WHERE ticker = $1 AND metric_name = ANY($2)
-               ORDER BY period_end DESC LIMIT 50""",
-            ticker, metrics,
-        )
+               ORDER BY period_end DESC LIMIT 50"""
+    async with get_conn() as conn:
+        rows = await conn.fetch(metrics_sql, ticker, metrics)
 
     results = [dict(r) for r in rows]
 
@@ -301,12 +293,7 @@ async def _structured_query(
             source="supabase",
             duration_ms=structured_duration_ms,
             result_summary=f"{len(results)} rows",
-            query=(
-                f"SELECT metric_name, period_end, period_type, value "
-                f"FROM financial_metrics "
-                f"WHERE ticker = '{ticker}' AND metric_name IN {tuple(metrics[:5])}{'...' if len(metrics) > 5 else ''} "
-                f"ORDER BY period_end DESC LIMIT 50"
-            ),
+            query=format_sql(metrics_sql, [ticker, metrics]),
         )
     return results
 
@@ -352,241 +339,222 @@ _METRIC_ALIASES: dict[str, str] = {
 }
 
 
-_SCREENING_THRESHOLD = 20  # Switch to aggregated query above this many tickers
-
-
 async def _query_estimates(
     tickers: list[str],
-    classified: ClassifiedQuery,
+    metrics: list[str] | None = None,
+    periods: list[str] | None = None,
+    sources: list[str] | None = None,
     steps: StepCollector | None = None,
-    metric: str | None = None,
 ) -> list[dict]:
-    """Query daily_estimates for all four sources.
+    """Unified estimates query — always returns individual rows, never aggregates.
 
-    For ≤20 tickers: returns full detail rows.
-    For >20 tickers (or empty = all): returns server-side aggregated summary
-    per ticker/metric/period with one value per source, keeping the result
-    compact enough for the LLM.
+    One row per source/firm/analyst. Enriched with YoY vs prior year actual.
     """
+    if not tickers:
+        return []
+
     t0 = time.time()
 
-    # Resolve common aliases to actual column values
-    if metric:
-        metric = _METRIC_ALIASES.get(metric.lower(), metric)
+    # Resolve metric aliases
+    resolved_metrics: list[str] | None = None
+    if metrics:
+        resolved_metrics = [_METRIC_ALIASES.get(m.lower(), m) for m in metrics]
 
-    logger.info("query_estimates_start tickers=%s fiscal_periods=%s metric=%s",
-                tickers, classified.fiscal_periods, metric)
+    conditions = ["ticker = ANY($1)"]
+    params: list = [tickers]
+    idx = 2
 
-    use_screening = not tickers or len(tickers) > _SCREENING_THRESHOLD
+    if resolved_metrics:
+        conditions.append(f"metric = ANY(${idx})")
+        params.append(resolved_metrics)
+        idx += 1
 
-    if use_screening:
-        results, display_query = await _query_estimates_screening(
-            tickers, classified, metric,
-        )
-    else:
-        results, display_query = await _query_estimates_detail(
-            tickers, classified, metric,
-        )
-
-    duration_ms = int((time.time() - t0) * 1000)
-    logger.info("query_estimates_done tickers=%s rows=%d duration_ms=%d",
-                tickers, len(results), duration_ms)
-
-    if steps:
-        steps.add(
-            label="Fetching estimates",
-            detail=f"daily_estimates ({len(results)} rows{', screening mode' if use_screening else ''})",
-            source="supabase",
-            duration_ms=duration_ms,
-            result_summary=f"{len(results)} estimate rows",
-            query=display_query,
-        )
-    return results
-
-
-async def _query_estimates_detail(
-    tickers: list[str],
-    classified: ClassifiedQuery,
-    metric: str | None,
-) -> tuple[list[dict], str]:
-    """Full detail rows for a small number of tickers."""
-    extra_clauses = ""
-    params: list = [tickers, tickers]
-    idx = 3
-    if classified.fiscal_periods:
-        normalized = [_normalize_estimate_period(p) for p in classified.fiscal_periods]
-        extra_clauses += f" AND period = ANY(${idx})"
+    if periods:
+        normalized = [_normalize_estimate_period(p) for p in periods]
+        conditions.append(f"period = ANY(${idx})")
         params.append(normalized)
         idx += 1
-    if metric:
-        extra_clauses += f" AND LOWER(metric) = LOWER(${idx})"
-        params.append(metric)
+
+    if sources:
+        conditions.append(f"source = ANY(${idx})")
+        params.append(sources)
         idx += 1
 
-    sql = f"""SELECT
+    # Most recent as_of_date per ticker/metric/period/source/firm/analyst
+    conditions.append(
+        "as_of_date = ("
+        "  SELECT MAX(de2.as_of_date)"
+        "  FROM daily_estimates de2"
+        "  WHERE de2.ticker = daily_estimates.ticker"
+        "    AND de2.metric = daily_estimates.metric"
+        "    AND de2.period = daily_estimates.period"
+        "    AND de2.source = daily_estimates.source"
+        "    AND COALESCE(de2.firm, '') = COALESCE(daily_estimates.firm, '')"
+        "    AND COALESCE(de2.analyst_name, '') = COALESCE(daily_estimates.analyst_name, '')"
+        ")"
+    )
+
+    where = " AND ".join(conditions)
+
+    estimates_sql = f"""SELECT
                     ticker, metric, period,
                     period_start_date, period_end_date,
                     source, firm, analyst_name,
-                    analyst_person_id,
                     value, unit,
                     estimate_date, as_of_date,
                     staleness_days
                 FROM daily_estimates
-                WHERE ticker = ANY($1)
-                {extra_clauses}
-                AND as_of_date = (
-                    SELECT MAX(as_of_date)
-                    FROM daily_estimates
-                    WHERE ticker = ANY($2)
+                WHERE {where}
+                ORDER BY ticker, metric, period,
+                    source, firm, analyst_name NULLS LAST"""
+
+    async with get_conn() as conn:
+        estimate_rows = await conn.fetch(estimates_sql, *params)
+
+        if not estimate_rows:
+            duration_ms = int((time.time() - t0) * 1000)
+            if steps:
+                steps.add(
+                    label="Fetching estimates",
+                    detail="daily_estimates: 0 rows",
+                    source="supabase",
+                    duration_ms=duration_ms,
+                    result_summary="0 estimate rows",
+                    query=format_sql(estimates_sql, params),
                 )
-                ORDER BY ticker, metric, period, source, firm,
-                    analyst_name"""
+            return []
 
-    async with get_conn() as conn:
-        rows = await conn.fetch(sql, *params)
+        # Get prior year actuals for YoY enrichment — split by period type
+        unique_tickers = list({r["ticker"] for r in estimate_rows})
+        unique_metrics = list({r["metric"] for r in estimate_rows})
 
-    results = [dict(r) | {"_table": "daily_estimates"} for r in rows]
+        # 1) Annual actuals: all annual actuals per ticker+metric (keyed by year)
+        #    so 2027A estimate looks up 2026 actual, 2026A looks up 2025, etc.
+        annual_actual_rows = await conn.fetch(
+            """SELECT ticker, metric_name, value, period_end,
+                      EXTRACT(YEAR FROM period_end)::int AS fiscal_year
+               FROM financial_metrics
+               WHERE ticker = ANY($1)
+                 AND metric_name = ANY($2)
+                 AND period_type = 'annual'
+                 AND value IS NOT NULL
+               ORDER BY ticker, metric_name, period_end DESC""",
+            unique_tickers,
+            unique_metrics,
+        )
 
-    # Build full display query
-    ticker_list = ", ".join(f"'{t}'" for t in tickers)
-    display_query = (
-        f"SELECT ticker, metric, period, period_start_date, period_end_date, "
-        f"source, firm, analyst_name, analyst_person_id, value, unit, "
-        f"estimate_date, as_of_date, staleness_days "
-        f"FROM daily_estimates "
-        f"WHERE ticker IN ({ticker_list})"
-    )
-    if metric:
-        display_query += f" AND LOWER(metric) = LOWER('{metric}')"
-    if classified.fiscal_periods:
-        normalized = [_normalize_estimate_period(p) for p in classified.fiscal_periods]
-        period_list = ", ".join(f"'{p}'" for p in normalized)
-        display_query += f" AND period IN ({period_list})"
-    display_query += (
-        f" AND as_of_date = (SELECT MAX(as_of_date) FROM daily_estimates "
-        f"WHERE ticker IN ({ticker_list}))"
-        f" ORDER BY ticker, metric, period, source, firm, analyst_name"
-    )
-    return results, display_query
+        # 2) Quarterly actuals: same quarter one year prior for each quarterly estimate
+        #    Collect unique (ticker, metric, prior_year_start, prior_year_end) windows
+        from datetime import date as date_type
+        quarterly_windows: list[tuple[str, str, date_type, date_type]] = []
+        for r in estimate_rows:
+            if "Q" in r["period"] and r["period_start_date"] and r["period_end_date"]:
+                psd = r["period_start_date"]
+                ped = r["period_end_date"]
+                # Ensure we have date objects for asyncpg
+                if isinstance(psd, str):
+                    psd = date_type.fromisoformat(psd)
+                if isinstance(ped, str):
+                    ped = date_type.fromisoformat(ped)
+                quarterly_windows.append((r["ticker"], r["metric"], psd, ped))
 
+        quarterly_actual_rows: list = []
+        if quarterly_windows:
+            # Build a VALUES table of (ticker, metric, prior_start, prior_end) and join
+            # Use a single query with unnest for efficiency
+            q_tickers = [w[0] for w in quarterly_windows]
+            q_metrics = [w[1] for w in quarterly_windows]
+            q_starts = [w[2] for w in quarterly_windows]
+            q_ends = [w[3] for w in quarterly_windows]
 
-async def _query_estimates_screening(
-    tickers: list[str],
-    classified: ClassifiedQuery,
-    metric: str | None,
-) -> tuple[list[dict], str]:
-    """Aggregated summary for screening across many tickers.
-
-    Returns one row per (ticker, metric, period) with columns for each
-    source's value, plus the spread between internal and consensus.
-    When tickers is empty, queries the entire universe (no ticker filter).
-    """
-    where_parts: list[str] = []
-    params: list = []
-    idx = 1
-
-    if tickers:
-        where_parts.append(f"ticker = ANY(${idx})")
-        params.append(tickers)
-        idx += 1
-    if classified.fiscal_periods:
-        normalized = [_normalize_estimate_period(p) for p in classified.fiscal_periods]
-        where_parts.append(f"period = ANY(${idx})")
-        params.append(normalized)
-        idx += 1
-    if metric:
-        where_parts.append(f"LOWER(metric) = LOWER(${idx})")
-        params.append(metric)
-        idx += 1
-
-    where_clause = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
-
-    # as_of_date subquery uses same ticker filter if present
-    if tickers:
-        as_of_sub = f"SELECT MAX(as_of_date) FROM daily_estimates WHERE ticker = ANY($1)"
-    else:
-        as_of_sub = "SELECT MAX(as_of_date) FROM daily_estimates"
-
-    sql = f"""WITH latest AS (
-                SELECT ticker, metric, period,
-                       source, firm, analyst_name, value,
-                       staleness_days, as_of_date
-                FROM daily_estimates
-                {where_clause}
-                {"AND" if where_parts else "WHERE"} as_of_date = ({as_of_sub})
+            quarterly_actual_rows = await conn.fetch(
+                """SELECT DISTINCT ON (w.ticker, w.metric, w.prior_start)
+                          w.ticker, w.metric, fm.value, fm.period_end,
+                          w.prior_start, w.prior_end
+                   FROM unnest($1::text[], $2::text[], $3::date[], $4::date[])
+                        AS w(ticker, metric, prior_start, prior_end)
+                   JOIN financial_metrics fm
+                     ON fm.ticker = w.ticker
+                    AND fm.metric_name = w.metric
+                    AND fm.period_type = 'quarterly'
+                    AND fm.period_end BETWEEN (w.prior_start - INTERVAL '1 year')
+                                         AND (w.prior_end - INTERVAL '1 year')
+                    AND fm.value IS NOT NULL
+                   ORDER BY w.ticker, w.metric, w.prior_start, fm.period_end DESC""",
+                q_tickers, q_metrics, q_starts, q_ends,
             )
-            SELECT
-                ticker, metric, period,
-                MAX(CASE WHEN source = 'consensus' THEN value END) AS consensus_value,
-                MAX(CASE WHEN source = 'internal' THEN value END) AS internal_value,
-                AVG(CASE WHEN source = 'buyside' THEN value END) AS buyside_avg_value,
-                AVG(CASE WHEN source = 'sellside' THEN value END) AS sellside_avg_value,
-                COUNT(CASE WHEN source = 'buyside' THEN 1 END) AS buyside_count,
-                COUNT(CASE WHEN source = 'sellside' THEN 1 END) AS sellside_count,
-                MAX(CASE WHEN source = 'consensus' THEN staleness_days END) AS consensus_staleness,
-                MAX(CASE WHEN source = 'internal' THEN staleness_days END) AS internal_staleness,
-                MAX(as_of_date) AS as_of_date,
-                CASE
-                    WHEN MAX(CASE WHEN source = 'internal' THEN value END) IS NOT NULL
-                     AND MAX(CASE WHEN source = 'consensus' THEN value END) IS NOT NULL
-                    THEN MAX(CASE WHEN source = 'internal' THEN value END)
-                       - MAX(CASE WHEN source = 'consensus' THEN value END)
-                END AS internal_vs_consensus_spread
-            FROM latest
-            GROUP BY ticker, metric, period
-            ORDER BY ABS(CASE
-                    WHEN MAX(CASE WHEN source = 'internal' THEN value END) IS NOT NULL
-                     AND MAX(CASE WHEN source = 'consensus' THEN value END) IS NOT NULL
-                    THEN MAX(CASE WHEN source = 'internal' THEN value END)
-                       - MAX(CASE WHEN source = 'consensus' THEN value END)
-                END) DESC NULLS LAST,
-                ticker, metric, period"""
 
-    async with get_conn() as conn:
-        rows = await conn.fetch(sql, *params)
+    # Build actual lookups
+    # Annual: (ticker, metric, fiscal_year) -> (value, period_end)
+    annual_actuals: dict[tuple[str, str, int], tuple[float, str]] = {}
+    for a in annual_actual_rows:
+        key = (a["ticker"], a["metric_name"], a["fiscal_year"])
+        if key not in annual_actuals:  # first row per key is most recent
+            annual_actuals[key] = (float(a["value"]), str(a["period_end"]))
 
-    results = [dict(r) | {"_table": "daily_estimates", "_mode": "screening"} for r in rows]
+    # Quarterly: (ticker, metric, period_start_str) -> (value, period_end)
+    quarterly_actuals: dict[tuple[str, str, str], tuple[float, str]] = {}
+    for a in quarterly_actual_rows:
+        quarterly_actuals[(a["ticker"], a["metric"], str(a["prior_start"]))] = (
+            float(a["value"]),
+            str(a["period_end"]),
+        )
 
-    # Build full display query for UI
-    display_where: list[str] = []
-    if tickers:
-        ticker_list = ", ".join(f"'{t}'" for t in tickers)
-        display_where.append(f"ticker IN ({ticker_list})")
-    if metric:
-        display_where.append(f"LOWER(metric) = LOWER('{metric}')")
-    if classified.fiscal_periods:
-        normalized = [_normalize_estimate_period(p) for p in classified.fiscal_periods]
-        period_list = ", ".join(f"'{p}'" for p in normalized)
-        display_where.append(f"period IN ({period_list})")
+    # Enrich results with YoY
+    results: list[dict] = []
+    for row in estimate_rows:
+        r = dict(row) | {"_table": "daily_estimates"}
+        ticker_metric = (r["ticker"], r["metric"])
 
-    display_where_clause = (" WHERE " + " AND ".join(display_where)) if display_where else ""
-    as_of_display = f"SELECT MAX(as_of_date) FROM daily_estimates"
-    if tickers:
-        as_of_display += f" WHERE ticker IN ({ticker_list})"
+        actual_val: float | None = None
+        actual_period: str | None = None
 
-    display_query = (
-        f"WITH latest AS ("
-        f"SELECT ticker, metric, period, source, firm, analyst_name, value, "
-        f"staleness_days, as_of_date "
-        f"FROM daily_estimates"
-        f"{display_where_clause}"
-        f" {'AND' if display_where else 'WHERE'} as_of_date = ({as_of_display})) "
-        f"SELECT ticker, metric, period, "
-        f"MAX(CASE WHEN source = 'consensus' THEN value END) AS consensus_value, "
-        f"MAX(CASE WHEN source = 'internal' THEN value END) AS internal_value, "
-        f"AVG(CASE WHEN source = 'buyside' THEN value END) AS buyside_avg_value, "
-        f"AVG(CASE WHEN source = 'sellside' THEN value END) AS sellside_avg_value, "
-        f"COUNT(CASE WHEN source = 'buyside' THEN 1 END) AS buyside_count, "
-        f"COUNT(CASE WHEN source = 'sellside' THEN 1 END) AS sellside_count, "
-        f"MAX(CASE WHEN source = 'consensus' THEN staleness_days END) AS consensus_staleness, "
-        f"MAX(CASE WHEN source = 'internal' THEN staleness_days END) AS internal_staleness, "
-        f"MAX(as_of_date) AS as_of_date, "
-        f"(MAX(CASE WHEN source = 'internal' THEN value END) "
-        f"- MAX(CASE WHEN source = 'consensus' THEN value END)) AS internal_vs_consensus_spread "
-        f"FROM latest GROUP BY ticker, metric, period "
-        f"ORDER BY ABS(internal_vs_consensus_spread) DESC NULLS LAST, ticker, metric, period"
-    )
-    return results, display_query
+        if "Q" in r["period"] and r["period_start_date"]:
+            # Quarterly: look up same quarter prior year
+            qkey = (r["ticker"], r["metric"], str(r["period_start_date"]))
+            q_actual = quarterly_actuals.get(qkey)
+            if q_actual:
+                actual_val, actual_period = q_actual
+        elif r["period"].endswith("A"):
+            # Annual: look up prior year actual (2027A → 2026 actual)
+            import re as _re
+            year_match = _re.search(r"\d{4}", r["period"])
+            if year_match:
+                est_year = int(year_match.group())
+                a_actual = annual_actuals.get((r["ticker"], r["metric"], est_year - 1))
+                if a_actual:
+                    actual_val, actual_period = a_actual
+
+        if actual_val and actual_val > 0:
+            r["prior_year_actual"] = actual_val
+            r["prior_year_period"] = actual_period
+            est_val = float(r["value"]) if r["value"] is not None else None
+            if est_val is not None:
+                r["yoy_vs_actual"] = round((est_val / actual_val - 1) * 100, 1)
+            else:
+                r["yoy_vs_actual"] = None
+        else:
+            r["prior_year_actual"] = None
+            r["prior_year_period"] = None
+            r["yoy_vs_actual"] = None
+
+        results.append(r)
+
+    duration_ms = int((time.time() - t0) * 1000)
+
+    if steps:
+        n_tickers = len({r["ticker"] for r in results})
+        n_sources = len({r["source"] for r in results})
+        steps.add(
+            label="Fetching estimates",
+            detail=f"daily_estimates: {n_tickers} ticker(s), {len(results)} rows, {n_sources} sources",
+            source="supabase",
+            duration_ms=duration_ms,
+            result_summary=f"{len(results)} estimate rows",
+            query=format_sql(estimates_sql, params),
+        )
+
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -770,7 +738,7 @@ async def _query_daily_pnl(
             source="supabase",
             duration_ms=duration_ms,
             result_summary=f"{len(results)} rows",
-            query=sql.strip()[:300],
+            query=format_sql(sql, params),
         )
     return results
 
@@ -805,17 +773,15 @@ async def _query_portfolio_concentration(
 
     where = " AND ".join(conditions)
     portfolio_order = "" if norm_portfolio else "portfolio, "
-    async with get_conn() as conn:
-        rows = await conn.fetch(
-            f"""SELECT date, ticker, portfolio, side, sector, industry,
+    concentration_sql = f"""SELECT date, ticker, portfolio, side, sector, industry,
                        position_weight, sector_weight, industry_weight,
                        is_market_neutral_compliant
                 FROM portfolio_concentration
                 WHERE {where}
                 ORDER BY {portfolio_order}position_weight DESC
-                LIMIT 200""",
-            *params,
-        )
+                LIMIT 200"""
+    async with get_conn() as conn:
+        rows = await conn.fetch(concentration_sql, *params)
     results = [dict(r) | {"_table": "portfolio_concentration"} for r in rows]
     duration_ms = int((time.time() - t0) * 1000)
     if steps:
@@ -825,6 +791,7 @@ async def _query_portfolio_concentration(
             source="supabase",
             duration_ms=duration_ms,
             result_summary=f"{len(results)} rows",
+            query=format_sql(concentration_sql, params),
         )
     return results
 
@@ -859,16 +826,14 @@ async def _query_portfolio_risk(
 
     where = " AND ".join(conditions)
     portfolio_order = "" if norm_portfolio else "portfolio, "
-    async with get_conn() as conn:
-        rows = await conn.fetch(
-            f"""SELECT date, ticker, portfolio, side, sector,
+    risk_sql = f"""SELECT date, ticker, portfolio, side, sector,
                        beta, weighted_beta_contribution
                 FROM portfolio_risk
                 WHERE {where}
                 ORDER BY {portfolio_order}weighted_beta_contribution DESC
-                LIMIT 200""",
-            *params,
-        )
+                LIMIT 200"""
+    async with get_conn() as conn:
+        rows = await conn.fetch(risk_sql, *params)
     results = [dict(r) | {"_table": "portfolio_risk"} for r in rows]
     duration_ms = int((time.time() - t0) * 1000)
     if steps:
@@ -878,29 +843,59 @@ async def _query_portfolio_risk(
             source="supabase",
             duration_ms=duration_ms,
             result_summary=f"{len(results)} rows",
+            query=format_sql(risk_sql, params),
         )
     return results
 
 
 async def _query_trade_requests(
-    tickers: list[str],
-    classified: ClassifiedQuery,
+    tickers: list[str] | None = None,
+    classified: ClassifiedQuery | None = None,
     steps: StepCollector | None = None,
+    ticker: str | None = None,
+    status: str | None = None,
+    portfolio: str | None = None,
+    limit: int = 50,
 ) -> list[dict]:
-    """Query trade_requests for tickers, most recent first."""
-    if not tickers:
-        return []
+    """Query trade_requests with flexible filtering, most recent first."""
     t0 = time.time()
-    async with get_conn() as conn:
-        rows = await conn.fetch(
-            """SELECT ticker, side, quantity, order_type, limit_price, status,
-                      portfolio, created_at, updated_at
+
+    conditions: list[str] = []
+    params: list = []
+    idx = 1
+
+    # Support both tickers list and single ticker
+    effective_tickers = tickers or []
+    if ticker and ticker not in effective_tickers:
+        effective_tickers = [ticker.upper()]
+
+    if effective_tickers:
+        conditions.append(f"ticker = ANY(${idx})")
+        params.append(effective_tickers)
+        idx += 1
+
+    if status:
+        conditions.append(f"status = ${idx}")
+        params.append(status)
+        idx += 1
+
+    if portfolio:
+        conditions.append(f"portfolio = ${idx}")
+        params.append(portfolio)
+        idx += 1
+
+    where = "WHERE " + " AND ".join(conditions) if conditions else ""
+
+    trade_sql = f"""SELECT ticker, portfolio, action, side, target_pct, status,
+                      created_at, executed_at
                FROM trade_requests
-               WHERE ticker = ANY($1)
+               {where}
                ORDER BY created_at DESC
-               LIMIT 20""",
-            tickers,
-        )
+               LIMIT ${idx}"""
+    params.append(limit)
+
+    async with get_conn() as conn:
+        rows = await conn.fetch(trade_sql, *params)
     results = [dict(r) | {"_table": "trade_requests"} for r in rows]
     duration_ms = int((time.time() - t0) * 1000)
     if steps:
@@ -910,6 +905,7 @@ async def _query_trade_requests(
             source="supabase",
             duration_ms=duration_ms,
             result_summary=f"{len(results)} rows",
+            query=format_sql(trade_sql, params),
         )
     return results
 
@@ -928,17 +924,15 @@ async def _query_guidance(
     if classified.fiscal_periods:
         period_clause = " AND period = ANY($2)"
         params.append(classified.fiscal_periods)
-    async with get_conn() as conn:
-        rows = await conn.fetch(
-            f"""SELECT ticker, metric, period,
+    guidance_sql = f"""SELECT ticker, metric, period,
                        value, unit, guidance_type,
                        source, issued_date
                 FROM guidance
                 WHERE ticker = ANY($1){period_clause}
                 ORDER BY issued_date DESC
-                LIMIT 50""",
-            *params,
-        )
+                LIMIT 50"""
+    async with get_conn() as conn:
+        rows = await conn.fetch(guidance_sql, *params)
     results = [dict(r) | {"_table": "guidance"} for r in rows]
     duration_ms = int((time.time() - t0) * 1000)
     if steps:
@@ -948,11 +942,7 @@ async def _query_guidance(
             source="supabase",
             duration_ms=duration_ms,
             result_summary=f"{len(results)} rows",
-            query=(
-                f"SELECT ticker, metric, period, value, unit, guidance_type, source, issued_date "
-                f"FROM guidance WHERE ticker IN {tuple(tickers)} "
-                f"ORDER BY issued_date DESC LIMIT 50"
-            ),
+            query=format_sql(guidance_sql, params),
         )
     return results
 
@@ -1028,6 +1018,7 @@ async def _query_alt_data(
             source="supabase",
             duration_ms=duration_ms,
             result_summary=summary or f"{len(results)} rows",
+            query=format_sql(query, params),
         )
     return results
 
@@ -1047,17 +1038,15 @@ async def _query_model_outputs(
     if not tickers:
         return []
     t0 = time.time()
-    async with get_conn() as conn:
-        rows = await conn.fetch(
-            """SELECT DISTINCT ON (ticker, sheet, metric, period, scenario)
+    model_sql = """SELECT DISTINCT ON (ticker, sheet, metric, period, scenario)
                       ticker, sheet, metric, period, scenario,
                       value, unit, version, as_of_date, created_by, created_at
                FROM model_outputs
                WHERE ticker = ANY($1)
                ORDER BY ticker, sheet, metric, period, scenario, as_of_date DESC
-               LIMIT 500""",
-            tickers,
-        )
+               LIMIT 500"""
+    async with get_conn() as conn:
+        rows = await conn.fetch(model_sql, tickers)
     results = [dict(r) | {"_table": "model_outputs"} for r in rows]
     duration_ms = int((time.time() - t0) * 1000)
     if steps:
@@ -1067,22 +1056,22 @@ async def _query_model_outputs(
             source="supabase",
             duration_ms=duration_ms,
             result_summary=f"{len(results)} rows",
+            query=format_sql(model_sql, [tickers]),
         )
     return results
 
 
 async def _query_stock_history(
     tickers: list[str],
-    classified: ClassifiedQuery,
+    classified: ClassifiedQuery | None = None,
+    lookback_days: int = 90,
     steps: StepCollector | None = None,
 ) -> list[dict]:
-    """Query stock_history, last 90 days for tickers."""
+    """Query stock_history for tickers with configurable lookback."""
     if not tickers:
         return []
     t0 = time.time()
-    async with get_conn() as conn:
-        rows = await conn.fetch(
-            """SELECT
+    history_sql = f"""SELECT
                  ticker,
                  date::date AS date,
                  close::numeric AS close,
@@ -1090,26 +1079,21 @@ async def _query_stock_history(
                  NULLIF(eps_actual, '')::numeric AS eps_actual
                FROM stock_history
                WHERE ticker = ANY($1)
-                 AND date::date >= CURRENT_DATE - INTERVAL '90 days'
+                 AND date::date >= CURRENT_DATE - INTERVAL '{lookback_days} days'
                ORDER BY date::date DESC
-               LIMIT 100""",
-            tickers,
-        )
+               LIMIT 500"""
+    async with get_conn() as conn:
+        rows = await conn.fetch(history_sql, tickers)
     results = [dict(r) | {"_table": "stock_history"} for r in rows]
     duration_ms = int((time.time() - t0) * 1000)
     if steps:
         steps.add(
             label="Fetching price history",
-            detail=f"stock_history ({len(results)} rows)",
+            detail=f"stock_history ({len(results)} rows, {lookback_days}d)",
             source="supabase",
             duration_ms=duration_ms,
             result_summary=f"{len(results)} rows",
-            query=(
-                f"SELECT ticker, date::date, close::numeric, "
-                f"NULLIF(eps_estimate,'')::numeric, NULLIF(eps_actual,'')::numeric "
-                f"FROM stock_history WHERE ticker IN {tuple(tickers)} "
-                f"AND date >= CURRENT_DATE - 90 days ORDER BY date DESC LIMIT 100"
-            ),
+            query=format_sql(history_sql, [tickers]),
         )
     return results
 
@@ -1122,24 +1106,23 @@ async def _query_workflow_registry(
     """Query workflow_registry by name if specified."""
     t0 = time.time()
     if classified.workflow_name:
-        async with get_conn() as conn:
-            rows = await conn.fetch(
-                """SELECT workflow_name, description, input_schema, output_table,
+        registry_sql = """SELECT workflow_name, description, input_schema, output_table,
                           schedule, is_active
                    FROM workflow_registry
                    WHERE workflow_name = $1
-                   LIMIT 10""",
-                classified.workflow_name,
-            )
-    else:
+                   LIMIT 10"""
+        registry_params: list = [classified.workflow_name]
         async with get_conn() as conn:
-            rows = await conn.fetch(
-                """SELECT workflow_name, description, input_schema, output_table,
+            rows = await conn.fetch(registry_sql, *registry_params)
+    else:
+        registry_sql = """SELECT workflow_name, description, input_schema, output_table,
                           schedule, is_active
                    FROM workflow_registry
                    WHERE is_active = TRUE
-                   LIMIT 50""",
-            )
+                   LIMIT 50"""
+        registry_params = []
+        async with get_conn() as conn:
+            rows = await conn.fetch(registry_sql)
     results = [dict(r) | {"_table": "workflow_registry"} for r in rows]
     duration_ms = int((time.time() - t0) * 1000)
     if steps:
@@ -1149,6 +1132,7 @@ async def _query_workflow_registry(
             source="supabase",
             duration_ms=duration_ms,
             result_summary=f"{len(results)} rows",
+            query=format_sql(registry_sql, registry_params),
         )
     return results
 

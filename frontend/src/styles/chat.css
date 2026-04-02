@@ -93,16 +93,20 @@
   gap: 0.75rem;
 }
 
-/* Welcome screen */
+/* Spacer pushes input ~25% down when in welcome state */
+.chat-page__spacer {
+  flex: 0 0 20vh;
+}
+
+/* Welcome screen — sits directly under the input area */
 .chat-page__welcome {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  height: 100%;
   text-align: center;
-  padding: 2rem 1rem;
-  gap: 1rem;
+  padding: 1.5rem 1rem 1rem;
+  gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .chat-page__welcome-title {
@@ -498,9 +502,17 @@
   font-size: 0.85rem;
 }
 
+/* Sticky wrapper — pins input to bottom of the scrollable messages area */
+.chat-page__input-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin-top: auto;
+}
+
 /* Input area */
 .chat-page__input-area {
-  padding: 0.75rem 1rem 1rem;
+  padding: 0.75rem 1rem;
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
   display: flex;
@@ -1343,6 +1355,33 @@
   padding: 8px 0;
 }
 
+/* Add to Page button below charts */
+.chat-chart-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 12px 4px 0;
+}
+
+.chat-chart-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chat-chart-add-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  border-color: var(--color-primary);
+}
+
 /* Plot Over Time toggle button */
 .chat-plot-toggle {
   display: inline-flex;
@@ -1363,4 +1402,235 @@
   border-color: var(--color-primary);
   color: var(--color-primary);
   background: var(--color-bg);
+}
+
+/* ── Add to Page Modal ── */
+
+.add-to-page__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.add-to-page__dialog {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  width: 420px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.add-to-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.add-to-page__header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.add-to-page__close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.add-to-page__close:hover {
+  color: var(--color-text);
+}
+
+.add-to-page__body {
+  padding: 1rem;
+}
+
+.add-to-page__section {
+  margin-bottom: 0;
+}
+
+.add-to-page__new-row {
+  display: flex;
+  gap: 8px;
+}
+
+.add-to-page__input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.add-to-page__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.add-to-page__btn {
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.add-to-page__btn--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.add-to-page__btn--primary:hover {
+  opacity: 0.9;
+}
+
+.add-to-page__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-to-page__divider {
+  text-align: center;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin: 12px 0;
+  position: relative;
+}
+
+.add-to-page__divider::before,
+.add-to-page__divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 25%;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.add-to-page__divider::before { left: 0; }
+.add-to-page__divider::after { right: 0; }
+
+.add-to-page__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.add-to-page__page-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.1s;
+}
+
+.add-to-page__page-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.add-to-page__page-title {
+  font-weight: 500;
+}
+
+.add-to-page__page-count {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.add-to-page__select-row {
+  display: flex;
+  gap: 8px;
+}
+
+.add-to-page__select {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.add-to-page__select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.add-to-page__loading {
+  text-align: center;
+  padding: 12px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.add-to-page__error {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: rgba(238, 102, 102, 0.1);
+  color: #ee6666;
+  font-size: 12px;
+}
+
+.add-to-page__success {
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+
+.add-to-page__success p {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.add-to-page__success-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.add-to-page__link {
+  padding: 6px 14px;
+  border: 1px solid var(--color-primary);
+  border-radius: 4px;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.add-to-page__link:hover {
+  background: var(--color-primary);
+  color: #fff;
 }

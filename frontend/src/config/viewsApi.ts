@@ -87,3 +87,48 @@ export async function resolvePackWidgets(
   );
   return resp.data;
 }
+
+// --- MCP Tile operations ---
+
+export async function executeTile(
+  packId: string,
+  tileId: string,
+): Promise<{
+  rows: Record<string, unknown>[];
+  columns: string[];
+  row_count: number;
+  preferred_presentation: string;
+  chart_config: Record<string, unknown> | null;
+  formatted_markdown?: string | null;
+  display_type: string;
+  error?: string;
+}> {
+  const resp = await api.post(`/api/views/packs/${packId}/tiles/${tileId}/execute`);
+  return resp.data;
+}
+
+export async function updateTileState(
+  packId: string,
+  tileId: string,
+  state: Record<string, unknown>,
+): Promise<void> {
+  await api.patch(`/api/views/packs/${packId}/tiles/${tileId}/state`, state);
+}
+
+export async function generatePack(body: {
+  session_id?: string;
+  messages: Array<{
+    role: string;
+    content: string;
+    tool_calls?: Array<{ name: string; input: Record<string, unknown> }>;
+  }>;
+}): Promise<{
+  pack_id: string;
+  pack_name: string;
+  tile_count: number;
+  redirect_url: string;
+  error?: string;
+}> {
+  const resp = await api.post("/api/views/packs/generate", body);
+  return resp.data;
+}

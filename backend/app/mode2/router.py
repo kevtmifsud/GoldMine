@@ -240,6 +240,26 @@ async def get_chat_session(session_id: str) -> SessionResponse:
     )
 
 
+@router.get("/sessions/{session_id}/messages")
+async def get_session_messages(request: Request, session_id: str) -> list[dict]:
+    """Return messages for a session — lightweight endpoint for pack page."""
+    session = await get_session(session_id)
+    if not session:
+        return []
+    return [
+        {
+            "id": m["message_id"],
+            "role": m["role"],
+            "content": m["content"],
+            "query_type": m.get("query_type"),
+            "tickers_referenced": m.get("tickers_referenced", []),
+            "created_at": str(m.get("created_at", "")),
+        }
+        for m in session.get("messages", [])
+        if m.get("role") in ("user", "assistant") and m.get("content")
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Conversation visibility & listing
 # ---------------------------------------------------------------------------

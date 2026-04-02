@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColDef, GridApi } from "ag-grid-community";
-import ReactECharts from "echarts-for-react";
-import type { EChartsOption } from "echarts";
+import Plot from "react-plotly.js";
 import api from "../../config/api";
 import { EarningsDetailDialog } from "../../components/EarningsDetailDialog";
 import { AppGrid } from "../../components/ag-grid/AppGrid";
 import { createEntityLinkRenderer } from "../../components/ag-grid/EntityLinkRenderer";
 import { useGridColumnManager } from "../../hooks/useGridColumnManager";
-import { EmbeddedChat } from "../../components/chat/EmbeddedChat";
 import { StockViewToolbar } from "../../components/StockViewToolbar";
 import { useStockEntity } from "./StockEntityPage";
 import { StockSummaryBar } from "../../components/StockSummaryBar";
@@ -94,6 +92,19 @@ function daysUntil(dateStr: string): number {
   now.setHours(0, 0, 0, 0);
   return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
+
+const PLOTLY_LAYOUT_DEFAULTS: Partial<Plotly.Layout> = {
+  paper_bgcolor: "transparent",
+  plot_bgcolor: "transparent",
+  font: { family: "Inter, sans-serif", size: 11 },
+  hovermode: "x unified" as Plotly.Layout["hovermode"],
+  margin: { l: 55, r: 55, t: 8, b: 55 },
+};
+
+const PLOTLY_CONFIG: Partial<Plotly.Config> = {
+  displayModeBar: false,
+  responsive: true,
+};
 
 const PortfolioLinkRenderer = createEntityLinkRenderer({ entityType: "portfolio" });
 
@@ -242,7 +253,6 @@ export function StockPortfolioSubPage() {
   if (loading && !data) {
     return (
       <>
-        <EmbeddedChat />
         <StockViewToolbar pageWidgets={[]} />
         <StockSummaryBar displayName={detail.display_name} headerFields={detail.header_fields} />
         <div className="portfolio-loading">
@@ -255,7 +265,6 @@ export function StockPortfolioSubPage() {
   if (error) {
     return (
       <>
-        <EmbeddedChat />
         <StockViewToolbar pageWidgets={[]} />
         <StockSummaryBar displayName={detail.display_name} headerFields={detail.header_fields} />
         <div className="portfolio-empty">
@@ -269,7 +278,6 @@ export function StockPortfolioSubPage() {
   if (!data) {
     return (
       <>
-        <EmbeddedChat />
         <StockViewToolbar pageWidgets={[]} />
         <StockSummaryBar displayName={detail.display_name} headerFields={detail.header_fields} />
         <div className="portfolio-empty">
@@ -286,7 +294,6 @@ export function StockPortfolioSubPage() {
 
   return (
     <>
-      <EmbeddedChat />
       <StockViewToolbar pageWidgets={[]} />
       <StockSummaryBar displayName={detail.display_name} headerFields={detail.header_fields} />
 
@@ -579,28 +586,27 @@ function PriceWeightChart({
   const weightLabel = weightMode === "%" ? "Portfolio %" : "Portfolio $";
   const priceLabel = "Stock Price";
 
-  const legendSelected: Record<string, boolean> = {
-    [weightLabel]: !weightHidden.has(weightDataKey),
-    [priceLabel]: !weightHidden.has("stock_price"),
-  };
+  const weightVisible = !weightHidden.has(weightDataKey);
+  const priceVisible = !weightHidden.has("stock_price");
 
-  const earningsMarkLines = useMemo(() => {
+  const earningsLines = useMemo(() => {
     if (!earningsData?.all_earnings) return [];
     const dateSet = new Set(priceWeightSeries.map((d) => d.date));
     return earningsData.all_earnings
       .filter((e) => dateSet.has(e.report_date))
-      .map((e) => ({
-        xAxis: e.report_date,
-        lineStyle: { color: "#a0aec0", type: "dashed" as const, width: 1 },
-        label: { show: false },
-      }));
+      .map((e) => e.report_date);
   }, [earningsData, priceWeightSeries]);
 
-  const option: EChartsOption = useMemo(() => {
+  const { plotData, plotLayout } = useMemo(() => {
     const xData = priceWeightSeries.map((d) => d.date);
+    const weightYData = priceWeightSeries.map((d) => (d as unknown as Record<string, number>)[weightDataKey]);
+    const priceYData = priceWeightSeries.map((d) => d.stock_price);
 
-    // Build trade markers data for scatter series
-    const tradeMarkers: { value: [string, number]; itemStyle: { color: string }; symbolSize: number }[] = [];
+    // Build trade marker arrays
+    const buyX: string[] = [];
+    const buyY: number[] = [];
+    const sellX: string[] = [];
+    const sellY: number[] = [];
     for (const d of priceWeightSeries) {
       if (d.stock_price == null) continue;
       const trades = tradeDateMap.get(d.date);
@@ -608,151 +614,180 @@ function PriceWeightChart({
         const hasBuy = trades.some((t) => t.action === "buy");
         const hasSell = trades.some((t) => t.action === "sell");
         if (hasBuy) {
-          tradeMarkers.push({
-            value: [d.date, d.stock_price],
-            itemStyle: { color: "#38a169" },
-            symbolSize: 8,
-          });
+          buyX.push(d.date);
+          buyY.push(d.stock_price);
         }
         if (hasSell) {
-          tradeMarkers.push({
-            value: [d.date, d.stock_price],
-            itemStyle: { color: "#e53e3e" },
-            symbolSize: 8,
-          });
+          sellX.push(d.date);
+          sellY.push(d.stock_price);
         }
       }
     }
 
-    return {
-      grid: { left: 55, right: 55, top: 8, bottom: 55 },
+    // Build custom hover text for price series
+    const priceHoverText = priceWeightSeries.map((d) => {
+      const parts: string[] = [];
+      const earningsLabel = earningsDateToLabel.get(d.date);
+      if (earningsLabel) parts.push(`<b>${d.date}</b> - ${earningsLabel}`);
+      else parts.push(`<b>${d.date}</b>`);
+
+      if (d.stock_price != null) parts.push(`${priceLabel}: $${d.stock_price.toFixed(2)}`);
+
+      const wVal = (d as unknown as Record<string, number>)[weightDataKey];
+      if (wVal != null) {
+        const wFormatted = weightMode === "%" ? `${Number(wVal).toFixed(2)}%` : formatCurrency(Number(wVal));
+        parts.push(`${weightLabel}: ${wFormatted}`);
+      }
+
+      const dateTrades = tradeDateMap.get(d.date);
+      if (dateTrades?.length) {
+        parts.push("");
+        for (const t of dateTrades) {
+          parts.push(`${t.action.charAt(0).toUpperCase() + t.action.slice(1)} ${t.shares.toLocaleString()} @ $${t.price.toFixed(2)} (${formatCurrency(t.notional)})`);
+        }
+      }
+
+      return parts.join("<br>");
+    });
+
+    const traces: Plotly.Data[] = [];
+
+    // Weight area trace (on y2)
+    traces.push({
+      type: "scatter",
+      mode: "lines",
+      name: weightLabel,
+      x: xData,
+      y: weightYData,
+      yaxis: "y2",
+      line: { color: areaColor, width: 1, shape: "hv" },
+      fill: "tozeroy",
+      fillcolor: areaColor.replace(")", ", 0.15)").replace("rgb", "rgba").replace("#e53e3e", "rgba(229,62,62,0.15)").replace("#38a169", "rgba(56,161,105,0.15)"),
+      opacity: 0.4,
+      visible: weightVisible ? true : "legendonly",
+      hoverinfo: "skip",
+    } as Plotly.Data);
+
+    // Fix fillcolor for hex colors
+    const weightTrace = traces[0] as Partial<Plotly.PlotData>;
+    if (areaColor === "#e53e3e") {
+      weightTrace.fillcolor = "rgba(229,62,62,0.15)";
+      if (weightTrace.line) (weightTrace.line as Partial<Plotly.ScatterLine>).color = "#e53e3e";
+    } else if (areaColor === "#38a169") {
+      weightTrace.fillcolor = "rgba(56,161,105,0.15)";
+      if (weightTrace.line) (weightTrace.line as Partial<Plotly.ScatterLine>).color = "#38a169";
+    }
+
+    // Price line trace (on y1)
+    traces.push({
+      type: "scatter",
+      mode: "lines",
+      name: priceLabel,
+      x: xData,
+      y: priceYData,
+      yaxis: "y",
+      line: { color: "#1a202c", width: 2 },
+      visible: priceVisible ? true : "legendonly",
+      text: priceHoverText,
+      hoverinfo: "text",
+    });
+
+    // Trade buy markers
+    if (buyX.length > 0) {
+      traces.push({
+        type: "scatter",
+        mode: "markers",
+        name: "Buy",
+        x: buyX,
+        y: buyY,
+        yaxis: "y",
+        marker: { color: "#38a169", size: 8, symbol: "circle" },
+        showlegend: false,
+        hoverinfo: "skip",
+      } as Plotly.Data);
+    }
+
+    // Trade sell markers
+    if (sellX.length > 0) {
+      traces.push({
+        type: "scatter",
+        mode: "markers",
+        name: "Sell",
+        x: sellX,
+        y: sellY,
+        yaxis: "y",
+        marker: { color: "#e53e3e", size: 8, symbol: "circle" },
+        showlegend: false,
+        hoverinfo: "skip",
+      } as Plotly.Data);
+    }
+
+    // Earnings vertical lines as shapes
+    const shapes: Partial<Plotly.Shape>[] = earningsLines.map((date) => ({
+      type: "line",
+      x0: date,
+      x1: date,
+      y0: 0,
+      y1: 1,
+      yref: "paper",
+      line: { color: "#a0aec0", dash: "dash", width: 1 },
+    }));
+
+    const layout: Partial<Plotly.Layout> = {
+      ...PLOTLY_LAYOUT_DEFAULTS,
+      margin: { l: 55, r: 55, t: 8, b: 55 },
+      xaxis: {
+        type: "date",
+        tickformat: "%b '%y",
+        hoverformat: "%-m/%-d/%Y",
+        nticks: 8,
+        tickfont: { size: 11 },
+        rangeslider: { visible: false },
+      },
+      yaxis: {
+        title: { text: "Price", font: { size: 10 } },
+        tickformat: "$,.0f",
+        tickfont: { size: 11 },
+        gridcolor: "#e2e8f0",
+        griddash: "dash",
+        autorange: true,
+      },
+      yaxis2: {
+        title: { text: weightMode === "%" ? "Weight %" : "Weight $", font: { size: 10 } },
+        tickfont: { size: 11 },
+        overlaying: "y",
+        side: "right",
+        showgrid: false,
+        tickformat: weightMode === "%" ? ".1f" : "$,.0f",
+        ticksuffix: weightMode === "%" ? "%" : "",
+      },
       legend: {
-        data: [weightLabel, priceLabel],
-        selected: legendSelected,
-        bottom: 0,
-        textStyle: { fontSize: 11 },
+        orientation: "h",
+        y: -0.12,
+        x: 0.5,
+        xanchor: "center",
+        font: { size: 10 },
+        tracegroupgap: 5,
       },
-      xAxis: {
-        type: "category",
-        data: xData,
-        axisLabel: {
-          fontSize: 11,
-          formatter: (v: string) => v.slice(0, 7),
-          interval: Math.max(0, Math.floor(xData.length / 8) - 1),
-        },
-      },
-      yAxis: [
-        {
-          type: "value",
-          name: "Price",
-          nameTextStyle: { fontSize: 10 },
-          axisLabel: { fontSize: 11, formatter: (v: number) => `$${v}` },
-          scale: true,
-          splitLine: { lineStyle: { type: "dashed" as const, color: "#e2e8f0" } },
-        },
-        {
-          type: "value",
-          name: weightMode === "%" ? "Weight %" : "Weight $",
-          nameTextStyle: { fontSize: 10 },
-          axisLabel: {
-            fontSize: 11,
-            formatter: weightMode === "%" ? (v: number) => `${v}%` : (v: number) => formatCurrency(v),
-          },
-          splitLine: { show: false },
-        },
-      ],
-      tooltip: {
-        trigger: "axis",
-        formatter: (params: unknown) => {
-          const items = (Array.isArray(params) ? params : [params]) as { axisValue: string; seriesName: string; value: unknown; color: string; marker: string }[];
-          const dateStr = items[0]?.axisValue ?? "";
-          const earningsLabel = earningsDateToLabel.get(dateStr);
-          const dateTrades = tradeDateMap.get(dateStr);
-
-          let html = `<div style="font-weight:600;margin-bottom:4px">${dateStr}`;
-          if (earningsLabel) html += ` <span style="color:#718096;font-weight:400">— ${earningsLabel}</span>`;
-          html += `</div>`;
-
-          for (const item of items) {
-            if (item.seriesName === "Trade Markers") continue;
-            const val = Array.isArray(item.value) ? (item.value as number[])[1] : item.value;
-            if (val == null) continue;
-            let formatted: string;
-            if (item.seriesName === weightLabel) {
-              formatted = weightMode === "%" ? `${Number(val).toFixed(2)}%` : formatCurrency(Number(val));
-            } else {
-              formatted = `$${Number(val).toFixed(2)}`;
-            }
-            html += `<div>${item.marker} ${item.seriesName}: ${formatted}</div>`;
-          }
-
-          if (dateTrades?.length) {
-            html += `<div style="border-top:1px solid #e2e8f0;margin-top:4px;padding-top:4px">`;
-            for (const t of dateTrades) {
-              const color = t.action === "buy" ? "#38a169" : "#e53e3e";
-              html += `<div style="color:${color}">${t.action.charAt(0).toUpperCase() + t.action.slice(1)} ${t.shares.toLocaleString()} @ $${t.price.toFixed(2)} <span style="color:#718096">(${formatCurrency(t.notional)})</span></div>`;
-            }
-            html += `</div>`;
-          }
-
-          return html;
-        },
-      },
-      dataZoom: [
-        { type: "inside", xAxisIndex: 0 },
-        { type: "slider", xAxisIndex: 0, height: 20, bottom: 22 },
-      ],
-      series: [
-        {
-          type: "line",
-          name: weightLabel,
-          yAxisIndex: 1,
-          step: "end",
-          data: priceWeightSeries.map((d) => (d as unknown as Record<string, number>)[weightDataKey]),
-          lineStyle: { color: areaColor, width: 1, opacity: 0.4 },
-          itemStyle: { color: areaColor },
-          areaStyle: { color: areaColor, opacity: 0.15 },
-          showSymbol: false,
-          animation: false,
-        },
-        {
-          type: "line",
-          name: priceLabel,
-          yAxisIndex: 0,
-          data: priceWeightSeries.map((d) => d.stock_price),
-          lineStyle: { color: "#1a202c", width: 2 },
-          itemStyle: { color: "#1a202c" },
-          showSymbol: false,
-          animation: false,
-          markLine: earningsMarkLines.length > 0 ? {
-            silent: true,
-            symbol: "none",
-            data: earningsMarkLines,
-          } : undefined,
-        },
-        ...(tradeMarkers.length > 0 ? [{
-          type: "scatter" as const,
-          name: "Trade Markers",
-          yAxisIndex: 0,
-          data: tradeMarkers,
-          symbolSize: 8,
-          z: 10,
-        }] : []),
-      ],
+      shapes,
     };
-  }, [priceWeightSeries, weightMode, weightDataKey, weightLabel, priceLabel, areaColor,
-      legendSelected, tradeDateMap, earningsMarkLines, earningsDateToLabel]);
 
-  const onEvents = useMemo(() => ({
-    legendselectchanged: (params: { name: string }) => {
-      const nameToKey: Record<string, string> = {
-        [weightLabel]: weightDataKey,
-        [priceLabel]: "stock_price",
-      };
-      const dataKey = nameToKey[params.name];
-      if (dataKey) weightToggle(dataKey);
-    },
-  }), [weightLabel, weightDataKey, priceLabel, weightToggle]);
+    return { plotData: traces, plotLayout: layout };
+  }, [priceWeightSeries, weightMode, weightDataKey, weightLabel, priceLabel, areaColor,
+      weightVisible, priceVisible, tradeDateMap, earningsLines, earningsDateToLabel]);
+
+  const handleLegendClick = useCallback((event: Plotly.LegendClickEvent): boolean => {
+    const traceName = (plotData[event.curveNumber] as Partial<Plotly.PlotData>)?.name;
+    if (traceName === weightLabel) {
+      weightToggle(weightDataKey);
+      return false; // prevent default plotly legend toggle
+    }
+    if (traceName === priceLabel) {
+      weightToggle("stock_price");
+      return false;
+    }
+    return true;
+  }, [weightLabel, weightDataKey, priceLabel, weightToggle, plotData]);
 
   return (
     <div className="portfolio-chart">
@@ -775,7 +810,14 @@ function PriceWeightChart({
           </div>
         </div>
       </div>
-      <ReactECharts option={option} style={{ height: 300 }} notMerge onEvents={onEvents} />
+      <Plot
+        data={plotData}
+        layout={plotLayout}
+        config={PLOTLY_CONFIG}
+        style={{ width: "100%", height: 300 }}
+        useResizeHandler
+        onLegendClick={handleLegendClick}
+      />
     </div>
   );
 }
@@ -806,109 +848,124 @@ function PnlChart({
   const cumLabel = "Cumulative PnL";
   const realLabel = "Realized PnL";
 
-  const legendSelected: Record<string, boolean> = {
-    [cumLabel]: !pnlChartHidden.has(cumKey),
-    [realLabel]: !pnlChartHidden.has(realKey),
-  };
+  const cumVisible = !pnlChartHidden.has(cumKey);
+  const realVisible = !pnlChartHidden.has(realKey);
 
-  const earningsMarkLines = useMemo(() => {
+  const earningsLines = useMemo(() => {
     if (!earningsData?.all_earnings) return [];
     const dateSet = new Set(pnlSeries.map((d) => d.date));
     return earningsData.all_earnings
       .filter((e) => dateSet.has(e.report_date))
-      .map((e) => ({
-        xAxis: e.report_date,
-        lineStyle: { color: "#a0aec0", type: "dashed" as const, width: 1 },
-        label: { show: false },
-      }));
+      .map((e) => e.report_date);
   }, [earningsData, pnlSeries]);
 
-  const option: EChartsOption = useMemo(() => {
+  const { plotData, plotLayout } = useMemo(() => {
     const xData = pnlSeries.map((d) => d.date);
+    const cumYData = pnlSeries.map((d) => (d as unknown as Record<string, number>)[cumKey]);
+    const realYData = pnlSeries.map((d) => (d as unknown as Record<string, number>)[realKey]);
 
-    return {
-      grid: { left: 55, right: 12, top: 8, bottom: 55 },
+    // Build custom hover text
+    const hoverText = pnlSeries.map((d) => {
+      const parts: string[] = [];
+      const earningsLabel = earningsDateToLabel.get(d.date);
+      if (earningsLabel) parts.push(`<b>${d.date}</b> - ${earningsLabel}`);
+      else parts.push(`<b>${d.date}</b>`);
+
+      const cumVal = (d as unknown as Record<string, number>)[cumKey];
+      if (cumVal != null) {
+        const formatted = pnlMode === "$" ? formatDollar(cumVal) : `${cumVal.toFixed(2)}%`;
+        parts.push(`${cumLabel}: ${formatted}`);
+      }
+
+      const realVal = (d as unknown as Record<string, number>)[realKey];
+      if (realVal != null) {
+        const formatted = pnlMode === "$" ? formatDollar(realVal) : `${realVal.toFixed(2)}%`;
+        parts.push(`${realLabel}: ${formatted}`);
+      }
+
+      return parts.join("<br>");
+    });
+
+    const traces: Plotly.Data[] = [
+      {
+        type: "scatter",
+        mode: "lines",
+        name: cumLabel,
+        x: xData,
+        y: cumYData,
+        line: { color: "#3182ce", width: 2 },
+        visible: cumVisible ? true : "legendonly",
+        text: hoverText,
+        hoverinfo: "text",
+      },
+      {
+        type: "scatter",
+        mode: "lines",
+        name: realLabel,
+        x: xData,
+        y: realYData,
+        line: { color: "#38a169", width: 2 },
+        visible: realVisible ? true : "legendonly",
+        hoverinfo: "skip",
+      } as Plotly.Data,
+    ];
+
+    // Earnings vertical lines as shapes
+    const shapes: Partial<Plotly.Shape>[] = earningsLines.map((date) => ({
+      type: "line",
+      x0: date,
+      x1: date,
+      y0: 0,
+      y1: 1,
+      yref: "paper",
+      line: { color: "#a0aec0", dash: "dash", width: 1 },
+    }));
+
+    const layout: Partial<Plotly.Layout> = {
+      ...PLOTLY_LAYOUT_DEFAULTS,
+      margin: { l: 55, r: 12, t: 8, b: 55 },
+      xaxis: {
+        type: "date",
+        tickformat: "%b '%y",
+        hoverformat: "%-m/%-d/%Y",
+        nticks: 8,
+        tickfont: { size: 11 },
+        rangeslider: { visible: false },
+      },
+      yaxis: {
+        tickformat: pnlMode === "$" ? "$,.0f" : ".1f",
+        ticksuffix: pnlMode === "%" ? "%" : "",
+        tickfont: { size: 11 },
+        gridcolor: "#e2e8f0",
+        griddash: "dash",
+        autorange: true,
+      },
       legend: {
-        data: [cumLabel, realLabel],
-        selected: legendSelected,
-        bottom: 0,
-        textStyle: { fontSize: 11 },
+        orientation: "h",
+        y: -0.12,
+        x: 0.5,
+        xanchor: "center",
+        font: { size: 10 },
+        tracegroupgap: 5,
       },
-      xAxis: {
-        type: "category",
-        data: xData,
-        axisLabel: { fontSize: 11 },
-      },
-      yAxis: {
-        type: "value",
-        axisLabel: {
-          fontSize: 11,
-          formatter: pnlMode === "$" ? (v: number) => formatCurrency(v) : (v: number) => `${v.toFixed(1)}%`,
-        },
-        scale: true,
-        splitLine: { lineStyle: { type: "dashed" as const, color: "#e2e8f0" } },
-      },
-      tooltip: {
-        trigger: "axis",
-        formatter: (params: unknown) => {
-          const items = (Array.isArray(params) ? params : [params]) as { axisValue: string; seriesName: string; value: number; marker: string }[];
-          const dateStr = items[0]?.axisValue ?? "";
-          const earningsLabel = earningsDateToLabel.get(dateStr);
-
-          let html = `<div style="font-weight:600;margin-bottom:4px">${dateStr}`;
-          if (earningsLabel) html += ` <span style="color:#718096;font-weight:400">— ${earningsLabel}</span>`;
-          html += `</div>`;
-
-          for (const item of items) {
-            if (item.value == null) continue;
-            const formatted = pnlMode === "$" ? formatDollar(item.value) : `${item.value.toFixed(2)}%`;
-            html += `<div>${item.marker} ${item.seriesName}: ${formatted}</div>`;
-          }
-          return html;
-        },
-      },
-      dataZoom: [
-        { type: "inside", xAxisIndex: 0 },
-        { type: "slider", xAxisIndex: 0, height: 20, bottom: 22 },
-      ],
-      series: [
-        {
-          type: "line",
-          name: cumLabel,
-          data: pnlSeries.map((d) => (d as unknown as Record<string, number>)[cumKey]),
-          lineStyle: { color: "#3182ce", width: 2 },
-          itemStyle: { color: "#3182ce" },
-          showSymbol: false,
-          animation: false,
-          markLine: earningsMarkLines.length > 0 ? {
-            silent: true,
-            symbol: "none",
-            data: earningsMarkLines,
-          } : undefined,
-        },
-        {
-          type: "line",
-          name: realLabel,
-          data: pnlSeries.map((d) => (d as unknown as Record<string, number>)[realKey]),
-          lineStyle: { color: "#38a169", width: 2 },
-          itemStyle: { color: "#38a169" },
-          showSymbol: false,
-          animation: false,
-        },
-      ],
+      shapes,
     };
-  }, [pnlSeries, pnlMode, cumKey, realKey, cumLabel, realLabel, legendSelected, earningsMarkLines, earningsDateToLabel]);
 
-  const onEvents = useMemo(() => ({
-    legendselectchanged: (params: { name: string }) => {
-      const nameToKey: Record<string, string> = {
-        [cumLabel]: cumKey,
-        [realLabel]: realKey,
-      };
-      const dataKey = nameToKey[params.name];
-      if (dataKey) pnlChartToggle(dataKey);
-    },
-  }), [cumLabel, realLabel, cumKey, realKey, pnlChartToggle]);
+    return { plotData: traces, plotLayout: layout };
+  }, [pnlSeries, pnlMode, cumKey, realKey, cumLabel, realLabel, cumVisible, realVisible, earningsLines, earningsDateToLabel]);
+
+  const handleLegendClick = useCallback((event: Plotly.LegendClickEvent): boolean => {
+    const traceName = (plotData[event.curveNumber] as Partial<Plotly.PlotData>)?.name;
+    if (traceName === cumLabel) {
+      pnlChartToggle(cumKey);
+      return false;
+    }
+    if (traceName === realLabel) {
+      pnlChartToggle(realKey);
+      return false;
+    }
+    return true;
+  }, [cumLabel, realLabel, cumKey, realKey, pnlChartToggle, plotData]);
 
   return (
     <div className="portfolio-chart">
@@ -931,7 +988,14 @@ function PnlChart({
           </div>
         </div>
       </div>
-      <ReactECharts option={option} style={{ height: 300 }} notMerge onEvents={onEvents} />
+      <Plot
+        data={plotData}
+        layout={plotLayout}
+        config={PLOTLY_CONFIG}
+        style={{ width: "100%", height: 300 }}
+        useResizeHandler
+        onLegendClick={handleLegendClick}
+      />
     </div>
   );
 }

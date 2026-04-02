@@ -93,6 +93,13 @@ export async function getSession(
   return resp.data;
 }
 
+export async function getSessionMessages(
+  sessionId: string,
+): Promise<Array<{ id: string; role: "user" | "assistant"; content: string; created_at: string }>> {
+  const resp = await api.get(`/api/v1/sessions/${sessionId}/messages`);
+  return resp.data;
+}
+
 export async function getConversationDetail(
   conversationId: string
 ): Promise<ConversationDetail> {

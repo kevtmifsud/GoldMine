@@ -1,4 +1,3 @@
-import { EmbeddedChat } from "../../components/chat/EmbeddedChat";
 import { WidgetContainer } from "../../components/WidgetContainer";
 import { StockViewToolbar } from "../../components/StockViewToolbar";
 import { useStockEntity } from "./StockEntityPage";
@@ -12,7 +11,6 @@ export function StockContactsSubPage() {
 
   return (
     <>
-      <EmbeddedChat />
       <StockViewToolbar pageWidgets={relatedPeople} />
       {relatedPeople.length > 0 ? (
         relatedPeople.map((widget) => (

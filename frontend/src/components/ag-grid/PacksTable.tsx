@@ -39,6 +39,37 @@ export function PacksTable({
         filter: "agTextColumnFilter",
       },
       {
+        headerName: "Tiles",
+        colId: "tile_count",
+        valueGetter: (params) => {
+          const widgetCount = params.data?.widgets?.length ?? 0;
+          const tileCount = params.data?.mcp_tiles?.length ?? 0;
+          return widgetCount + tileCount;
+        },
+        valueFormatter: (params) =>
+          params.value ? `${params.value} tile${params.value !== 1 ? "s" : ""}` : "—",
+        sortable: true,
+        width: 90,
+        filter: false,
+      },
+      {
+        headerName: "Source",
+        colId: "source",
+        valueGetter: (params) =>
+          params.data?.source_conversation_id ? "Chat" : "Manual",
+        cellRenderer: (params: { value?: string }) =>
+          params.value === "Chat" ? (
+            <span title="Generated from chat conversation" style={{ cursor: "default" }}>
+              💬 Chat
+            </span>
+          ) : (
+            <span style={{ color: "var(--color-text-secondary)" }}>Manual</span>
+          ),
+        sortable: true,
+        width: 90,
+        filter: false,
+      },
+      {
         headerName: "Owner",
         colId: "owner",
         valueGetter: (params) =>
@@ -92,7 +123,7 @@ export function PacksTable({
 
   const defaultVisibleFields = useMemo(
     () => {
-      const fields = ["name", "owner", "created_at"];
+      const fields = ["name", "tile_count", "source", "owner", "created_at"];
       if (showVisibility) fields.push("is_shared");
       return fields;
     },

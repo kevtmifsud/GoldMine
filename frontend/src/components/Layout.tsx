@@ -2,12 +2,16 @@ import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { SearchBar } from "./SearchBar";
+import { GlobalChatPanel } from "./GlobalChatPanel";
+import { useGlobalChat } from "../context/GlobalChatContext";
 import "../styles/layout.css";
 
 export function Layout({ children, contentClassName }: { children: ReactNode; contentClassName?: string }) {
   const { user, logout } = useAuth();
   const { pathname } = useLocation();
   const isHome = pathname === "/";
+  const { isOpen, open } = useGlobalChat();
+  const isChatPage = pathname === "/chat";
 
   return (
     <div className="layout">
@@ -46,6 +50,23 @@ export function Layout({ children, contentClassName }: { children: ReactNode; co
         </div>
       </header>
       <main className={`main-content${contentClassName ? ` ${contentClassName}` : ""}`}>{children}</main>
+
+      {/* Global chat trigger tab — hidden on /chat page and when panel is open */}
+      {user && !isChatPage && !isOpen && (
+        <button className="chat-trigger" onClick={open} title="Chat (Cmd+/)">
+          Chat
+        </button>
+      )}
+
+      {/* Global chat panel */}
+      {user && !isChatPage && <GlobalChatPanel />}
+
+      {/* Persistent hint */}
+      {user && !isChatPage && !isOpen && (
+        <div className="chat-hint-banner">
+          Chat available everywhere — &#8984;/ to open
+        </div>
+      )}
     </div>
   );
 }

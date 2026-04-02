@@ -1,0 +1,378 @@
+/* =========================================================================
+   Global Chat Panel — right-side overlay
+   ========================================================================= */
+
+/* Panel — width set via inline style for resize */
+.gcp {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 200ms ease-out;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
+}
+
+.gcp--open {
+  transform: translateX(0);
+}
+
+/* Resize drag handle — left edge of panel */
+.gcp__resize-handle {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.gcp__resize-handle:hover,
+.gcp__resize-handle:active {
+  background: var(--color-primary);
+  opacity: 0.3;
+}
+
+/* Header */
+.gcp__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.gcp__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.gcp__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.gcp__header-btn {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--color-text);
+  transition: border-color 0.15s;
+}
+
+.gcp__header-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.gcp__close {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0 0.15rem;
+}
+
+.gcp__close:hover {
+  color: var(--color-text);
+}
+
+/* Context banner */
+.gcp__context {
+  padding: 0.5rem 0.85rem;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.gcp__context-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.gcp__suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.gcp__suggestion {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  font-size: 0.72rem;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.gcp__suggestion:hover {
+  border-color: var(--color-primary);
+  background: #eff6ff;
+  color: var(--color-primary);
+}
+
+/* Messages */
+.gcp__messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.gcp__welcome {
+  padding: 1.5rem 0.5rem;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+/* Message bubbles — reuse chat-page patterns */
+.gcp__msg {
+  max-width: 95%;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.gcp__msg--user {
+  align-self: flex-end;
+  background: var(--color-primary);
+  color: white;
+  border-bottom-right-radius: 2px;
+  white-space: pre-wrap;
+}
+
+.gcp__msg--assistant {
+  align-self: flex-start;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-bottom-left-radius: 2px;
+}
+
+.gcp__msg--streaming {
+  align-self: flex-start;
+  background: var(--color-bg);
+  border: 1px solid var(--color-primary);
+  border-left: 3px solid var(--color-primary);
+  color: var(--color-text);
+}
+
+.gcp__msg--loading {
+  align-self: flex-start;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+/* Markdown inside messages */
+.gcp__msg--assistant > :first-child,
+.gcp__msg--streaming > :first-child { margin-top: 0; }
+.gcp__msg--assistant > :last-child,
+.gcp__msg--streaming > :last-child { margin-bottom: 0; }
+.gcp__msg p { margin: 0.3rem 0; }
+.gcp__msg ul, .gcp__msg ol { margin: 0.2rem 0; padding-left: 1.2rem; }
+.gcp__msg li { margin: 0.15rem 0; }
+.gcp__msg h2 { font-size: 0.95rem; font-weight: 700; margin: 0.6rem 0 0.3rem; }
+.gcp__msg h3 { font-size: 0.88rem; font-weight: 600; margin: 0.5rem 0 0.2rem; }
+.gcp__msg code { background: var(--color-surface); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.8em; }
+
+.gcp__error {
+  padding: 0.4rem 0.6rem;
+  background: #fff5f5;
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius);
+  color: var(--color-error);
+  font-size: 0.8rem;
+}
+
+/* Pack generation status */
+.gcp__pack-status {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--color-text);
+  background: #f0fdf4;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.gcp__pack-status--loading {
+  color: var(--color-primary);
+  background: #eff6ff;
+}
+
+.gcp__pack-dismiss {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 0.2rem;
+}
+
+/* /pack hint */
+.gcp__pack-hint {
+  padding: 5px 12px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.gcp__pack-hint code {
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  background: var(--color-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Input area */
+.gcp__input-area {
+  padding: 0.6rem 0.85rem;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.gcp__input-area--slash {
+  border-top-color: var(--color-primary);
+}
+
+.gcp__textarea {
+  flex: 1;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: none;
+  min-height: 38px;
+  max-height: 120px;
+  line-height: 1.4;
+}
+
+.gcp__textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.gcp__textarea--slash {
+  background: var(--color-bg);
+  border-left: 3px solid var(--color-primary);
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.82rem;
+}
+
+.gcp__send-btn {
+  padding: 0.5rem 0.85rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.gcp__send-btn:hover:not(:disabled) {
+  background: var(--color-primary-light);
+}
+
+.gcp__send-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gcp__send-btn--cancel {
+  background: var(--color-text-secondary);
+}
+
+.gcp__send-btn--cancel:hover:not(:disabled) {
+  background: var(--color-error);
+}
+
+/* Chat trigger tab on right edge */
+.chat-trigger {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 8px 0 0 8px;
+  padding: 10px 7px;
+  cursor: pointer;
+  writing-mode: vertical-rl;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: background-color 0.15s;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.chat-trigger:hover {
+  background: var(--color-primary-light);
+}
+
+/* Persistent hint banner — translucent, bottom center */
+.chat-hint-banner {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(26, 54, 93, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  z-index: 150;
+  pointer-events: none;
+  white-space: nowrap;
+}

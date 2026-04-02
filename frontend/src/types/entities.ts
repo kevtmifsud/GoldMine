@@ -163,6 +163,21 @@ export interface PackWidgetRef {
   col: number;
 }
 
+export interface MCPTileRef {
+  tile_id: string;
+  title: string;
+  tool: string;
+  params: Record<string, unknown>;
+  display_type: "ag_grid" | "plotly_line" | "plotly_bar" | "plotly_scatter" | "number_card";
+  chart_config?: Record<string, unknown> | null;
+  grid_config?: Record<string, unknown> | null;
+  state_override?: Record<string, unknown> | null;
+  is_template: boolean;
+  row: number;
+  col: number;
+  title_override?: string | null;
+}
+
 export interface AnalystPack {
   pack_id: string;
   name: string;
@@ -170,6 +185,7 @@ export interface AnalystPack {
   owner_display_name: string;
   description: string;
   widgets: PackWidgetRef[];
+  mcp_tiles: MCPTileRef[];
   is_shared: boolean;
   created_at: string;
   updated_at: string;
@@ -178,28 +194,35 @@ export interface AnalystPack {
   row_descriptions: string[];
   entity_type?: string | null;
   entity_id?: string | null;
+  ticker_context?: string | null;
+  source_conversation_id?: string | null;
 }
 
 export interface AnalystPackCreate {
   name: string;
   description: string;
   widgets: PackWidgetRef[];
+  mcp_tiles?: MCPTileRef[];
   is_shared: boolean;
   row_columns: number[];
   row_heights: number[];
   row_descriptions: string[];
   entity_type?: string | null;
   entity_id?: string | null;
+  ticker_context?: string | null;
+  source_conversation_id?: string | null;
 }
 
 export interface AnalystPackUpdate {
   name?: string;
   description?: string;
   widgets?: PackWidgetRef[];
+  mcp_tiles?: MCPTileRef[];
   is_shared?: boolean;
   row_columns?: number[];
   row_heights?: number[];
   row_descriptions?: string[];
+  ticker_context?: string | null;
 }
 
 // --- Documents ---

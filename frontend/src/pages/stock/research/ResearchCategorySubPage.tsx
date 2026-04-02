@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { EmbeddedChat } from "../../../components/chat/EmbeddedChat";
 import { ResearchDocumentsGrid } from "../../../components/research/ResearchDocumentsGrid";
 import { FileUploadDialog } from "../../../components/FileUploadDialog";
 import { useStockEntity } from "../StockEntityPage";
@@ -28,7 +27,6 @@ export function ResearchCategorySubPage({
 
   return (
     <>
-      <EmbeddedChat />
       <ResearchDocumentsGrid
         key={refreshKey}
         entityType={detail.entity_type}

@@ -6,6 +6,27 @@ can emit them as SSE events between top-level calls.
 from __future__ import annotations
 
 
+def format_sql(sql: str, params: list | tuple = ()) -> str:
+    """Format a SQL query + params for display in pipeline steps.
+
+    Replaces $1, $2, etc. with the actual parameter values (truncated)
+    so analysts can see the full query that was executed.
+    """
+    display = sql.strip()
+    for i, p in enumerate(params, start=1):
+        placeholder = f"${i}"
+        if isinstance(p, list):
+            val_str = str(p[:5]) + ("..." if len(p) > 5 else "")
+        elif isinstance(p, str) and len(p) > 80:
+            val_str = f"'{p[:80]}...'"
+        elif isinstance(p, str):
+            val_str = f"'{p}'"
+        else:
+            val_str = str(p)
+        display = display.replace(placeholder, val_str, 1)
+    return display
+
+
 class StepCollector:
     """Mutable collector that pipeline functions append steps to."""
 

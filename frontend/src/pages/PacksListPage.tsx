@@ -57,6 +57,9 @@ export function PacksListPage() {
           >
             Create New Pack
           </button>
+          <span className="packs-list__chat-hint">
+            Type <code>/pack</code> in chat to generate from conversation
+          </span>
         </div>
         {loading && (
           <div className="packs-list__loading">

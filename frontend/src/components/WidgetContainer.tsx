@@ -1,6 +1,6 @@
 import { forwardRef } from "react";
 import type { WidgetConfig } from "../types/entities";
-import { ChartWidget } from "./ChartWidget";
+import { PlotlyChartWidget } from "./PlotlyChartWidget";
 import { SmartlistWidget } from "./SmartlistWidget";
 import type { SmartlistWidgetHandle } from "./SmartlistWidget";
 import { TopPositionsWidget } from "./TopPositionsWidget";
@@ -13,7 +13,7 @@ interface WidgetContainerProps {
 export const WidgetContainer = forwardRef<SmartlistWidgetHandle, WidgetContainerProps>(
   function WidgetContainer({ config, entityId }, ref) {
     if (config.widget_type === "chart") {
-      return <ChartWidget config={config} entityId={entityId} />;
+      return <PlotlyChartWidget config={config} entityId={entityId} />;
     }
     if (config.widget_type === "top_positions") {
       return <TopPositionsWidget config={config} />;

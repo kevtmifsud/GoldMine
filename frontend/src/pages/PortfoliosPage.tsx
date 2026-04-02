@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ColDef, GridApi } from "ag-grid-community";
-import ReactECharts from "echarts-for-react";
-import type { EChartsOption } from "echarts";
+import Plot from "react-plotly.js";
 import { Layout } from "../components/Layout";
 import { AppGrid } from "../components/ag-grid/AppGrid";
 import { createEntityLinkRenderer } from "../components/ag-grid/EntityLinkRenderer";
@@ -105,6 +104,23 @@ const INDUSTRY_PALETTE = [
   "#975a16",
   "#2b6cb0",
 ];
+
+const PLOTLY_LAYOUT_DEFAULTS: Partial<Plotly.Layout> = {
+  paper_bgcolor: "transparent",
+  plot_bgcolor: "transparent",
+  font: { family: "Inter, system-ui, sans-serif", size: 11 },
+  hovermode: "x unified" as const,
+};
+
+const PLOTLY_CONFIG: Partial<Plotly.Config> = {
+  displayModeBar: false,
+  responsive: true,
+};
+
+const GRID_STYLE: Partial<Plotly.LayoutAxis> = {
+  gridcolor: "#e2e8f0",
+  griddash: "dash",
+};
 
 export function PortfoliosPage() {
   const [portfolioNames, setPortfolioNames] = useState<string[]>([]);
@@ -426,7 +442,7 @@ export function PortfoliosPage() {
     : 0;
   const positionCount = detail
     ? getHeaderValue(detail.header_fields, "Positions")
-    : "—";
+    : "\u2014";
   const totalPnl = detail
     ? parseNumeric(getHeaderValue(detail.header_fields, "Total PnL"))
     : 0;
@@ -492,265 +508,244 @@ export function PortfoliosPage() {
     return m;
   }, [selected, perfMode]);
 
-  // --- Cumulative Performance ECharts option ---
-  const perfOption: EChartsOption = useMemo(() => {
-    if (chartComparisonData.length === 0 || !selected) return {};
+  // --- Cumulative Performance Plotly data & layout ---
+  const { perfTraces, perfLayout } = useMemo(() => {
+    if (chartComparisonData.length === 0 || !selected) {
+      return { perfTraces: [] as Plotly.Data[], perfLayout: {} as Partial<Plotly.Layout> };
+    }
 
     const xData = chartComparisonData.map((d) => d.date as string);
     const mvKey = `${selected}_mv`;
 
-    const legendSelected: Record<string, boolean> = {};
-    for (const name of perfLegendNames) {
-      const dataKey = perfNameToKey[name];
-      legendSelected[name] = !perfHidden.has(dataKey);
-    }
+    const traces: Plotly.Data[] = [];
 
-    const series: EChartsOption["series"] = [];
-
-    // Market value area
-    series.push({
-      type: "line",
+    // Market value area (left y-axis)
+    const mvVisible = !perfHidden.has(perfNameToKey["Portfolio Value"]);
+    traces.push({
+      type: "scatter",
+      mode: "lines",
       name: "Portfolio Value",
-      yAxisIndex: 0,
-      data: chartComparisonData.map((d) => {
+      x: xData,
+      y: chartComparisonData.map((d) => {
         const v = d[mvKey];
         return v != null ? Number(v) : null;
       }),
-      lineStyle: { color: MV_AREA_COLOR, width: 1, opacity: 0.4 },
-      itemStyle: { color: MV_AREA_COLOR },
-      areaStyle: { color: MV_AREA_COLOR, opacity: 0.15 },
-      showSymbol: false,
-      connectNulls: true,
-      animation: false,
+      yaxis: "y",
+      line: { color: MV_AREA_COLOR, width: 1 },
+      fill: "tozeroy",
+      fillcolor: "rgba(160, 174, 192, 0.15)",
+      opacity: 0.4,
+      connectgaps: true,
+      visible: mvVisible ? true : "legendonly",
+      hovertemplate: "%{fullData.name}: %{y:$,.0f}<extra></extra>",
     });
 
-    // Portfolio return line
-    series.push({
-      type: "line",
+    // Portfolio return line (right y-axis)
+    const portfolioColor = PORTFOLIO_COLORS[selected] || "#805ad5";
+    const portfolioVisible = !perfHidden.has(perfNameToKey[selected]);
+    traces.push({
+      type: "scatter",
+      mode: "lines",
       name: selected,
-      yAxisIndex: 1,
-      data: chartComparisonData.map((d) => {
+      x: xData,
+      y: chartComparisonData.map((d) => {
         const v = d[selected];
         return v != null ? Number(v) : null;
       }),
-      lineStyle: { color: PORTFOLIO_COLORS[selected] || "#805ad5", width: 2 },
-      itemStyle: { color: PORTFOLIO_COLORS[selected] || "#805ad5" },
-      showSymbol: false,
-      connectNulls: true,
-      animation: false,
+      yaxis: "y2",
+      line: { color: portfolioColor, width: 2 },
+      connectgaps: true,
+      visible: portfolioVisible ? true : "legendonly",
+      hovertemplate: perfMode === "%"
+        ? "%{fullData.name}: %{y:+.1f}%<extra></extra>"
+        : "%{fullData.name}: %{y:$,.0f}<extra></extra>",
     });
 
     // S&P 500 (only in % mode and not Flagship)
     if (selected !== "Flagship" && perfMode === "%") {
-      series.push({
-        type: "line",
+      const sp500Visible = !perfHidden.has(perfNameToKey["S&P 500"]);
+      traces.push({
+        type: "scatter",
+        mode: "lines",
         name: "S&P 500",
-        yAxisIndex: 1,
-        data: chartComparisonData.map((d) => {
+        x: xData,
+        y: chartComparisonData.map((d) => {
           const v = d["S&P 500"];
           return v != null ? Number(v) : null;
         }),
-        lineStyle: { color: SP500_COLOR, width: 2, type: "dashed" },
-        itemStyle: { color: SP500_COLOR },
-        showSymbol: false,
-        connectNulls: true,
-        animation: false,
+        yaxis: "y2",
+        line: { color: SP500_COLOR, width: 2, dash: "dash" },
+        connectgaps: true,
+        visible: sp500Visible ? true : "legendonly",
+        hovertemplate: "%{fullData.name}: %{y:+.1f}%<extra></extra>",
       });
     }
 
-    return {
-      grid: { left: 55, right: 55, top: 8, bottom: 55 },
+    const layout: Partial<Plotly.Layout> = {
+      ...PLOTLY_LAYOUT_DEFAULTS,
+      margin: { l: 55, r: 55, t: 8, b: 40 },
       legend: {
-        data: perfLegendNames,
-        selected: legendSelected,
-        bottom: 0,
-        textStyle: { fontSize: 11 },
+        orientation: "h",
+        y: -0.12,
+        x: 0.5,
+        xanchor: "center",
+        font: { size: 10 },
+        tracegroupgap: 5,
       },
-      xAxis: {
-        type: "category",
-        data: xData,
-        axisLabel: {
-          fontSize: 11,
-          formatter: (d: string) => d.slice(0, 7),
-        },
-        axisPointer: { show: true },
+      xaxis: {
+        type: "date",
+        tickformat: "%b '%y",
+        hoverformat: "%-m/%-d/%Y",
+        nticks: 8,
+        autorange: true,
+        ...GRID_STYLE,
+        tickfont: { size: 11 },
+        rangeslider: { visible: false },
+        domain: [0, 1],
       },
-      yAxis: [
-        {
-          type: "value",
-          axisLabel: { fontSize: 11, formatter: (v: number) => formatCurrency(v) },
-          scale: true,
-          splitLine: { lineStyle: { type: "dashed" as const, color: "#e2e8f0" } },
-        },
-        {
-          type: "value",
-          position: "right",
-          axisLabel: {
-            fontSize: 11,
-            formatter: perfMode === "%"
-              ? (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`
-              : (v: number) => formatCurrency(v),
-          },
-          scale: true,
-          splitLine: { show: false },
-        },
-      ],
-      tooltip: {
-        trigger: "axis",
-        formatter: (params: unknown) => {
-          const items = (Array.isArray(params) ? params : [params]) as { axisValue: string; seriesName: string; value: number | null; marker: string }[];
-          let html = `<div style="font-weight:600;margin-bottom:4px">${items[0]?.axisValue ?? ""}</div>`;
-          for (const item of items) {
-            if (item.value == null) continue;
-            let formatted: string;
-            if (item.seriesName === "Portfolio Value") {
-              formatted = formatCurrency(item.value);
-            } else if (perfMode === "%") {
-              formatted = `${item.value >= 0 ? "+" : ""}${item.value.toFixed(1)}%`;
-            } else {
-              formatted = formatCurrency(item.value);
-            }
-            html += `<div>${item.marker} ${item.seriesName}: ${formatted}</div>`;
-          }
-          return html;
-        },
+      yaxis: {
+        ...GRID_STYLE,
+        tickfont: { size: 11 },
+        tickformat: "$~s",
+        side: "left",
+        autorange: true,
       },
-      dataZoom: [
-        { type: "inside", xAxisIndex: 0 },
-        { type: "slider", xAxisIndex: 0, height: 20, bottom: 22 },
-      ],
-      series,
+      yaxis2: {
+        ...GRID_STYLE,
+        tickfont: { size: 11 },
+        tickformat: perfMode === "%" ? "+.1f" : "$~s",
+        ticksuffix: perfMode === "%" ? "%" : "",
+        side: "right",
+        overlaying: "y",
+        showgrid: false,
+        autorange: true,
+      },
     };
+
+    return { perfTraces: traces, perfLayout: layout };
   }, [chartComparisonData, selected, perfMode, perfLegendNames, perfNameToKey, perfHidden]);
 
-  const perfOnEvents = useMemo(() => ({
-    legendselectchanged: (params: { name: string }) => {
-      const dataKey = perfNameToKey[params.name];
+  const handlePerfLegendClick = useCallback((event: Readonly<Plotly.LegendClickEvent>) => {
+    const traceName = (event.data[event.curveNumber] as Plotly.Data & { name?: string }).name;
+    if (traceName) {
+      const dataKey = perfNameToKey[traceName];
       if (dataKey) perfToggle(dataKey);
-    },
-  }), [perfNameToKey, perfToggle]);
+    }
+    // Return false to prevent Plotly's default legend toggle behavior
+    // since we manage visibility via state
+    return false;
+  }, [perfNameToKey, perfToggle]);
 
-  // --- PnL Breakdown ECharts option ---
-  const breakdownOption: EChartsOption = useMemo(() => {
-    if (chartBreakdownData.length === 0) return {};
+  // --- PnL Breakdown Plotly data & layout ---
+  const { breakdownTraces, breakdownLayout } = useMemo(() => {
+    if (chartBreakdownData.length === 0) {
+      return { breakdownTraces: [] as Plotly.Data[], breakdownLayout: {} as Partial<Plotly.Layout> };
+    }
 
     const xData = chartBreakdownData.map((d) => d.date as string);
-    const series: EChartsOption["series"] = [];
+    const traces: Plotly.Data[] = [];
 
-    const legendNames: string[] = [];
-    const legendSelected: Record<string, boolean> = {};
+    const hoverTemplateFn = breakdownMode === "%"
+      ? "%{fullData.name}: %{y:+.1f}%<extra></extra>"
+      : "%{fullData.name}: %{y:$,.0f}<extra></extra>";
 
     // Total line
-    legendNames.push("Total");
-    legendSelected["Total"] = !breakdownHidden.has("Total");
-    series.push({
-      type: "line",
+    const totalVisible = !breakdownHidden.has("Total");
+    traces.push({
+      type: "scatter",
+      mode: "lines",
       name: "Total",
-      data: chartBreakdownData.map((d) => {
+      x: xData,
+      y: chartBreakdownData.map((d) => {
         const v = d["Total"];
         return v != null ? Number(v) : null;
       }),
-      lineStyle: { color: PORTFOLIO_COLORS[selected ?? ""] || "#805ad5", width: 2.5 },
-      itemStyle: { color: PORTFOLIO_COLORS[selected ?? ""] || "#805ad5" },
-      showSymbol: false,
-      connectNulls: true,
-      animation: false,
+      line: { color: PORTFOLIO_COLORS[selected ?? ""] || "#805ad5", width: 2.5 },
+      connectgaps: true,
+      visible: totalVisible ? true : "legendonly",
+      hovertemplate: hoverTemplateFn,
     });
 
     // Group lines (excluding "Other")
     const nonOtherGroups = breakdownGroups.filter((g) => g !== "Other");
     nonOtherGroups.forEach((group, idx) => {
-      legendNames.push(group);
-      legendSelected[group] = !breakdownHidden.has(group);
-      series.push({
-        type: "line",
+      const groupVisible = !breakdownHidden.has(group);
+      traces.push({
+        type: "scatter",
+        mode: "lines",
         name: group,
-        data: chartBreakdownData.map((d) => {
+        x: xData,
+        y: chartBreakdownData.map((d) => {
           const v = d[group];
           return v != null ? Number(v) : null;
         }),
-        lineStyle: {
+        line: {
           color: INDUSTRY_PALETTE[idx % INDUSTRY_PALETTE.length],
           width: 1.5,
-          type: "dashed",
-          opacity: 0.7,
+          dash: "dash",
         },
-        itemStyle: { color: INDUSTRY_PALETTE[idx % INDUSTRY_PALETTE.length] },
-        showSymbol: false,
-        connectNulls: true,
-        animation: false,
+        opacity: 0.7,
+        connectgaps: true,
+        visible: groupVisible ? true : "legendonly",
+        hovertemplate: hoverTemplateFn,
       });
     });
 
     // "Other" group
     if (breakdownGroups.includes("Other")) {
-      legendNames.push("Other");
-      legendSelected["Other"] = !breakdownHidden.has("Other");
-      series.push({
-        type: "line",
+      const otherVisible = !breakdownHidden.has("Other");
+      traces.push({
+        type: "scatter",
+        mode: "lines",
         name: "Other",
-        data: chartBreakdownData.map((d) => {
+        x: xData,
+        y: chartBreakdownData.map((d) => {
           const v = d["Other"];
           return v != null ? Number(v) : null;
         }),
-        lineStyle: { color: "#a0aec0", width: 1.5, type: "dashed", opacity: 0.7 },
-        itemStyle: { color: "#a0aec0" },
-        showSymbol: false,
-        connectNulls: true,
-        animation: false,
+        line: { color: "#a0aec0", width: 1.5, dash: "dash" },
+        opacity: 0.7,
+        connectgaps: true,
+        visible: otherVisible ? true : "legendonly",
+        hovertemplate: hoverTemplateFn,
       });
     }
 
-    return {
-      grid: { left: 55, right: 12, top: 8, bottom: 28 },
+    const layout: Partial<Plotly.Layout> = {
+      ...PLOTLY_LAYOUT_DEFAULTS,
+      margin: { l: 55, r: 12, t: 8, b: 28 },
       legend: {
-        data: legendNames,
-        selected: legendSelected,
-        bottom: 0,
-        textStyle: { fontSize: 11 },
+        orientation: "h",
+        y: -0.12,
+        x: 0.5,
+        xanchor: "center",
+        font: { size: 10 },
+        tracegroupgap: 5,
       },
-      xAxis: {
-        type: "category",
-        data: xData,
-        axisLabel: {
-          fontSize: 11,
-          formatter: (d: string) => d.slice(0, 7),
-        },
+      xaxis: {
+        type: "date",
+        tickformat: "%b '%y",
+        hoverformat: "%-m/%-d/%Y",
+        nticks: 8,
+        ...GRID_STYLE,
+        tickfont: { size: 11 },
       },
-      yAxis: {
-        type: "value",
-        axisLabel: {
-          fontSize: 11,
-          formatter: breakdownMode === "%"
-            ? (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`
-            : (v: number) => formatCurrency(v),
-        },
-        splitLine: { lineStyle: { type: "dashed" as const, color: "#e2e8f0" } },
+      yaxis: {
+        ...GRID_STYLE,
+        tickfont: { size: 11 },
+        tickformat: breakdownMode === "%" ? "+.1f" : "$~s",
+        ticksuffix: breakdownMode === "%" ? "%" : "",
       },
-      tooltip: {
-        trigger: "axis",
-        formatter: (params: unknown) => {
-          const items = (Array.isArray(params) ? params : [params]) as { axisValue: string; seriesName: string; value: number | null; marker: string }[];
-          let html = `<div style="font-weight:600;margin-bottom:4px">${items[0]?.axisValue ?? ""}</div>`;
-          for (const item of items) {
-            if (item.value == null) continue;
-            const formatted = breakdownMode === "%"
-              ? `${item.value >= 0 ? "+" : ""}${item.value.toFixed(1)}%`
-              : formatCurrency(item.value);
-            html += `<div>${item.marker} ${item.seriesName}: ${formatted}</div>`;
-          }
-          return html;
-        },
-      },
-      series,
     };
+
+    return { breakdownTraces: traces, breakdownLayout: layout };
   }, [chartBreakdownData, breakdownGroups, breakdownMode, breakdownHidden, selected]);
 
-  const breakdownOnEvents = useMemo(() => ({
-    legendselectchanged: (params: { name: string }) => {
-      breakdownToggle(params.name);
-    },
-  }), [breakdownToggle]);
+  const handleBreakdownLegendClick = useCallback((event: Readonly<Plotly.LegendClickEvent>) => {
+    const traceName = (event.data[event.curveNumber] as Plotly.Data & { name?: string }).name;
+    if (traceName) breakdownToggle(traceName);
+    return false;
+  }, [breakdownToggle]);
 
   return (
     <Layout>
@@ -816,11 +811,13 @@ export function PortfoliosPage() {
                   </div>
                 </div>
               </div>
-              <ReactECharts
-                option={perfOption}
-                style={{ height: 350 }}
-                notMerge
-                onEvents={perfOnEvents}
+              <Plot
+                data={perfTraces}
+                layout={perfLayout}
+                config={PLOTLY_CONFIG}
+                style={{ height: 350, width: "100%" }}
+                useResizeHandler
+                onLegendClick={handlePerfLegendClick}
               />
             </div>
           )}
@@ -861,11 +858,13 @@ export function PortfoliosPage() {
                   </div>
                 </div>
               </div>
-              <ReactECharts
-                option={breakdownOption}
-                style={{ height: 350 }}
-                notMerge
-                onEvents={breakdownOnEvents}
+              <Plot
+                data={breakdownTraces}
+                layout={breakdownLayout}
+                config={PLOTLY_CONFIG}
+                style={{ height: 350, width: "100%" }}
+                useResizeHandler
+                onLegendClick={handleBreakdownLegendClick}
               />
             </div>
           )}
@@ -923,7 +922,7 @@ export function PortfoliosPage() {
                 <span
                   className={`portfolio-summary-card__value ${ytdPnl !== null ? pnlClass(ytdPnl) : ""}`}
                 >
-                  {ytdPnl !== null ? formatCurrency(ytdPnl) : "—"}
+                  {ytdPnl !== null ? formatCurrency(ytdPnl) : "\u2014"}
                   {ytdPnlPct !== null && (
                     <span className="portfolio-summary-card__pct">{formatPct(ytdPnlPct)}</span>
                   )}

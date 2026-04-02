@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from pathlib import Path
 from typing import AsyncIterator
@@ -22,9 +23,10 @@ from .db import get_conn
 from .models import ClassifiedQuery, ResolvedUniverse
 from .retrieval import _embed_query, _lookup_qa_library
 from .steps import StepCollector
+from app.mcp.registry import get_registry
+from app.mcp.types import MCPToolResult
 from .tools import (
     ALWAYS_LOADED_TOOL_NAMES,
-    execute_tool,
     get_always_loaded_tools,
     get_tool_definitions,
 )
@@ -135,6 +137,101 @@ def _build_qa_context(qa_hits: list) -> str:
     return "\n".join(parts)
 
 
+def _build_chart_from_mcp_result(
+    result: "MCPToolResult",
+) -> str | None:
+    """Build a ```chart block from an MCPToolResult with preferred_presentation='chart'."""
+    if result.preferred_presentation != "chart":
+        return None
+    if not result.rows:
+        return None
+
+    from .chart_builder import build_line_chart, build_bar_chart
+    from collections import defaultdict
+
+    config = result.chart_config or {}
+    chart_type = config.get("type", "line")
+    x_col = config.get("x_column", "date")
+    y_col = config.get("y_column", "value")
+    series_col = config.get("series_column")
+    title = config.get("title", "")
+    y_label = config.get("y_label", "")
+
+    # Build series data from rows
+    if series_col:
+        series_map: dict[str, list] = defaultdict(list)
+        for row in result.rows:
+            key = str(row.get(series_col, ""))
+            x_val = str(row.get(x_col, ""))
+            y_val = row.get(y_col)
+            if y_val is not None:
+                series_map[key].append([x_val, float(y_val)])
+        series_data = [
+            {"name": k, "data": v}
+            for k, v in series_map.items()
+        ]
+    else:
+        series_data = [{
+            "name": y_label or y_col,
+            "data": [
+                [str(r.get(x_col, "")), float(r.get(y_col, 0))]
+                for r in result.rows
+                if r.get(y_col) is not None
+            ],
+        }]
+
+    # Detect y format from data magnitude
+    sample_val = 0.0
+    for row in result.rows:
+        v = row.get(y_col)
+        if v is not None:
+            sample_val = abs(float(v))
+            break
+
+    if sample_val > 1e9:
+        y_format = "billions"
+    elif sample_val > 1e6:
+        y_format = "millions"
+    else:
+        y_format = "number"
+
+    # Override with chart_config formatters
+    formatters = config.get("formatters", {})
+    if y_col in formatters:
+        y_format = formatters[y_col]
+
+    # Embed tool metadata so frontend can extract for "Add to Page"
+    tool_meta = result.metadata.get("params", {})
+    metadata_comment = (
+        f"// tool: {result.tool_name}\n"
+        f"// params: {json.dumps(tool_meta)}\n"
+    )
+
+    if chart_type == "line":
+        spec = build_line_chart(
+            title=title, series_data=series_data,
+            y_format=y_format, y_label=y_label, x_label="Date",
+        )
+    elif chart_type == "bar":
+        categories = list(dict.fromkeys(
+            str(r.get(x_col, "")) for r in result.rows
+        ))
+        spec = build_bar_chart(
+            title=title, categories=categories,
+            series_data=series_data,
+            y_format=y_format, y_label=y_label,
+        )
+    else:
+        return None
+
+    return (
+        f"\n```chart\n"
+        f"{metadata_comment}"
+        f"{json.dumps(spec, indent=2)}"
+        f"\n```\n"
+    )
+
+
 def _has_chartable_data(tool_results: list) -> bool:
     """Check if tool results contain data that could be plotted."""
     for result in tool_results:
@@ -146,6 +243,21 @@ def _has_chartable_data(tool_results: list) -> bool:
             ):
                 return True
     return False
+
+
+_CHART_BLOCK_RE = re.compile(r"\n*```chart\n.*?```\n*", re.DOTALL)
+_PLOT_TOGGLE_RE = re.compile(r"\n*\[📈 Plot Over Time\?\]\(#plot-over-time\)\n*")
+
+
+def _strip_chart_blocks(text: str) -> str:
+    """Remove any ```chart blocks and Plot Over Time toggles from text.
+
+    Used when auto-charts from MCP results will be appended, to prevent
+    duplicate charts (one Claude-generated, one auto-generated).
+    """
+    text = _CHART_BLOCK_RE.sub("", text)
+    text = _PLOT_TOGGLE_RE.sub("", text)
+    return text
 
 
 async def _build_chart_from_results(
@@ -213,9 +325,10 @@ async def _build_chart_from_results(
                 ts_parsed, top_metric, top_period,
             )
         else:
-            # Bar chart (default for estimates) — compare sources side by side
+            # Bar chart — grouped by period with source as series
+            # Pass all estimate rows and let the chart builder handle grouping
             chart_spec = format_estimates_for_bar_chart(
-                estimates_rows, top_metric, top_period,
+                estimates_rows, top_metric,
             )
     elif pnl_rows:
         chart_spec = format_pnl_for_line_chart(pnl_rows, metric="itd_pnl")
@@ -320,7 +433,9 @@ async def generate_response(
     total_input_tokens = 0
     total_output_tokens = 0
     all_tool_names_used: list[str] = []
+    all_tool_calls_used: list[dict] = []  # name + input for each call (ordered, may have dupes)
     all_tool_result_data: list = []  # parsed tool results for chart building
+    all_mcp_results: list[MCPToolResult] = []  # structured MCP results for auto-chart
     cost_warning_emitted = False
     tool_loop_iteration = 0
     max_tool_loops = 10  # safety limit
@@ -423,9 +538,11 @@ async def generate_response(
                     ),
                 }
 
-            # Emit step for tool calls
+            # Track tool calls with full params
             tool_names = [b.name for b in tool_use_blocks]
             all_tool_names_used.extend(tool_names)
+            for b in tool_use_blocks:
+                all_tool_calls_used.append({"name": b.name, "input": b.input})
             if steps:
                 steps.add(
                     label=f"Calling tools: {', '.join(tool_names)}",
@@ -440,33 +557,87 @@ async def generate_response(
             # Convert SDK Pydantic objects to plain dicts to avoid serialization errors
             messages.append({"role": "assistant", "content": _serialize_content_blocks(response.content)})
 
-            # Execute tools and build tool_result blocks
+            # Execute tools via MCP registry and build tool_result blocks
+            registry = get_registry()
             tool_results = []
             for block in tool_use_blocks:
-                result_str = await execute_tool(
-                    tool_name=block.name,
-                    tool_input=block.input,
+                mcp_result = await registry.call_tool(
+                    block.name,
+                    block.input,
                     classified=classified,
                     query_embedding=query_embedding,
                     steps=steps,
                 )
 
-                # If tool returned an error, annotate the result for Claude
-                # so it works around missing data gracefully
-                try:
-                    parsed = json.loads(result_str)
-                    if isinstance(parsed, dict) and parsed.get("error") is True:
-                        tool_label = parsed.get("tool_name", block.name)
-                        result_str = json.dumps({
-                            "error": True,
-                            "note": (
-                                f"The {tool_label} data was unavailable. "
-                                "Base your response only on successfully retrieved data. "
-                                "Do not mention specific technical errors."
-                            ),
-                        })
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                # Store params in metadata for auto-chart "Add to Page"
+                mcp_result.metadata["params"] = block.input
+                mcp_result.metadata["tool_name"] = block.name
+                all_mcp_results.append(mcp_result)
+
+                # Convert MCPToolResult to JSON string for Claude.
+                # If tool has preferred_presentation="chart", inject a hint
+                # so Claude writes observations instead of a redundant table.
+                # Use raw_json when available (legacy tools) to preserve
+                # exact output format; fall back to structured conversion.
+                if mcp_result.raw_json is not None:
+                    result_str = mcp_result.raw_json
+                elif mcp_result.rows:
+                    from .tools import _safe_json_dumps
+                    result_str = _safe_json_dumps(mcp_result.rows)
+                else:
+                    result_str = json.dumps([])
+
+                # If tool returned an error, annotate for Claude
+                if mcp_result.error:
+                    result_str = json.dumps({
+                        "error": True,
+                        "note": (
+                            f"The {block.name} data was unavailable. "
+                            "Base your response only on successfully retrieved data. "
+                            "Do not mention specific technical errors."
+                        ),
+                    })
+
+                # For chart tools: truncate the raw data and replace with a
+                # compact summary. Claude doesn't need 500 rows of JSON to
+                # write 3 bullet observations — the chart is built separately
+                # from the full data. This prevents Claude from dumping raw JSON.
+                if (
+                    mcp_result.preferred_presentation == "chart"
+                    and not mcp_result.error
+                    and mcp_result.rows
+                ):
+                    # Build a compact summary: first 5 and last 5 rows + stats
+                    sample_rows = mcp_result.rows[:5]
+                    if len(mcp_result.rows) > 10:
+                        sample_rows += mcp_result.rows[-5:]
+                    from .tools import _safe_json_dumps
+                    result_str = _safe_json_dumps(sample_rows)
+                    result_str += (
+                        f"\n\n[SYSTEM: Showing {len(sample_rows)} of "
+                        f"{len(mcp_result.rows)} total rows. "
+                        "A chart will be automatically appended for the FULL dataset. "
+                        "Do NOT render this data as a table or code block. "
+                        "Do NOT output raw JSON. "
+                        "Write ONLY: one intro line, then the chart (auto-provided), "
+                        "then 3 bullet observations with specific numbers from the data. "
+                        "Do NOT add any ```chart blocks — the system provides the chart.]"
+                    )
+
+                # Inject pre-formatted markdown for table tools
+                if (
+                    mcp_result.formatted_markdown
+                    and not mcp_result.error
+                    and mcp_result.preferred_presentation != "chart"
+                ):
+                    result_str += (
+                        "\n\n[SYSTEM: The data above has been pre-formatted "
+                        "into a markdown table. Include this table EXACTLY "
+                        "as shown in your response — do not reformat, "
+                        "reorder, or change any numbers. Add only a one-line "
+                        "intro before it. Nothing after it.]\n\n"
+                        + mcp_result.formatted_markdown
+                    )
 
                 tool_results.append({
                     "type": "tool_result",
@@ -505,9 +676,16 @@ async def generate_response(
             break
 
     # ------------------------------------------------------------------
-    # 6b. Build chart spec if requested
+    # 6b. Build chart specs — from explicit chart requests and MCP auto-chart
     # ------------------------------------------------------------------
     chart_block = await _build_chart_from_results(all_tool_result_data, classified)
+
+    # Auto-chart: MCP tools with preferred_presentation="chart"
+    mcp_chart_blocks: list[str] = []
+    for mcp_res in all_mcp_results:
+        block = _build_chart_from_mcp_result(mcp_res)
+        if block:
+            mcp_chart_blocks.append(block)
 
     # ------------------------------------------------------------------
     # 7. Stream the final text response
@@ -518,9 +696,15 @@ async def generate_response(
         if hasattr(block, "text"):
             full_response += block.text
 
-    # Append chart block if one was built, or add plot toggle if chartable data exists
+    # Append chart blocks: explicit request first, then MCP auto-charts.
+    # When auto-charts are present, strip any chart blocks Claude generated
+    # to prevent duplicate charts in the response.
     if chart_block:
+        full_response = _strip_chart_blocks(full_response)
         full_response += chart_block
+    elif mcp_chart_blocks:
+        full_response = _strip_chart_blocks(full_response)
+        full_response += "".join(mcp_chart_blocks)
     elif _has_chartable_data(all_tool_result_data):
         full_response += "\n\n[📈 Plot Over Time?](#plot-over-time)"
 
@@ -555,6 +739,7 @@ async def generate_response(
         "query_type": classified.query_type,
         "tickers_referenced": universe.tickers,
         "tools_used": list(set(all_tool_names_used)),
+        "tool_calls": all_tool_calls_used,
         "classifier_model": (await get_model_config("query_classifier"))["model"],
         "generator_model": model,
         "input_tokens": total_input_tokens,

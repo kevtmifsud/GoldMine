@@ -1,4 +1,3 @@
-import { EmbeddedChat } from "../../components/chat/EmbeddedChat";
 import { WidgetContainer } from "../../components/WidgetContainer";
 import { StockSummaryBar } from "../../components/StockSummaryBar";
 import { StockViewToolbar } from "../../components/StockViewToolbar";
@@ -13,7 +12,6 @@ export function StockDetailsSubPage() {
 
   return (
     <>
-      <EmbeddedChat />
       <StockViewToolbar pageWidgets={chartWidgets} />
 
       <StockSummaryBar

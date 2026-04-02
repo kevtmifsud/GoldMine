@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { EmbeddedChat } from "../../components/chat/EmbeddedChat";
 import { useStockEntity } from "./StockEntityPage";
 import { PackGrid } from "../../components/PackGrid";
 import { usePackEditor } from "../../hooks/usePackEditor";
@@ -23,7 +22,6 @@ export function StockPackSubPage() {
   if (fetchError) {
     return (
       <>
-        <EmbeddedChat />
         <div className="entity-page__error">{fetchError}</div>
       </>
     );
@@ -32,7 +30,6 @@ export function StockPackSubPage() {
   if (!packId || editor.loading) {
     return (
       <>
-        <EmbeddedChat />
         <div className="entity-page__loading">
           <div className="spinner" />
         </div>
@@ -42,7 +39,6 @@ export function StockPackSubPage() {
 
   return (
     <>
-      <EmbeddedChat />
       <div className="entity-pack-section">
         <div className="entity-pack-section__header">
           <h3>Analyst Pack</h3>

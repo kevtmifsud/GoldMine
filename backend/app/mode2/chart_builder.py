@@ -234,63 +234,108 @@ def format_estimates_for_line_chart(
 def format_estimates_for_bar_chart(
     estimates_rows: list[dict],
     metric: str,
-    period: str,
+    period: str | None = None,
 ) -> dict | None:
-    """Convert daily_estimates rows into a bar chart comparing all sources
-    for a single point in time (most recent as_of_date)."""
+    """Convert daily_estimates rows into a grouped bar chart.
+
+    X-axis = periods, series = sources. Every row in the data is represented.
+    If only one period, falls back to sources on x-axis.
+    """
     if not estimates_rows:
         return None
 
-    max_date = max(str(r.get("as_of_date", "")) for r in estimates_rows)
-
-    filtered = [
-        r for r in estimates_rows
-        if r.get("metric") == metric
-        and r.get("period") == period
-        and str(r.get("as_of_date", "")) == max_date
-    ]
+    # Filter to the requested metric
+    filtered = [r for r in estimates_rows if r.get("metric") == metric]
     if not filtered:
         return None
 
-    categories = []
-    values = []
-    colors = []
+    # Get unique periods and sources
+    periods = list(dict.fromkeys(r.get("period", "") for r in filtered))
+    source_keys: list[str] = []
+    source_labels: dict[str, str] = {}
 
-    for row in sorted(filtered, key=lambda x: x.get("source", "")):
+    for row in filtered:
         source = row.get("source", "")
         firm = row.get("firm") or ""
         analyst = row.get("analyst_name") or ""
-
-        if source == "consensus":
-            label = "Consensus"
-        elif source == "internal":
-            label = f"Internal\n{analyst}" if analyst else "Internal"
+        # Build a unique key per source/firm/analyst
+        if source in ("consensus", "internal"):
+            key = source
+            label = source.title()
         elif analyst:
-            label = f"{firm}\n{analyst}"
+            key = f"{source}:{firm}:{analyst}"
+            label = f"{firm} / {analyst}"
+        elif firm:
+            key = f"{source}:{firm}"
+            label = firm
         else:
-            label = firm or source.title()
+            key = source
+            label = source.title()
+        if key not in source_labels:
+            source_keys.append(key)
+            source_labels[key] = label
 
-        categories.append(label)
-        values.append(float(row["value"]))
-        colors.append(SOURCE_COLORS.get(source, CHART_COLORS[0]))
+    # Build lookup: (period, source_key) -> value
+    value_map: dict[tuple[str, str], float] = {}
+    for row in filtered:
+        source = row.get("source", "")
+        firm = row.get("firm") or ""
+        analyst = row.get("analyst_name") or ""
+        if source in ("consensus", "internal"):
+            key = source
+        elif analyst:
+            key = f"{source}:{firm}:{analyst}"
+        elif firm:
+            key = f"{source}:{firm}"
+        else:
+            key = source
+        p = row.get("period", "")
+        val = row.get("value")
+        if val is not None:
+            value_map[(p, key)] = float(val)
 
-    sample_val = abs(values[0]) if values else 0
+    # Detect value magnitude for formatting
+    sample_val = abs(next(iter(value_map.values()), 0))
     y_format, y_label = _detect_y_format(sample_val)
 
     ticker = filtered[0].get("ticker", "")
-    title = f"{ticker} {metric.replace('_', ' ').title()} — {period} Estimates Comparison"
+    metric_label = metric.replace("_", " ").title()
 
-    chart = build_bar_chart(
-        title=title,
-        categories=categories,
-        series_data=[{"name": "Estimate", "data": values}],
-        y_format=y_format, y_label=y_label,
-    )
+    if len(periods) > 1:
+        # Grouped bar: periods on x-axis, sources as series
+        categories = periods
+        series_data = []
+        for sk in source_keys:
+            data = [value_map.get((p, sk), 0) for p in periods]
+            series_data.append({"name": source_labels[sk], "data": data})
 
-    # Override with per-bar colors
-    chart["series"][0]["data"] = [
-        {"value": v, "itemStyle": {"color": c}}
-        for v, c in zip(values, colors)
+        title = f"{ticker} {metric_label} — {' & '.join(periods)}"
+
+        chart = build_bar_chart(
+            title=title,
+            categories=categories,
+            series_data=series_data,
+            y_format=y_format, y_label=y_label,
+        )
+    else:
+        # Single period: sources on x-axis
+        single_period = periods[0] if periods else period or ""
+        categories = [source_labels[sk] for sk in source_keys]
+        values = [value_map.get((single_period, sk), 0) for sk in source_keys]
+        colors = [SOURCE_COLORS.get(sk.split(":")[0], CHART_COLORS[0]) for sk in source_keys]
+
+        title = f"{ticker} {metric_label} — {single_period} Estimates"
+
+        chart = build_bar_chart(
+            title=title,
+            categories=categories,
+            series_data=[{"name": "Estimate", "data": values}],
+            y_format=y_format, y_label=y_label,
+        )
+        # Per-bar colors for single-period
+        chart["series"][0]["data"] = [
+            {"value": v, "itemStyle": {"color": c}}
+            for v, c in zip(values, colors)
     ]
 
     return chart

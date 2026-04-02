@@ -1,9 +1,10 @@
-import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Component, Fragment, lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 
-const ReactECharts = lazy(() => import("echarts-for-react"));
-import { useNavigate } from "react-router-dom";
+const LazyPlot = lazy(() => import("react-plotly.js"));
+const PLOTLY_CFG = { displayModeBar: false, responsive: true } as const;
 import { Layout } from "../components/Layout";
+import { usePageContext } from "../hooks/usePageContext";
 import {
   fetchUpcomingEarnings,
   fetchPreviewHistory,
@@ -112,13 +113,19 @@ const DEFAULT_SELECTED = new Set([
 function KpiModal({
   ticker,
   initialSelected,
+  queuePosition,
+  queueTotal,
   onConfirm,
   onCancel,
+  onSkip,
 }: {
   ticker: string;
   initialSelected?: string[];
+  queuePosition?: number;
+  queueTotal?: number;
   onConfirm: (kpis: string[]) => void;
   onCancel: () => void;
+  onSkip?: () => void;
 }) {
   const [available, setAvailable] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -157,7 +164,14 @@ function KpiModal({
     <div className="ep-modal-overlay" onClick={onCancel}>
       <div className="ep-modal" onClick={(e) => e.stopPropagation()}>
         <div className="ep-modal__header">
-          <h3>Select KPIs for {ticker}</h3>
+          <h3>
+            Select KPIs for {ticker}
+            {queueTotal && queueTotal > 1 && (
+              <span className="ep-modal__queue-badge">
+                {queuePosition} of {queueTotal}
+              </span>
+            )}
+          </h3>
           <button className="ep-modal__close" onClick={onCancel}>&times;</button>
         </div>
         <p className="ep-modal__desc">
@@ -191,8 +205,13 @@ function KpiModal({
           >
             Generate with {selected.size} KPI{selected.size !== 1 ? "s" : ""}
           </button>
+          {onSkip && (
+            <button className="ep-btn ep-btn--secondary" onClick={onSkip}>
+              Skip
+            </button>
+          )}
           <button className="ep-btn ep-btn--secondary" onClick={onCancel}>
-            Cancel
+            Cancel{queueTotal && queueTotal > 1 ? " All" : ""}
           </button>
         </div>
       </div>
@@ -204,7 +223,6 @@ function KpiModal({
 // Component
 // ---------------------------------------------------------------------------
 export function EarningsPreviewPage() {
-  const navigate = useNavigate();
   const [upcoming, setUpcoming] = useState<UpcomingEarning[]>([]);
   const [history, setHistory] = useState<PreviewSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -212,8 +230,22 @@ export function EarningsPreviewPage() {
   const [activeTab, setActiveTab] = useState<string>("summary");
   const [generating, setGenerating] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [kpiPromptTicker, setKpiPromptTicker] = useState<UpcomingEarning | null>(null);
+  const [kpiPromptQueue, setKpiPromptQueue] = useState<UpcomingEarning[]>([]);
   const viewerRef = useRef<HTMLDivElement>(null);
+
+  // Inject page context into global chat panel
+  usePageContext({
+    page: "earnings_preview",
+    ticker: detail?.ticker as string | undefined,
+    period: (detail?.reporting_period as string) ?? undefined,
+    suggestions: detail
+      ? [
+          `What are ${detail.ticker}'s estimates?`,
+          `Show me ${detail.ticker} credit card data`,
+          `How has ${detail.ticker} traded recently?`,
+        ]
+      : undefined,
+  });
 
   // Fetch data on mount
   useEffect(() => {
@@ -252,16 +284,20 @@ export function EarningsPreviewPage() {
 
   // Check if ticker has prior KPIs — if not, show the popover
   const handleGenerateClick = useCallback(
-    (earning: UpcomingEarning) => {
-      if (generating.has(earning.ticker)) return;
-      // Check if a prior preview exists with KPIs
-      const prior = history.find((h) => h.ticker === earning.ticker && h.key_kpis?.length > 0);
-      if (prior) {
-        // Has prior KPIs — generate directly
-        handleGenerate(earning.ticker, prior.key_kpis);
-      } else {
-        // No KPIs — show popover
-        setKpiPromptTicker(earning);
+    (earnings: UpcomingEarning | UpcomingEarning[]) => {
+      const list = Array.isArray(earnings) ? earnings : [earnings];
+      const needKpis: UpcomingEarning[] = [];
+      for (const earning of list) {
+        if (generating.has(earning.ticker)) continue;
+        const prior = history.find((h) => h.ticker === earning.ticker && h.key_kpis?.length > 0);
+        if (prior) {
+          handleGenerate(earning.ticker, prior.key_kpis);
+        } else {
+          needKpis.push(earning);
+        }
+      }
+      if (needKpis.length > 0) {
+        setKpiPromptQueue(needKpis);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -271,7 +307,8 @@ export function EarningsPreviewPage() {
   const handleGenerate = useCallback(
     async (ticker: string, keyKpis?: string[]) => {
       if (generating.has(ticker)) return;
-      setKpiPromptTicker(null);
+      // Remove this ticker from the KPI queue (advance to next)
+      setKpiPromptQueue((prev) => prev.filter((e) => e.ticker !== ticker));
       setGenerating((prev) => new Set(prev).add(ticker));
       try {
         const result = await triggerPreview(ticker, keyKpis);
@@ -324,12 +361,6 @@ export function EarningsPreviewPage() {
     []
   );
 
-  const handleOpenInChat = useCallback(() => {
-    if (!detail) return;
-    const msg = `Show me the earnings preview for ${detail.ticker} ${detail.reporting_period}`;
-    navigate(`/chat?prompt=${encodeURIComponent(msg)}`);
-  }, [detail, navigate]);
-
   // Upcoming tickers that need preview
   const needPreview = upcoming.filter(
     (e) => e.days_away <= 7 && e.preview_status !== "generated"
@@ -353,7 +384,7 @@ export function EarningsPreviewPage() {
             </span>
             <button
               className="ep-banner__btn"
-              onClick={() => needPreview.forEach((e) => handleGenerateClick(e))}
+              onClick={() => handleGenerateClick(needPreview)}
             >
               Generate All
             </button>
@@ -398,7 +429,7 @@ export function EarningsPreviewPage() {
           ))}
         </div>
 
-        {/* ---- SECTION 2: PREVIEW VIEWER ---- */}
+        {/* ---- SECTION 2: PREVIEW VIEWER + CHAT ---- */}
         <div className="ep-viewer" ref={viewerRef}>
           {/* Left: list */}
           <div className="ep-list">
@@ -427,7 +458,7 @@ export function EarningsPreviewPage() {
             ))}
           </div>
 
-          {/* Right: detail */}
+          {/* Center: detail */}
           <div className="ep-detail">
             {!selectedId && (
               <div className="ep-detail__empty">
@@ -454,9 +485,6 @@ export function EarningsPreviewPage() {
                     </div>
                   </div>
                   <div className="ep-detail__actions">
-                    <button className="ep-btn ep-btn--primary" onClick={handleOpenInChat}>
-                      Open in Chat
-                    </button>
                     <button
                       className="ep-btn ep-btn--secondary"
                       onClick={() => handleGenerate(detail.ticker, detail.key_kpis ?? [])}
@@ -494,6 +522,7 @@ export function EarningsPreviewPage() {
               </>
             )}
           </div>
+
         </div>
 
         {/* ---- SECTION 3: RUN HISTORY TABLE ---- */}
@@ -550,11 +579,18 @@ export function EarningsPreviewPage() {
         </div>
       </div>
 
-      {kpiPromptTicker && (
+      {kpiPromptQueue.length > 0 && (
         <KpiModal
-          ticker={kpiPromptTicker.ticker}
-          onConfirm={(kpis) => handleGenerate(kpiPromptTicker.ticker, kpis)}
-          onCancel={() => setKpiPromptTicker(null)}
+          key={kpiPromptQueue[0].ticker}
+          ticker={kpiPromptQueue[0].ticker}
+          queuePosition={1}
+          queueTotal={kpiPromptQueue.length}
+          onConfirm={(kpis) => handleGenerate(kpiPromptQueue[0].ticker, kpis)}
+          onCancel={() => setKpiPromptQueue([])}
+          onSkip={kpiPromptQueue.length > 1
+            ? () => setKpiPromptQueue((prev) => prev.slice(1))
+            : undefined
+          }
         />
       )}
       </EarningsBoundary>
@@ -569,6 +605,7 @@ function SummaryTab({ detail, onDetailUpdated }: { detail: PreviewDetail; onDeta
   const kpis: string[] = detail.key_kpis ?? [];
   const estimates = detail.estimates_table ?? {};
   const [editingKpis, setEditingKpis] = useState(false);
+  const [viewMode, setViewMode] = useState<"value" | "yoy">("value");
 
   const handleSaveKpis = useCallback(async (newKpis: string[]) => {
     await updatePreviewSettings(detail.id as string, { key_kpis: newKpis });
@@ -610,16 +647,22 @@ function SummaryTab({ detail, onDetailUpdated }: { detail: PreviewDetail; onDeta
         )}
       </div>
 
+      {/* Value / YoY toggle — shared by both tables */}
+      <div className="ep-view-toggle" style={{ marginTop: "0.5rem" }}>
+        <button className={`ep-toggle-btn${viewMode === "value" ? " ep-toggle-btn--active" : ""}`} onClick={() => setViewMode("value")}>$ Value</button>
+        <button className={`ep-toggle-btn${viewMode === "yoy" ? " ep-toggle-btn--active" : ""}`} onClick={() => setViewMode("yoy")}>YoY Growth</button>
+      </div>
+
       {/* Consolidated overview table */}
       <div className="ep-section">
         <h4>Quarterly Overview</h4>
-        <ConsolidatedTable detail={detail} estimates={estimates} />
+        <ConsolidatedTable detail={detail} estimates={estimates} viewMode={viewMode} />
       </div>
 
       {/* Estimates Deepdive */}
       <div className="ep-section">
         <h4>Estimates Deepdive — {detail.reporting_period}</h4>
-        <EstimatesDeepdive ticker={detail.ticker} period={detail.reporting_period} kpis={kpis} />
+        <EstimatesDeepdive ticker={detail.ticker} period={detail.reporting_period} kpis={kpis} viewMode={viewMode} />
       </div>
 
     </div>
@@ -635,10 +678,12 @@ function EstimatesDeepdive({
   ticker,
   period,
   kpis,
+  viewMode,
 }: {
   ticker: string;
   period: string;
   kpis: string[];
+  viewMode: "value" | "yoy";
 }) {
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -676,7 +721,9 @@ function EstimatesDeepdive({
     const firm = (r.firm as string) || "";
     const analyst = (r.analyst_name as string) || "";
     const metric = r.metric as string;
-    const value = r.value != null ? Number(r.value) : null;
+    const rawValue = r.value != null ? Number(r.value) : null;
+    const yoyValue = r.yoy_vs_actual != null ? Number(r.yoy_vs_actual) : null;
+    const value = viewMode === "yoy" ? yoyValue : rawValue;
 
     let label: string;
     let rowId: string;
@@ -716,7 +763,7 @@ function EstimatesDeepdive({
     // Compare this row's value to our internal estimate
     // Above internal = green (street is higher), below = red (street is lower)
     const diff = ((value - intVal) / Math.abs(intVal)) * 100;
-    if (Math.abs(diff) <= 2) return "";
+    if (Math.abs(diff) <= 0.5) return "";
     return diff > 0 ? "ep-cell--above" : "ep-cell--below";
   }
 
@@ -748,9 +795,17 @@ function EstimatesDeepdive({
                 </td>
                 {metricOrder.map((m) => {
                   const val = row.values[m];
+                  let display: string;
+                  if (val == null) {
+                    display = "\u2014";
+                  } else if (viewMode === "yoy") {
+                    display = `${val >= 0 ? "+" : ""}${val.toFixed(1)}%`;
+                  } else {
+                    display = formatCurrency(val, true);
+                  }
                   return (
                     <td key={m} className={cellClass(row.key.source, m, val)}>
-                      {val != null ? formatCurrency(val, true) : "\u2014"}
+                      {display}
                     </td>
                   );
                 })}
@@ -772,16 +827,23 @@ function EstimatesDeepdive({
 function ConsolidatedTable({
   detail,
   estimates,
+  viewMode,
 }: {
   detail: PreviewDetail;
   estimates: PreviewDetail;
+  viewMode: "value" | "yoy";
 }) {
   const ticker = detail.ticker as string;
   const reportingPeriod: string = estimates.reporting_period ?? "";
   const forwardPeriod: string = estimates.forward_period ?? "";
   const [actualsMap, setActualsMap] = useState<Record<string, Record<string, number>>>({});
   const [periodEnds, setPeriodEnds] = useState<Record<string, string>>({});
-  const [beatMiss, setBeatMiss] = useState<Record<string, Record<string, { diff_pct: number; verdict: string }>>>({});
+  const [beatMiss, setBeatMiss] = useState<Record<string, Record<string, { actual: number; consensus: number; diff_pct: number; verdict: string }>>>({});
+
+  // YoY growth data from the actuals_section
+  const yoyGrowth = (detail.actuals_section?.yoy_growth ?? {}) as Record<
+    string, Record<string, { current: number; prior: number; growth_pct: number | null }>
+  >;
 
   useEffect(() => {
     if (!ticker || !reportingPeriod) return;
@@ -791,28 +853,26 @@ function ConsolidatedTable({
           fetchQuarterlyActuals(ticker, reportingPeriod),
           fetchBeatMiss(ticker, reportingPeriod),
         ]);
-        setActualsMap(actualsResp.actuals);
-        setPeriodEnds(actualsResp.period_ends);
-        setBeatMiss(bm);
+        setActualsMap(actualsResp.actuals ?? {});
+        setPeriodEnds(actualsResp.period_ends ?? {});
+        setBeatMiss(bm ?? {});
       } catch { /* ignore */ }
     })();
   }, [ticker, reportingPeriod]);
 
   if (!reportingPeriod) return <div className="ep-muted">No period data available.</div>;
 
+  type EstEntry = { value: number | null; yoy_vs_actual?: number | null; vs_consensus?: number | null };
   const estMetrics = (estimates.metrics ?? {}) as Record<
-    string,
-    Record<string, Record<string, { value: number | null }>>
+    string, Record<string, Record<string, EstEntry>>
   >;
 
-  // Derive quarter labels from reporting period by position
   const rpMatch = reportingPeriod.match(/^(\d{4})Q(\d)$/);
   const rpYear = rpMatch ? parseInt(rpMatch[1]) : 0;
   const rpQ = rpMatch ? parseInt(rpMatch[2]) : 0;
   const prevQLabel = rpQ === 1 ? `${rpYear - 1}Q4` : `${rpYear}Q${rpQ - 1}`;
   const yoyQLabel = `${rpYear - 1}Q${rpQ}`;
 
-  // Only show selected KPIs — not all available metrics
   const kpis = (detail.key_kpis ?? []) as string[];
   const allMetrics = kpis.length > 0 ? kpis : [...new Set([...Object.keys(estMetrics)])];
 
@@ -820,46 +880,99 @@ function ConsolidatedTable({
     return <div className="ep-muted">No data available for consolidated view.</div>;
   }
 
-  function getActual(metric: string, posLabel: string): number | null {
+  // Format helpers
+  function fmtVal(value: number | null, metric: string): string {
+    if (value == null) return "\u2014";
+    if (viewMode === "yoy") {
+      const sign = value >= 0 ? "+" : "";
+      return `${sign}${value.toFixed(1)}%`;
+    }
+    const isEps = metric.includes("eps");
+    if (isEps) return `$${value.toFixed(2)}`;
+    if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
+    if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(0)}M`;
+    return `$${value.toFixed(2)}`;
+  }
+
+  function fmtDiff(value: number | null, metric: string): string {
+    if (value == null) return "\u2014";
+    const sign = value >= 0 ? "+" : "";
+    if (viewMode === "yoy") return `${sign}${value.toFixed(1)}pp`;
+    const isEps = metric.includes("eps");
+    if (isEps) return `${sign}$${value.toFixed(2)}`;
+    if (Math.abs(value) >= 1e9) return `${sign}$${(value / 1e9).toFixed(1)}B`;
+    if (Math.abs(value) >= 1e6) return `${sign}$${(value / 1e6).toFixed(0)}M`;
+    return `${sign}$${value.toFixed(2)}`;
+  }
+
+  function ActualCell({ metric, posLabel }: { metric: string; posLabel: string }) {
+    const bm = beatMiss[posLabel]?.[metric] as
+      | { actual: number; consensus: number; diff_pct: number; verdict: string }
+      | undefined;
+
+    if (viewMode === "yoy") {
+      const pe = periodEnds[posLabel];
+      if (!pe) return <td>{"\u2014"}</td>;
+      const growth = yoyGrowth[pe]?.[metric]?.growth_pct;
+      if (growth == null) return <td>{"\u2014"}</td>;
+      const cls = bm ? `ep-actual--${bm.verdict}` : "";
+      return (
+        <td className={cls}>
+          {`${growth >= 0 ? "+" : ""}${growth.toFixed(1)}%`}
+          {bm && bm.verdict !== "inline" && (
+            <span className={`ep-actual__vs ep-actual__vs--${bm.verdict}`}>
+              {bm.verdict === "beat" ? "Beat" : "Miss"} {Math.abs(bm.diff_pct).toFixed(1)}%
+            </span>
+          )}
+        </td>
+      );
+    }
+
     const val = actualsMap[posLabel]?.[metric];
-    return val != null && typeof val === "number" ? val : null;
-  }
-
-  function getEst(metric: string, period: string, source: string): number | null {
-    return estMetrics[metric]?.[period]?.[source]?.value ?? null;
-  }
-
-  function ActualCell({ value, bm }: { value: number | null; bm?: { diff_pct: number; verdict: string; consensus: number } }) {
-    if (value == null) return <td>{"\u2014"}</td>;
+    if (val == null) return <td>{"\u2014"}</td>;
+    const cls = bm ? `ep-actual--${bm.verdict}` : "";
     return (
-      <td className={bm ? `ep-actual--${bm.verdict}` : ""}>
-        {formatCurrency(value, true)}
-        {bm && (
+      <td className={cls}>
+        {fmtVal(val, metric)}
+        {bm && bm.verdict !== "inline" && (
           <span className={`ep-actual__vs ep-actual__vs--${bm.verdict}`}>
-            vs {formatCurrency(bm.consensus, true)}
+            vs {fmtVal(bm.consensus, metric)}
           </span>
         )}
       </td>
     );
   }
 
-  function DiffCell({ internal, consensus }: { internal: number | null; consensus: number | null }) {
-    if (internal == null || consensus == null) return <td className="ep-table__est-cell">{"\u2014"}</td>;
-    const diff = internal - consensus;
-    const pct = consensus !== 0 ? (diff / Math.abs(consensus)) * 100 : 0;
-    const absPct = Math.abs(pct);
-    let cls = "ep-diff--inline";
-    let label = "Inline";
-    if (absPct > 2) {
-      cls = diff > 0 ? "ep-diff--beat" : "ep-diff--miss";
-      label = diff > 0 ? "Beat" : "Miss";
+  function getEstDisplay(metric: string, period: string, source: string): string {
+    const entry = estMetrics[metric]?.[period]?.[source];
+    if (!entry || entry.value == null) return "\u2014";
+    if (viewMode === "yoy") {
+      const yoy = entry.yoy_vs_actual;
+      if (yoy == null) return "\u2014";
+      return `${yoy >= 0 ? "+" : ""}${yoy.toFixed(1)}%`;
     }
-    return (
-      <td className={`ep-table__est-cell ${cls}`}>
-        <span className="ep-diff__label">{label}</span>
-        <span className="ep-diff__pct">{diff > 0 ? "+" : ""}{pct.toFixed(1)}%</span>
-      </td>
-    );
+    return fmtVal(entry.value, metric);
+  }
+
+  function getDiffDisplay(metric: string, period: string): { text: string; cls: string } {
+    const internal = estMetrics[metric]?.[period]?.["Internal"];
+    const consensus = estMetrics[metric]?.[period]?.["Consensus"];
+    if (!internal?.value || !consensus?.value) return { text: "\u2014", cls: "" };
+
+    if (viewMode === "yoy") {
+      const intYoy = internal.yoy_vs_actual;
+      const conYoy = consensus.yoy_vs_actual;
+      if (intYoy == null || conYoy == null) return { text: "\u2014", cls: "" };
+      const diff = intYoy - conYoy;
+      const cls = Math.abs(diff) <= 0.5 ? "ep-diff--inline" : diff > 0 ? "ep-diff--beat" : "ep-diff--miss";
+      return { text: fmtDiff(diff, metric), cls };
+    }
+
+    // Value mode: use vs_consensus from data, or calculate
+    const diff = internal.vs_consensus ?? (internal.value - consensus.value);
+    const pct = consensus.value !== 0 ? (diff / Math.abs(consensus.value)) * 100 : 0;
+    const cls = Math.abs(pct) <= 0.5 ? "ep-diff--inline" : diff > 0 ? "ep-diff--beat" : "ep-diff--miss";
+    return { text: fmtDiff(diff, metric), cls };
   }
 
   const estPeriods = [
@@ -868,6 +981,7 @@ function ConsolidatedTable({
   ];
 
   return (
+    <div>
     <table className="ep-table ep-table--consolidated">
       <thead>
         <tr>
@@ -882,38 +996,36 @@ function ConsolidatedTable({
         </tr>
         <tr>
           {estPeriods.map((p) => (
-            <>
-              <th key={p.key + "-int"} className="ep-table__sub-header ep-table__est-header">Internal</th>
-              <th key={p.key + "-con"} className="ep-table__sub-header ep-table__est-header">Consensus</th>
-              <th key={p.key + "-diff"} className="ep-table__sub-header ep-table__est-header">Diff</th>
-            </>
+            <Fragment key={p.key + "-sub"}>
+              <th className="ep-table__sub-header ep-table__est-header">Internal</th>
+              <th className="ep-table__sub-header ep-table__est-header">Consensus</th>
+              <th className="ep-table__sub-header ep-table__est-header">Diff</th>
+            </Fragment>
           ))}
         </tr>
       </thead>
       <tbody>
         {allMetrics.map((metric) => {
-          const yoyVal = getActual(metric, "yoy_comp");
-          const prevVal = getActual(metric, "prev_quarter");
-          const yoyBm = beatMiss.yoy_comp?.[metric];
-          const prevBm = beatMiss.prev_quarter?.[metric];
+          const diffData = estPeriods.map((p) => getDiffDisplay(metric, p.key));
           return (
             <tr key={metric}>
               <td>{metric.replace(/_/g, " ")}</td>
-              <ActualCell value={yoyVal} bm={yoyBm} />
-              <ActualCell value={prevVal} bm={prevBm} />
-              {estPeriods.map((p) => {
-                const intVal = getEst(metric, p.key, "Internal");
-                const conVal = getEst(metric, p.key, "Consensus");
+              <ActualCell metric={metric} posLabel="yoy_comp" />
+              <ActualCell metric={metric} posLabel="prev_quarter" />
+              {estPeriods.map((p, i) => {
+                const d = diffData[i];
                 return (
-                  <>
-                    <td key={p.key + "-int"} className="ep-table__est-cell">
-                      {intVal != null ? formatCurrency(intVal, true) : "\u2014"}
+                  <Fragment key={p.key}>
+                    <td className="ep-table__est-cell">
+                      {getEstDisplay(metric, p.key, "Internal")}
                     </td>
-                    <td key={p.key + "-con"} className="ep-table__est-cell">
-                      {conVal != null ? formatCurrency(conVal, true) : "\u2014"}
+                    <td className="ep-table__est-cell">
+                      {getEstDisplay(metric, p.key, "Consensus")}
                     </td>
-                    <DiffCell key={p.key + "-diff"} internal={intVal} consensus={conVal} />
-                  </>
+                    <td className={`ep-table__est-cell ${d.cls}`}>
+                      {d.text}
+                    </td>
+                  </Fragment>
                 );
               })}
             </tr>
@@ -921,6 +1033,7 @@ function ConsolidatedTable({
         })}
       </tbody>
     </table>
+    </div>
   );
 }
 
@@ -964,24 +1077,29 @@ function PriceTab({ detail }: { detail: PreviewDetail }) {
     return `$${Number(v).toFixed(2)}`;
   }
 
-  // Build indexed chart option
-  const chartOption = (() => {
+  // Build indexed Plotly chart
+  const priceChart = (() => {
     if (!chart?.ticker_prices?.length) return null;
     const tp = chart.ticker_prices;
     const sp = chart.spy_prices;
     const base_t = tp[0].close;
     const base_s = sp.length > 0 ? sp[0].close : 1;
-    return {
-      tooltip: { trigger: "axis" as const },
-      legend: { bottom: 0, textStyle: { fontSize: 11 } },
-      grid: { top: 20, bottom: 40, left: 50, right: 20 },
-      xAxis: { type: "time" as const, axisLabel: { fontSize: 11 } },
-      yAxis: { type: "value" as const, axisLabel: { fontSize: 11, formatter: (v: number) => v.toFixed(0) }, name: "Indexed (100)", nameTextStyle: { fontSize: 11 }, scale: true },
-      series: [
-        { name: ticker, type: "line" as const, data: tp.map(p => [p.date, (p.close / base_t) * 100]), smooth: false, color: "#3b82f6", lineStyle: { width: 2 }, symbol: "none" },
-        { name: "S&P 500", type: "line" as const, data: sp.map(p => [p.date, (p.close / base_s) * 100]), smooth: false, color: "#94a3b8", lineStyle: { width: 1.5, type: "dashed" as const }, symbol: "none" },
-      ],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any[] = [
+      { type: "scatter", mode: "lines", name: ticker, x: tp.map((p: { date: string }) => p.date), y: tp.map((p: { close: number }) => (p.close / base_t) * 100), line: { color: "#3b82f6", width: 2 } },
+      ...(sp.length > 0 ? [{ type: "scatter", mode: "lines", name: "S&P 500", x: sp.map((p: { date: string }) => p.date), y: sp.map((p: { close: number }) => (p.close / base_s) * 100), line: { color: "#94a3b8", width: 1.5, dash: "dash" } }] : []),
+    ];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const layout: any = {
+      paper_bgcolor: "transparent", plot_bgcolor: "transparent",
+      font: { family: "Inter, system-ui, sans-serif", size: 11 },
+      margin: { l: 50, r: 20, t: 20, b: 40 },
+      showlegend: true, legend: { orientation: "h", y: -0.12, x: 0.5, xanchor: "center", font: { size: 10 }, tracegroupgap: 5 },
+      xaxis: { type: "date", tickformat: "%b '%y", hoverformat: "%-m/%-d/%Y", nticks: 8, gridcolor: "#e2e8f0", tickfont: { size: 10 } },
+      yaxis: { title: { text: "Indexed (100)", font: { size: 10 } }, gridcolor: "#e2e8f0", griddash: "dash", tickfont: { size: 10 } },
+      hovermode: "x unified", autosize: true,
     };
+    return { data, layout };
   })();
 
   return (
@@ -1024,12 +1142,12 @@ function PriceTab({ detail }: { detail: PreviewDetail }) {
       </div>
 
       {/* 180-day indexed chart */}
-      {chartOption && (
+      {priceChart && (
         <div className="ep-section">
           <h4>180-Day Price (Indexed to 100)</h4>
           <Suspense fallback={<div className="ep-muted">Loading chart...</div>}>
             <div style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius)", padding: "8px 0" }}>
-              <ReactECharts option={chartOption} style={{ height: "300px", width: "100%" }} notMerge />
+              <LazyPlot data={priceChart.data} layout={priceChart.layout} config={PLOTLY_CFG} style={{ width: "100%", height: "300px" }} useResizeHandler />
             </div>
           </Suspense>
         </div>
@@ -1076,7 +1194,7 @@ function PriceTab({ detail }: { detail: PreviewDetail }) {
   );
 }
 
-function AltDataTab({ detail, onDetailUpdated }: { detail: PreviewDetail; onDetailUpdated: () => void }) {
+function AltDataTab({ detail, onDetailUpdated: _onDetailUpdated }: { detail: PreviewDetail; onDetailUpdated: () => void }) {
   const ticker = detail.ticker as string;
   const savedSignals = (detail.selected_alt_signals ?? []) as string[];
   const [available, setAvailable] = useState<{ data_type: string; frequency: string; vendor: string }[]>([]);
@@ -1173,79 +1291,48 @@ function AltDataSignalChart({ ticker, dataType }: { ticker: string; dataType: st
   const consensusQuarterly = (data.consensus_revenue_quarterly ?? []) as { quarter: string; consensus_revenue_yoy: number | null }[];
   const hasQuarterly = quarterly.length > 0;
 
-  // Build chart option based on view
+  // Build Plotly chart
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let chartOption: any = null;
+  let plotData: any[] | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let plotLayout: any = null;
 
-  const pctTooltip = {
-    trigger: "axis" as const,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    formatter: (params: any) => {
-      const items = Array.isArray(params) ? params : [params];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const first = items[0] as any;
-      const label = first.axisValue ?? first.value?.[0] ?? "";
-      let html = `<div style="font-weight:600;margin-bottom:4px">${label}</div>`;
-      for (const item of items) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const p = item as any;
-        const val = typeof p.value === "object" ? p.value?.[1] : p.value;
-        if (val == null) continue;
-        html += `<div>${p.marker} ${p.seriesName}: ${Number(val).toFixed(1)}%</div>`;
-      }
-      return html;
-    },
+  const basePlotLayout = {
+    paper_bgcolor: "transparent", plot_bgcolor: "transparent",
+    font: { family: "Inter, system-ui, sans-serif", size: 11 },
+    showlegend: true, legend: { orientation: "h" as const, y: -0.12, x: 0.5, xanchor: "center" as const, font: { size: 10 }, tracegroupgap: 5 },
+    xaxis: { gridcolor: "#e2e8f0", tickfont: { size: 10 } },
+    yaxis: { title: { text: "YoY %", font: { size: 10 } }, gridcolor: "#e2e8f0", griddash: "dash", tickfont: { size: 10 }, tickformat: ".0f", ticksuffix: "%" },
+    hovermode: "x unified" as const, autosize: true,
   };
 
   if (view === "quarterly" && hasQuarterly) {
-    // Align revenue data to quarter starts
     const revByQ: Record<string, number> = {};
     for (const r of revQuarterly) {
       const d = new Date(r.quarter_end);
       const qStart = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1);
       revByQ[qStart.toISOString().slice(0, 10)] = r.revenue_yoy_growth ?? 0;
     }
-    // Consensus revenue YoY by quarter
     const consByQ: Record<string, number | null> = {};
-    for (const r of consensusQuarterly) {
-      consByQ[r.quarter] = r.consensus_revenue_yoy;
-    }
+    for (const r of consensusQuarterly) { consByQ[r.quarter] = r.consensus_revenue_yoy; }
 
     const categories = quarterly.map((q) => q.quarter);
-    const signalData = quarterly.map((q) => q.avg_growth);
-    const revData = categories.map((q) => revByQ[q] ?? null);
-    const consData = categories.map((q) => consByQ[q] ?? null);
-
-    // Format x-axis labels as "Q1'21" instead of "2021-01-01"
     const qLabels = categories.map((q) => {
       const d = new Date(q);
-      const qNum = Math.floor(d.getMonth() / 3) + 1;
-      return `Q${qNum}'${String(d.getFullYear()).slice(2)}`;
+      return `Q${Math.floor(d.getMonth() / 3) + 1}'${String(d.getFullYear()).slice(2)}`;
     });
 
-    chartOption = {
-      tooltip: pctTooltip,
-      legend: { bottom: 0, textStyle: { fontSize: 11 }, itemWidth: 16, itemHeight: 10 },
-      grid: { top: 24, bottom: 44, left: 50, right: 20 },
-      xAxis: { type: "category", data: qLabels, axisLabel: { fontSize: 10 } },
-      yAxis: { type: "value", axisLabel: { fontSize: 11, formatter: (v: number) => `${v.toFixed(0)}%` }, name: "YoY %", nameTextStyle: { fontSize: 10 } },
-      series: [
-        { name: dataType.replace(/_/g, " "), type: "line", data: signalData, color: "#3b82f6", lineStyle: { width: 2 }, symbol: "circle", symbolSize: 4, smooth: false },
-        { name: "Revenue YoY (Actual)", type: "line", data: revData, color: "#f59e0b", lineStyle: { width: 2 }, symbol: "circle", symbolSize: 5 },
-        { name: "Revenue YoY (Consensus)", type: "line", data: consData, color: "#ef4444", lineStyle: { width: 2, type: "dashed" }, symbol: "diamond", symbolSize: 6 },
-      ],
-    };
+    plotData = [
+      { type: "scatter", mode: "lines+markers", name: dataType.replace(/_/g, " "), x: qLabels, y: quarterly.map((q) => q.avg_growth), line: { color: "#3b82f6", width: 2 }, marker: { size: 4 }, hovertemplate: "%{y:.1f}%<extra>%{fullData.name}</extra>" },
+      { type: "scatter", mode: "lines+markers", name: "Revenue YoY (Actual)", x: qLabels, y: categories.map((q) => revByQ[q] ?? null), line: { color: "#f59e0b", width: 2 }, marker: { size: 5 }, hovertemplate: "%{y:.1f}%<extra>Revenue YoY</extra>" },
+      { type: "scatter", mode: "lines+markers", name: "Revenue YoY (Consensus)", x: qLabels, y: categories.map((q) => consByQ[q] ?? null), line: { color: "#ef4444", width: 2, dash: "dash" }, marker: { size: 6, symbol: "diamond" }, hovertemplate: "%{y:.1f}%<extra>Consensus</extra>" },
+    ];
+    plotLayout = { ...basePlotLayout, margin: { l: 50, r: 20, t: 20, b: 50 } };
   } else {
-    // Weekly line chart
-    chartOption = {
-      tooltip: pctTooltip,
-      grid: { top: 20, bottom: 24, left: 50, right: 20 },
-      xAxis: { type: "time", axisLabel: { fontSize: 10 } },
-      yAxis: { type: "value", axisLabel: { fontSize: 11, formatter: (v: number) => `${v.toFixed(0)}%` }, name: "YoY Growth %", nameTextStyle: { fontSize: 11 } },
-      series: [
-        { name: dataType.replace(/_/g, " "), type: "line", data: weekly.map((w) => [w.date, w.growth]), color: "#3b82f6", lineStyle: { width: 1.5 }, symbol: "none", smooth: false },
-      ],
-    };
+    plotData = [
+      { type: "scatter", mode: "lines", name: dataType.replace(/_/g, " "), x: weekly.map((w) => w.date), y: weekly.map((w) => w.growth), line: { color: "#3b82f6", width: 1.5 }, hovertemplate: "%{y:.1f}%<extra>%{fullData.name}</extra>" },
+    ];
+    plotLayout = { ...basePlotLayout, margin: { l: 50, r: 20, t: 20, b: 30 }, yaxis: { ...basePlotLayout.yaxis, title: { text: "YoY Growth %", font: { size: 10 } } } };
   }
 
   return (
@@ -1269,10 +1356,10 @@ function AltDataSignalChart({ ticker, dataType }: { ticker: string; dataType: st
           </button>
         </div>
       </div>
-      {chartOption && (
+      {plotData && (
         <Suspense fallback={<div className="ep-muted">Loading chart...</div>}>
           <div style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius)", padding: "8px 0" }}>
-            <ReactECharts option={chartOption} style={{ height: "280px", width: "100%" }} notMerge />
+            <LazyPlot data={plotData} layout={plotLayout} config={PLOTLY_CFG} style={{ width: "100%", height: "280px" }} useResizeHandler />
           </div>
         </Suspense>
       )}

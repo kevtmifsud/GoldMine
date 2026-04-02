@@ -158,11 +158,17 @@ class JsonViewsProvider(ViewsProvider):
             owner=owner,
             description=pack.description,
             widgets=pack.widgets,
+            mcp_tiles=pack.mcp_tiles,
             is_shared=pack.is_shared,
             created_at=now,
             updated_at=now,
+            row_columns=pack.row_columns,
+            row_heights=pack.row_heights,
+            row_descriptions=pack.row_descriptions,
             entity_type=pack.entity_type,
             entity_id=pack.entity_id,
+            ticker_context=pack.ticker_context,
+            source_conversation_id=pack.source_conversation_id,
         )
         packs.append(saved)
         self._write_packs(packs)
@@ -179,6 +185,11 @@ class JsonViewsProvider(ViewsProvider):
                     update_data["widgets"] = [
                         w.model_dump() if hasattr(w, "model_dump") else w
                         for w in update_data["widgets"]
+                    ]
+                if "mcp_tiles" in update_data:
+                    update_data["mcp_tiles"] = [
+                        t.model_dump() if hasattr(t, "model_dump") else t
+                        for t in update_data["mcp_tiles"]
                     ]
                 data.update(update_data)
                 data["updated_at"] = self._now()

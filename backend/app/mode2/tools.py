@@ -32,8 +32,9 @@ _TOOL_LABELS: dict[str, str] = {
     "search_tools": "tool search",
     "search_documents": "document search",
     "get_financial_metrics": "financial metrics",
-    "get_all_estimates": "estimates",
+    "get_estimates": "estimates",
     "get_daily_pnl": "portfolio P&L",
+    "get_pnl_history": "portfolio P&L history",
     "get_portfolio_concentration": "portfolio concentration",
     "get_portfolio_risk": "portfolio risk",
     "get_trade_requests": "trade requests",
@@ -55,9 +56,15 @@ _TOOL_LABELS: dict[str, str] = {
 ALWAYS_LOADED_TOOL_NAMES: set[str] = {
     "search_tools",
     "search_documents",
+    "search_universe",
     "get_financial_metrics",
-    "get_all_estimates",
+    "get_estimates",
+    "get_estimate_history",
     "get_daily_pnl",
+    "get_alt_data",
+    "get_pnl_history",
+    "get_stock_history",
+    "get_guidance",
 }
 
 # Keyword index for deferred tool discovery (substring matching)
@@ -71,18 +78,6 @@ _DEFERRED_TOOL_INDEX: dict[str, list[str]] = {
     ],
     "get_trade_requests": [
         "trade", "trades", "order", "pending", "trade request",
-    ],
-    "get_stock_history": [
-        "stock price", "price history", "close price", "performance",
-        "stock history", "price",
-    ],
-    "get_guidance": [
-        "guidance", "forward guidance", "outlook", "raised", "lowered",
-        "withdrawn", "company guidance",
-    ],
-    "get_alt_data": [
-        "alt data", "alternative data", "credit card", "web traffic",
-        "app downloads", "google trends", "email receipts", "medical claims",
     ],
     "get_model_outputs": [
         "model", "model output", "assumptions", "scenario", "kpi",
@@ -244,28 +239,18 @@ _TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["tickers", "topic"],
         },
     },
+    # Definitions below are owned by real MCP servers (estimates, portfolio).
+    # They remain here so the generator can include them in Claude's tool list.
+    # Execution is handled by the MCP registry, not execute_tool().
     {
-        "name": "get_all_estimates",
+        "name": "get_estimates",
         "description": (
-            "Returns forward estimates from daily_estimates table. "
-            "For screening/ranking across the full universe, omit tickers entirely — "
-            "the query runs against ALL tickers without filtering. "
-            "For specific tickers, pass them all in a single call. "
-            "Always returns all four sources side by side: consensus (no firm), buyside "
-            "(by firm and analyst), internal (by analyst), sellside (by firm and analyst). "
-            "\n\nWhen querying many tickers or the full universe, ALWAYS set the metric "
-            "filter (e.g. 'eps', 'revenue') to keep results compact. "
-            "\n\nstaleness_days shows how many days since the estimate was last updated. "
-            "High staleness (>90 days) means the estimate may be outdated. "
-            "\n\nAll four sources always returned — never present a single source alone. "
-            "If a source has no estimate for a metric it is absent from results, not an error."
-            "\n\nPresent all sources side by side. Highlight the spread between them. "
-            "Cite each value with its source: "
-            "[TICKER | Internal | analyst_name | Period], "
-            "[TICKER | firm | analyst_name | Period], "
-            "[TICKER | Consensus | Period | as of as_of_date], "
-            "[TICKER | firm | analyst_name | Period]. "
-            "Always note staleness if staleness_days > 90: '(estimate is N days old)'."
+            "Get forward estimates from daily_estimates. Returns individual rows — "
+            "one per source/firm/analyst. NEVER averages or aggregates."
+            "\n\nDeep dive: tickers=['AAPL'], periods=['2026A'] → all analysts for AAPL 2026A"
+            "\nScreening: tickers=['AAPL','MSFT','NVDA'], sources=['consensus'] → consensus for all three"
+            "\n\nReturns per row: ticker, metric, period, source, firm, analyst_name, "
+            "value, yoy_vs_actual, prior_year_actual, as_of_date, staleness_days."
         ),
         "input_schema": {
             "type": "object",
@@ -273,68 +258,48 @@ _TOOL_DEFINITIONS: list[dict[str, Any]] = [
                 "tickers": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Ticker symbols to query. Omit or pass empty array to query ALL tickers (for screening/ranking across the full universe).",
+                    "description": "Ticker symbols. Required.",
                 },
-                "metric": {
-                    "type": "string",
-                    "description": "Filter to a single metric. DB values: 'diluted_eps', 'total_revenue', 'ebitda', 'gross_profit', 'operating_income', 'free_cash_flow'. Aliases also accepted: 'eps', 'revenue', 'fcf'. Strongly recommended when querying many tickers or the full universe.",
+                "metrics": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Metrics: total_revenue, diluted_eps, ebitda, gross_profit, operating_income, free_cash_flow. Aliases: eps, revenue, fcf.",
+                },
+                "periods": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Fiscal periods e.g. ['2026Q1','2026A']. Empty = all.",
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Filter: consensus, buyside, internal, sellside. Empty = all.",
                 },
             },
-            "required": [],
+            "required": ["tickers"],
         },
     },
     {
         "name": "get_daily_pnl",
         "description": (
-            "Query portfolio P&L data from daily_pnl table. Use for any question about "
-            "portfolio performance, P&L, daily returns, holdings, or contribution to portfolio. "
-            "\n\nReturns per position: unrealized_pnl (mark-to-market on open positions), "
-            "daily_realized_pnl (P&L from positions closed TODAY only), "
-            "ytd_pnl (year-to-date total P&L since Jan 1), "
-            "itd_pnl (inception-to-date total P&L since first trade), "
-            "market_value (current dollar value), daily_return (today's return %)."
-            "\n\nFor portfolio-wide queries (e.g. 'top 5 holdings'), omit ticker to get all positions. "
-            "Defaults to most recent date. Supports grouping by portfolio, side, sector."
-            "\n\nPortfolio values: 'Flagship', 'Long Only', or 'all' for both — "
-            "they will never be mixed or aggregated together."
-            "\n\nFor portfolio queries, ONLY use portfolio tools (get_daily_pnl, "
-            "get_portfolio_concentration, get_portfolio_risk, get_trade_requests). "
-            "NEVER combine with get_financial_metrics or get_stock_history."
-            "\n\nNo citation required for portfolio data."
+            "Query portfolio P&L from daily_pnl table. Returns position-level data.\n\n"
+            "Key fields: unrealized_pnl, daily_realized_pnl, ytd_pnl, itd_pnl, "
+            "market_value, daily_return %.\n\n"
+            "Portfolio values: 'Flagship', 'Long Only', or 'all' for both separately.\n\n"
+            "For portfolio queries, ONLY use portfolio tools. "
+            "NEVER combine with get_financial_metrics or get_stock_history.\n\n"
+            "No citation required."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "ticker": {
-                    "type": "string",
-                    "description": "Single ticker to filter. Omit for all positions.",
-                },
-                "portfolio": {
-                    "type": "string",
-                    "description": "Which portfolio to query. Use 'Flagship' or 'Long Only' for a specific portfolio. Use 'all' to see both portfolios separately — they will never be mixed or aggregated together. Default: 'all'.",
-                },
-                "order_by": {
-                    "type": "string",
-                    "description": "Column to sort by. Options: unrealized_pnl, realized_pnl, market_value, cost_basis, daily_return, cumulative_return, contribution_to_portfolio, shares_held, ticker. Default: unrealized_pnl.",
-                },
-                "order_dir": {
-                    "type": "string",
-                    "enum": ["asc", "desc"],
-                    "description": "Sort direction. Default: desc.",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Max rows to return. Default: 100.",
-                },
-                "group_by": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Columns to group by for aggregation: portfolio, side, sector, industry, ticker, date.",
-                },
-                "date": {
-                    "type": "string",
-                    "description": "Specific date (YYYY-MM-DD). Default: most recent date.",
-                },
+                "ticker": {"type": "string", "description": "Single ticker. Omit for all positions."},
+                "portfolio": {"type": "string", "description": "'Flagship', 'Long Only', or 'all'. Default 'all'."},
+                "order_by": {"type": "string", "description": "Sort column. Default 'unrealized_pnl'."},
+                "order_dir": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction. Default 'desc'."},
+                "limit": {"type": "integer", "description": "Max rows. Default 100."},
+                "group_by": {"type": "array", "items": {"type": "string"}, "description": "Group by: portfolio, side, sector, industry, ticker, date."},
+                "date": {"type": "string", "description": "Date YYYY-MM-DD. Default: most recent."},
             },
             "required": [],
         },
@@ -342,24 +307,16 @@ _TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "name": "get_portfolio_concentration",
         "description": (
-            "Query portfolio concentration and exposure data. Returns position weights, "
-            "sector weights, industry weights, and market neutrality compliance. "
-            "\n\nPortfolio values: 'Flagship', 'Long Only', or omit for both."
-            "\n\nFor portfolio queries, ONLY use portfolio tools. "
-            "NEVER combine with get_financial_metrics or get_stock_history."
-            "\n\nNo citation required for portfolio data."
+            "Portfolio concentration — position weights, sector weights, "
+            "market neutrality compliance.\n\n"
+            "Portfolio values: 'Flagship', 'Long Only', or omit for both.\n\n"
+            "No citation required."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "ticker": {
-                    "type": "string",
-                    "description": "Single ticker to filter. Omit for full portfolio.",
-                },
-                "portfolio": {
-                    "type": "string",
-                    "description": "Portfolio filter: 'Flagship', 'Long Only', or omit for both.",
-                },
+                "ticker": {"type": "string", "description": "Single ticker filter."},
+                "portfolio": {"type": "string", "description": "'Flagship', 'Long Only', or omit for both."},
             },
             "required": [],
         },
@@ -367,23 +324,48 @@ _TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "name": "get_portfolio_risk",
         "description": (
-            "Query portfolio risk data including beta exposures and weighted beta "
-            "contributions. "
-            "\n\nPortfolio values: 'Flagship', 'Long Only', or omit for both."
-            "\n\nFor portfolio queries, ONLY use portfolio tools. "
-            "NEVER combine with get_financial_metrics or get_stock_history."
+            "Portfolio risk — beta exposures and weighted beta contributions.\n\n"
+            "Portfolio values: 'Flagship', 'Long Only', or omit for both.\n\n"
+            "No citation required."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Single ticker filter."},
+                "portfolio": {"type": "string", "description": "'Flagship', 'Long Only', or omit for both."},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_pnl_history",
+        "description": (
+            "Get portfolio P&L over time as a time series for charting. "
+            "Returns one row per date per portfolio showing P&L trend."
+            "\n\nUse this when the analyst asks to 'plot P&L over time' or "
+            "'show portfolio performance trend'."
             "\n\nNo citation required for portfolio data."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "ticker": {
-                    "type": "string",
-                    "description": "Single ticker to filter. Omit for full portfolio.",
-                },
                 "portfolio": {
                     "type": "string",
-                    "description": "Portfolio filter: 'Flagship', 'Long Only', or omit for both.",
+                    "description": "'Flagship', 'Long Only', or 'all'. Default 'all'.",
+                    "enum": ["Flagship", "Long Only", "all"],
+                },
+                "ticker": {
+                    "type": "string",
+                    "description": "Single ticker for position-level history. Omit for portfolio total.",
+                },
+                "metric": {
+                    "type": "string",
+                    "description": "Which metric: itd_pnl, ytd_pnl, unrealized_pnl, daily_return. Default 'itd_pnl'.",
+                    "enum": ["itd_pnl", "ytd_pnl", "unrealized_pnl", "daily_return"],
+                },
+                "lookback_days": {
+                    "type": "integer",
+                    "description": "Days of history. Default 365.",
                 },
             },
             "required": [],
@@ -459,6 +441,9 @@ _TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "Retrieve alternative data signals for a ticker. Returns raw values "
             "exactly as stored — never aggregates, calculates, or transforms the data. "
             "Always show the raw values from the database to the analyst."
+            "\n\nDefault behavior: returns last 150 weeks (~3 years) of weekly data. "
+            "For short-term credit card analysis, use preferred_frequency='daily' and "
+            "lookback_days=90."
             "\n\nAvailable signals by industry:"
             "\nRestaurants (CMG, DPZ, SBUX):"
             "\n  credit_card_sss_yoy — same-store sales YoY % (daily, 3-day lag)"
@@ -486,17 +471,27 @@ _TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     "items": {"type": "string"},
                     "description": "Signal names to query. Empty list = all available signals for this ticker.",
                 },
+                "preferred_frequency": {
+                    "type": "string",
+                    "enum": ["daily", "weekly", "monthly"],
+                    "description": (
+                        "Which data frequency to return. Default 'weekly'. "
+                        "Use 'daily' for short-term credit card analysis. "
+                        "Signals without data at this frequency fall back "
+                        "to their native frequency."
+                    ),
+                },
+                "lookback_days": {
+                    "type": "integer",
+                    "description": "Days of history. Default 1050 (~150 weeks / ~3yrs). For daily use 90.",
+                },
                 "date_from": {
                     "type": "string",
-                    "description": "Start date YYYY-MM-DD. Default: signal-appropriate lookback.",
+                    "description": "Start date YYYY-MM-DD. Overrides lookback_days.",
                 },
                 "date_to": {
                     "type": "string",
                     "description": "End date YYYY-MM-DD. Default: most recent available.",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Max rows per signal. Default: 30 for daily, 12 for weekly/monthly.",
                 },
             },
             "required": ["ticker"],
@@ -752,87 +747,12 @@ async def execute_tool(
                 [c.model_dump() for c in chunks],
             )
 
-        elif tool_name == "get_financial_metrics":
-            rows = await retrieval._structured_query(
-                tickers=tool_input.get("tickers", []),
-                topic=tool_input.get("topic", ""),
-                fiscal_periods=tool_input.get("fiscal_periods"),
-                steps=steps,
-            )
-            return _safe_json_dumps(rows)
-
-        elif tool_name == "get_all_estimates":
-            rows = await retrieval._query_estimates(
-                tickers=tool_input.get("tickers", []),
-                classified=classified,
-                steps=steps,
-                metric=tool_input.get("metric"),
-            )
-            return _safe_json_dumps(rows)
-
-        elif tool_name == "get_daily_pnl":
-            rows = await retrieval._query_daily_pnl(
-                tickers=[tool_input["ticker"]] if tool_input.get("ticker") else [],
-                classified=classified,
-                steps=steps,
-                portfolio=tool_input.get("portfolio", "all"),
-                date=tool_input.get("date"),
-                date_range=tool_input.get("date_range"),
-                group_by=tool_input.get("group_by"),
-                ticker=tool_input.get("ticker"),
-                limit=tool_input.get("limit"),
-                order_by=tool_input.get("order_by", "unrealized_pnl"),
-                order_dir=tool_input.get("order_dir", "desc"),
-            )
-            return _safe_json_dumps(rows)
-
-        elif tool_name == "get_portfolio_concentration":
-            rows = await retrieval._query_portfolio_concentration(
-                tickers=[tool_input["ticker"]] if tool_input.get("ticker") else [],
-                classified=classified,
-                steps=steps,
-                portfolio=tool_input.get("portfolio"),
-                ticker=tool_input.get("ticker"),
-            )
-            return _safe_json_dumps(rows)
-
-        elif tool_name == "get_portfolio_risk":
-            rows = await retrieval._query_portfolio_risk(
-                tickers=[tool_input["ticker"]] if tool_input.get("ticker") else [],
-                classified=classified,
-                steps=steps,
-                portfolio=tool_input.get("portfolio"),
-                ticker=tool_input.get("ticker"),
-            )
-            return _safe_json_dumps(rows)
-
         elif tool_name == "get_trade_requests":
             rows = await retrieval._query_trade_requests(
                 tickers=tool_input.get("tickers", []),
                 classified=classified,
                 steps=steps,
             )
-            return _safe_json_dumps(rows)
-
-        elif tool_name == "get_stock_history":
-            rows = await retrieval._query_stock_history(
-                tickers=tool_input.get("tickers", []),
-                classified=classified,
-                steps=steps,
-            )
-            return _safe_json_dumps(rows)
-
-        elif tool_name == "get_guidance":
-            # Temporarily override fiscal_periods on classified for the query
-            original_periods = classified.fiscal_periods
-            if tool_input.get("fiscal_periods"):
-                classified.fiscal_periods = tool_input["fiscal_periods"]
-            rows = await retrieval._query_guidance(
-                tickers=tool_input.get("tickers", []),
-                classified=classified,
-                steps=steps,
-            )
-            classified.fiscal_periods = original_periods
             return _safe_json_dumps(rows)
 
         elif tool_name == "get_alt_data":

@@ -1,12 +1,17 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Layout } from "../components/Layout";
 import { useMode2Chat } from "../hooks/useMode2Chat";
+import type { ChatMessage } from "../hooks/useMode2Chat";
+import { useSlashCommand, CATEGORY_SLUGS } from "../hooks/useSlashCommand";
 import { ChatMarkdown } from "../components/chat/ChatMarkdown";
+import { SlashMenu } from "../components/chat/SlashMenu";
 import { TranscriptViewerDialog } from "../components/research/TranscriptViewerDialog";
 import { FinancialDataDialog } from "../components/chat/FinancialDataDialog";
 import { ReportResponseDialog } from "../components/chat/ReportResponseDialog";
 import { PipelineSteps } from "../components/chat/PipelineSteps";
+import { AddToPageModal } from "../components/chat/AddToPageModal";
+import type { AddToPageConfig } from "../components/chat/ChatMarkdown";
 import type { ParsedCitation } from "../utils/citationParser";
 import {
   isInlineViewable,
@@ -15,7 +20,9 @@ import {
   parseFiscalPeriod,
   documentTypeToRoute,
 } from "../utils/citationParser";
+import { generatePack } from "../config/viewsApi";
 import "../styles/chat.css";
+import "../styles/slash-menu.css";
 
 const EXAMPLE_PROMPTS = [
   "What did AAPL say about margins last quarter?",
@@ -40,8 +47,106 @@ interface ReportingMessage {
   llmResponse: string;
 }
 
+// ---------------------------------------------------------------------------
+// Memoized message components — isolate from slash menu re-renders
+// ---------------------------------------------------------------------------
+
+interface MessageItemProps {
+  message: ChatMessage;
+  index: number;
+  messages: ChatMessage[];
+  onCitationClick: (citation: ParsedCitation) => void;
+  onSendPrompt: (prompt: string) => void;
+  onAddToPage: (config: AddToPageConfig) => void;
+  onReport: (report: ReportingMessage) => void;
+}
+
+const MessageItem = React.memo(function MessageItem({
+  message: msg,
+  index: idx,
+  messages,
+  onCitationClick,
+  onSendPrompt,
+  onAddToPage,
+  onReport,
+}: MessageItemProps) {
+  return (
+    <div>
+      {msg.role === "assistant" && msg.steps && msg.steps.length > 0 && (
+        <PipelineSteps steps={msg.steps} completed={true} />
+      )}
+      <div className={`chat-page__msg chat-page__msg--${msg.role}`}>
+        {msg.role === "assistant" ? (
+          <ChatMarkdown
+            onCitationClick={onCitationClick}
+            onSendPrompt={onSendPrompt}
+            onAddToPage={onAddToPage}
+          >
+            {msg.content}
+          </ChatMarkdown>
+        ) : (
+          msg.content
+        )}
+      </div>
+      {msg.role === "assistant" && (
+        <button
+          className="chat-page__report-btn"
+          onClick={() => {
+            const prevUser = messages
+              .slice(0, idx)
+              .reverse()
+              .find((m) => m.role === "user");
+            onReport({
+              userQuery: prevUser?.content ?? "",
+              llmResponse: msg.content,
+            });
+          }}
+        >
+          Report Response
+        </button>
+      )}
+    </div>
+  );
+});
+
+interface MessageListProps {
+  messages: ChatMessage[];
+  onCitationClick: (citation: ParsedCitation) => void;
+  onSendPrompt: (prompt: string) => void;
+  onAddToPage: (config: AddToPageConfig) => void;
+  onReport: (report: ReportingMessage) => void;
+}
+
+const MessageList = React.memo(function MessageList({
+  messages,
+  onCitationClick,
+  onSendPrompt,
+  onAddToPage,
+  onReport,
+}: MessageListProps) {
+  return (
+    <>
+      {messages.map((msg, idx) => (
+        <MessageItem
+          key={idx}
+          message={msg}
+          index={idx}
+          messages={messages}
+          onCitationClick={onCitationClick}
+          onSendPrompt={onSendPrompt}
+          onAddToPage={onAddToPage}
+          onReport={onReport}
+        />
+      ))}
+    </>
+  );
+});
+
+// ---------------------------------------------------------------------------
+
 export function ChatPage() {
   const chat = useMode2Chat();
+  const slash = useSlashCommand();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [input, setInput] = useState("");
@@ -53,6 +158,9 @@ export function ChatPage() {
   const [viewingFinancials, setViewingFinancials] =
     useState<ViewingFinancials | null>(null);
   const [reporting, setReporting] = useState<ReportingMessage | null>(null);
+  const [addToPageConfig, setAddToPageConfig] = useState<AddToPageConfig | null>(null);
+  const [, setPackGenerating] = useState(false);
+  const [, setPackStatus] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -71,27 +179,197 @@ export function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat.messages, chat.streamingContent, chat.chatLoading]);
 
+  const handleGeneratePack = useCallback(async () => {
+    if (chat.messages.length === 0) {
+      setPackStatus("No conversation to generate a pack from.");
+      return;
+    }
+    setPackGenerating(true);
+    setPackStatus(null);
+    try {
+      const apiMessages = chat.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        tool_calls: m.tool_calls || [],
+      }));
+      const result = await generatePack({
+        session_id: chat.sessionId ?? undefined,
+        messages: apiMessages,
+      });
+      if (result.error) {
+        setPackStatus(result.error);
+      } else {
+        setPackStatus(`Pack "${result.pack_name}" created with ${result.tile_count} tiles.`);
+        window.open(result.redirect_url, "_blank");
+      }
+    } catch {
+      setPackStatus("Failed to generate pack. Try again.");
+    } finally {
+      setPackGenerating(false);
+    }
+  }, [chat.messages, chat.sessionId]);
+
   const handleSend = () => {
     if (!input.trim() || chat.chatLoading) return;
-    chat.sendMessage(input);
+
+    // Direct command: /pack
+    if (input.trim().toLowerCase() === "/pack") {
+      setInput("");
+      slash.dismissMenu();
+      handleGeneratePack();
+      if (textareaRef.current) textareaRef.current.style.height = "42px";
+      return;
+    }
+
+    if (slash.slashMode && slash.selectedTool) {
+      if (!slash.requiredParamsFilled) return;
+      const tool = slash.selectedTool;
+      const paramStr = slash.slashParams.join(" ");
+      chat.sendMessage(`@${tool.full_name}(${paramStr})`);
+    } else {
+      chat.sendMessage(input);
+    }
     setInput("");
+    slash.dismissMenu();
     if (textareaRef.current) {
       textareaRef.current.style.height = "42px";
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (slash.slashMenuVisible) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        slash.dismissMenu();
+        setInput("");
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const count = slash.menuItemCount();
+        if (count > 0) {
+          const delta = e.key === "ArrowDown" ? 1 : -1;
+          slash.setSelectedIndex(
+            (slash.selectedIndex + delta + count) % count,
+          );
+        }
+        return;
+      }
+      if (e.key === "Tab") {
+        e.preventDefault();
+        // In params mode: Tab skips optional params (adds empty placeholder)
+        if (slash.menuMode === "params" && slash.selectedTool) {
+          const currentP = slash.selectedTool.parameters[slash.currentParamIndex];
+          if (currentP && !currentP.required) {
+            // Skip this optional param — append a space to advance
+            const newInput = input.trimEnd() + " ";
+            setInput(newInput);
+            slash.parseInput(newInput);
+            return;
+          }
+          // Required param — don't skip, stay here
+          return;
+        }
+        // In category/tool mode: autocomplete
+        const completed = slash.autocomplete(input);
+        if (completed) {
+          setInput(completed);
+          slash.parseInput(completed);
+        }
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+
+        if (slash.menuMode === "categories") {
+          const partial = slash.slashCategory?.toLowerCase() ?? "";
+          const filtered = CATEGORY_SLUGS.filter((s) =>
+            s.startsWith(partial),
+          );
+          if (filtered[slash.selectedIndex]) {
+            const newInput = slash.selectCategory(filtered[slash.selectedIndex]);
+            setInput(newInput);
+            slash.parseInput(newInput);
+          }
+          return;
+        }
+
+        if (slash.menuMode === "tools") {
+          const partial = slash.slashToolName?.toLowerCase() ?? "";
+          const filtered = slash.categoryTools.filter((t) =>
+            t.name.toLowerCase().startsWith(partial),
+          );
+          if (filtered[slash.selectedIndex]) {
+            const newInput = slash.selectTool(filtered[slash.selectedIndex].name);
+            setInput(newInput);
+            slash.parseInput(newInput);
+          }
+          return;
+        }
+
+        if (slash.menuMode === "params") {
+          // If enum is showing, select the highlighted enum value
+          const param = slash.selectedTool?.parameters[slash.currentParamIndex];
+          if (param?.enum && param.enum[slash.selectedIndex]) {
+            const newInput = slash.selectEnumValue(param.enum[slash.selectedIndex]);
+            setInput(newInput);
+            slash.parseInput(newInput);
+            return;
+          }
+          // Block send if required params are missing
+          if (!slash.requiredParamsFilled) {
+            // Do nothing — user needs to keep filling params
+            return;
+          }
+          handleSend();
+          return;
+        }
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
 
+  const handleInputChange = (value: string) => {
+    setInput(value);
+    slash.parseInput(value);
+  };
+
+  const handleSlashSelectCategory = (slug: string) => {
+    const newInput = slash.selectCategory(slug);
+    setInput(newInput);
+    slash.parseInput(newInput);
+    textareaRef.current?.focus();
+  };
+
+  const handleSlashSelectTool = (toolName: string) => {
+    const newInput = slash.selectTool(toolName);
+    setInput(newInput);
+    slash.parseInput(newInput);
+    textareaRef.current?.focus();
+  };
+
+  const handleSlashSelectEnum = (value: string) => {
+    const newInput = slash.selectEnumValue(value);
+    setInput(newInput);
+    slash.parseInput(newInput);
+    textareaRef.current?.focus();
+  };
+
+  const handleSlashSendPrompt = (prompt: string) => {
+    slash.dismissMenu();
+    setInput("");
+    chat.sendMessage(prompt);
+  };
+
   const handlePromptClick = (prompt: string) => {
     chat.sendMessage(prompt);
   };
 
-  const handleCitationClick = (citation: ParsedCitation) => {
+  const handleCitationClick = useCallback((citation: ParsedCitation) => {
     // Estimate citations — no page to navigate to (structured DB data)
     if (citation.citationType === "estimate") {
       return;
@@ -120,7 +398,15 @@ export function ChatPage() {
     // Fallback: navigate to research page
     const route = documentTypeToRoute(citation.docType);
     navigate(`/entity/stock/${citation.ticker}/research/${route}`);
-  };
+  }, [navigate]);
+
+  const handleAddToPage = useCallback((config: AddToPageConfig) => {
+    setAddToPageConfig(config);
+  }, []);
+
+  const handleReport = useCallback((report: ReportingMessage) => {
+    setReporting(report);
+  }, []);
 
   const handleTextareaInput = () => {
     const el = textareaRef.current;
@@ -190,72 +476,50 @@ export function ChatPage() {
 
         <div className="chat-page__messages">
           {showWelcome && (
-            <div className="chat-page__welcome">
-              <span className="chat-page__welcome-title">
-                GoldMine Chat
-              </span>
-              <span className="chat-page__welcome-desc">
-                Ask questions about earnings transcripts, financial metrics, and
-                company guidance. Answers are sourced from real filings and
-                transcripts.
-              </span>
-              <div className="chat-page__welcome-prompts">
-                {EXAMPLE_PROMPTS.map((prompt) => (
-                  <button
-                    key={prompt}
-                    className="chat-page__prompt-btn"
-                    onClick={() => handlePromptClick(prompt)}
-                  >
-                    {prompt}
-                  </button>
-                ))}
+            <>
+              <div className="chat-page__spacer" />
+              <div className="chat-page__welcome">
+                <span className="chat-page__welcome-title">
+                  GoldMine Chat
+                </span>
+                <span className="chat-page__welcome-desc">
+                  Ask questions about earnings transcripts, financial metrics, and
+                  company guidance. Answers are sourced from real filings and
+                  transcripts.
+                </span>
+                <div className="chat-page__welcome-prompts">
+                  {EXAMPLE_PROMPTS.map((prompt) => (
+                    <button
+                      key={prompt}
+                      className="chat-page__prompt-btn"
+                      onClick={() => handlePromptClick(prompt)}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            </>
           )}
 
-          {chat.messages.map((msg, idx) => (
-            <div key={idx}>
-              <div
-                className={`chat-page__msg chat-page__msg--${msg.role}`}
-              >
-                {msg.role === "assistant" ? (
-                  <ChatMarkdown onCitationClick={handleCitationClick} onSendPrompt={chat.sendMessage}>
-                    {msg.content}
-                  </ChatMarkdown>
-                ) : (
-                  msg.content
-                )}
-              </div>
-              {msg.role === "assistant" && (
-                <button
-                  className="chat-page__report-btn"
-                  onClick={() => {
-                    const prevUser = chat.messages
-                      .slice(0, idx)
-                      .reverse()
-                      .find((m) => m.role === "user");
-                    setReporting({
-                      userQuery: prevUser?.content ?? "",
-                      llmResponse: msg.content,
-                    });
-                  }}
-                >
-                  Report Response
-                </button>
-              )}
-            </div>
-          ))}
+          <MessageList
+            messages={chat.messages}
+            onCitationClick={handleCitationClick}
+            onSendPrompt={chat.sendMessage}
+            onAddToPage={handleAddToPage}
+            onReport={handleReport}
+          />
 
-          {chat.steps.length > 0 && (
+          {chat.chatLoading && chat.steps.length > 0 && (
             <PipelineSteps
               steps={chat.steps}
-              completed={!chat.chatLoading}
+              completed={false}
             />
           )}
 
           {chat.streamingContent && (
             <div className="chat-page__msg chat-page__msg--streaming">
-              <ChatMarkdown onCitationClick={handleCitationClick} onSendPrompt={chat.sendMessage}>
+              <ChatMarkdown onCitationClick={handleCitationClick} onSendPrompt={chat.sendMessage} onAddToPage={handleAddToPage}>
                 {chat.streamingContent}
               </ChatMarkdown>
             </div>
@@ -299,7 +563,7 @@ export function ChatPage() {
                   const lastUser = [...chat.messages]
                     .reverse()
                     .find((m) => m.role === "user");
-                  setReporting({
+                  handleReport({
                     userQuery: lastUser?.content ?? "",
                     llmResponse: "",
                   });
@@ -310,40 +574,54 @@ export function ChatPage() {
             </>
           )}
 
+          {/* Sticky input — follows messages but pins to bottom of viewport */}
+          <div className="chat-page__input-sticky">
+            {slash.slashMenuVisible && (
+              <SlashMenu
+                slash={slash}
+                onSelectCategory={handleSlashSelectCategory}
+                onSelectTool={handleSlashSelectTool}
+                onSelectEnumValue={handleSlashSelectEnum}
+                onSendPrompt={handleSlashSendPrompt}
+                onDismiss={slash.dismissMenu}
+              />
+            )}
+            <div className={`chat-page__input-area${slash.slashMode ? " chat-page__input-area--slash" : ""}`}>
+              <textarea
+                ref={textareaRef}
+                className={`chat-page__textarea${slash.slashMode ? " chat-page__textarea--slash" : ""}`}
+                value={input}
+                onChange={(e) => {
+                  handleInputChange(e.target.value);
+                  handleTextareaInput();
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder={slash.slashMode ? "Type a command... (Esc to cancel)" : "Ask about earnings, guidance, margins..."}
+                rows={1}
+                disabled={chat.chatLoading}
+              />
+              {chat.chatLoading ? (
+                <button
+                  className="chat-page__send-btn chat-page__send-btn--cancel"
+                  onClick={chat.cancelChat}
+                >
+                  Cancel
+                </button>
+              ) : (
+                <button
+                  className="chat-page__send-btn"
+                  onClick={handleSend}
+                  disabled={!input.trim() || (slash.slashMode && slash.menuMode === "params" && !slash.requiredParamsFilled)}
+                >
+                  Send
+                </button>
+              )}
+            </div>
+          </div>
+
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="chat-page__input-area">
-          <textarea
-            ref={textareaRef}
-            className="chat-page__textarea"
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              handleTextareaInput();
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about earnings, guidance, margins..."
-            rows={1}
-            disabled={chat.chatLoading}
-          />
-          {chat.chatLoading ? (
-            <button
-              className="chat-page__send-btn chat-page__send-btn--cancel"
-              onClick={chat.cancelChat}
-            >
-              Cancel
-            </button>
-          ) : (
-            <button
-              className="chat-page__send-btn"
-              onClick={handleSend}
-              disabled={!input.trim()}
-            >
-              Send
-            </button>
-          )}
-        </div>
       </div>
 
       {viewingTranscript && (
@@ -372,6 +650,12 @@ export function ChatPage() {
           onClose={() => setReporting(null)}
         />
       )}
+
+      <AddToPageModal
+        isOpen={!!addToPageConfig}
+        onClose={() => setAddToPageConfig(null)}
+        tileConfig={addToPageConfig}
+      />
     </Layout>
   );
 }
